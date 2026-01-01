@@ -320,39 +320,30 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 class Ground extends PositionComponent {
   Ground() : super(position: Vector2.zero(), size: Vector2(GameConstants.worldWidth, GameConstants.worldHeight), priority: 0);
 
+  // Checker tile size
+  static const double tileSize = 48.0;
+
   @override
   void render(Canvas canvas) {
-    // Draw base grass color
-    final basePaint = Paint()..color = GameColors.grassGreen;
-    canvas.drawRect(size.toRect(), basePaint);
+    final lightPaint = Paint()..color = GameColors.grassGreen;
+    // Slightly darker shade of the base green
+    final darkPaint = Paint()..color = const Color(0xFF437320);
 
-    // Draw some grass texture/variation
-    final lightPaint = Paint()..color = GameColors.grassGreenLight;
-    final darkPaint = Paint()..color = GameColors.grassGreenDark;
+    // Draw checkered pattern
+    final tilesX = (size.x / tileSize).ceil();
+    final tilesY = (size.y / tileSize).ceil();
 
-    // Draw random grass patches for visual interest
-    final random = _SeededRandom(42);
-    for (var i = 0; i < 200; i++) {
-      final x = random.nextDouble() * size.x;
-      final y = random.nextDouble() * size.y;
-      final patchSize = 20 + random.nextDouble() * 40;
-      final isLight = random.nextBool();
-
-      canvas.drawCircle(Offset(x, y), patchSize, isLight ? lightPaint : darkPaint);
+    for (var row = 0; row < tilesY; row++) {
+      for (var col = 0; col < tilesX; col++) {
+        final isLight = (row + col) % 2 == 0;
+        final rect = Rect.fromLTWH(
+          col * tileSize,
+          row * tileSize,
+          tileSize,
+          tileSize,
+        );
+        canvas.drawRect(rect, isLight ? lightPaint : darkPaint);
+      }
     }
   }
-}
-
-/// Simple seeded random for consistent patterns
-class _SeededRandom {
-  int _seed;
-
-  _SeededRandom(this._seed);
-
-  double nextDouble() {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return _seed / 0x7fffffff;
-  }
-
-  bool nextBool() => nextDouble() > 0.5;
 }
