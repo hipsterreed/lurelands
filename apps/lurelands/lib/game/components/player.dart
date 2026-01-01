@@ -4,7 +4,7 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
 
-import '../../models/pond_data.dart';
+import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import 'cast_line.dart';
@@ -127,7 +127,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, GameConstants.worldHeight - GameConstants.playerSize / 2);
 
     // Check for collisions BEFORE moving (Flame best practice: predictive collision detection)
-    if (!_wouldCollideWithPond(newPosition) && !_wouldCollideWithTree(newPosition)) {
+    if (!_wouldCollideWithWater(newPosition) && !_wouldCollideWithTree(newPosition)) {
       position = newPosition;
     }
 
@@ -144,19 +144,26 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     _facingAngle = atan2(direction.y, direction.x);
   }
 
-  bool _wouldCollideWithPond(Vector2 newPos) {
+  bool _wouldCollideWithWater(Vector2 newPos) {
     // Player hitbox is roughly 50x50, so use ~25px as player "radius"
     const playerHitboxRadius = 25.0;
     
-    for (final pond in game.ponds) {
-      // Check if new position would overlap with pond
-      final dx = newPos.x - pond.x;
-      final dy = newPos.y - pond.y;
-      final distance = sqrt(dx * dx + dy * dy);
-
-      // Check if player hitbox would overlap with pond hitbox
-      if (distance < pond.radius + playerHitboxRadius) {
-        return true;
+    // Check all water bodies
+    for (final waterBody in game.allWaterBodies) {
+      // Use a slightly expanded containsPoint check for the player hitbox
+      // Check corners and center of player hitbox
+      final checkPoints = [
+        newPos,
+        Vector2(newPos.x - playerHitboxRadius, newPos.y),
+        Vector2(newPos.x + playerHitboxRadius, newPos.y),
+        Vector2(newPos.x, newPos.y - playerHitboxRadius),
+        Vector2(newPos.x, newPos.y + playerHitboxRadius),
+      ];
+      
+      for (final point in checkPoints) {
+        if (waterBody.containsPoint(point.x, point.y)) {
+          return true;
+        }
       }
     }
     return false;
@@ -184,30 +191,32 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   }
 
 
-  /// Start casting into a pond
+  /// Start casting into a water body
   /// [power] is a value from 0.0 to 1.0 representing the charge level
-  void startCasting(PondData pond, double power) {
+  /// Cast distance is based on equipped pole's max distance and power level
+  void startCasting(WaterBodyData waterBody, double power) {
     if (_isCasting) return;
 
     _isCasting = true;
 
-    // Calculate cast target - towards the pond center from player
-    final directionToPond = Vector2(pond.x - position.x, pond.y - position.y);
-    directionToPond.normalize();
+    // Calculate cast target - towards the water body center from player
+    final directionToWater = Vector2(waterBody.x - position.x, waterBody.y - position.y);
+    directionToWater.normalize();
 
-    // Update facing angle towards pond
-    _facingAngle = atan2(directionToPond.y, directionToPond.x);
+    // Update facing angle towards water
+    _facingAngle = atan2(directionToWater.y, directionToWater.x);
 
-    // Calculate cast distance based on power (0.0 to 1.0)
-    final powerDistance = GameConstants.minCastDistance + 
-        (GameConstants.maxCastDistance - GameConstants.minCastDistance) * power;
-    
-    // Cast line lands inside the pond (clamped to distance to pond)
-    final distanceToPond = sqrt(pow(pond.x - position.x, 2) + pow(pond.y - position.y, 2)) - GameConstants.playerSize;
-    final castDistance = min(powerDistance, distanceToPond);
+    // Get the equipped pole's max cast distance
+    final poleAsset = ItemAssets.getFishingPole(_equippedPoleTier);
+    final maxDistance = poleAsset.maxCastDistance;
 
-    final targetX = position.x + directionToPond.x * castDistance;
-    final targetY = position.y + directionToPond.y * castDistance;
+    // Calculate cast distance based on power and pole's max distance
+    // Higher tier poles can cast further!
+    final castDistance = GameConstants.minCastDistance + 
+        (maxDistance - GameConstants.minCastDistance) * power;
+
+    final targetX = position.x + directionToWater.x * castDistance;
+    final targetY = position.y + directionToWater.y * castDistance;
 
     // Create cast line
     _castLine = CastLine(startPosition: position.clone(), endPosition: Vector2(targetX, targetY));

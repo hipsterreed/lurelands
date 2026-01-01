@@ -4,7 +4,7 @@ import 'dart:ui';
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
-import '../../models/pond_data.dart';
+import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
 
 /// Pond component - a circular body of water

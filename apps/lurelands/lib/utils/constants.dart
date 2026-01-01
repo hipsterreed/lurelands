@@ -94,11 +94,13 @@ class FishingPoleAsset {
   final String normal;
   final String casted;
   final int tier;
+  final double maxCastDistance; // Max distance this pole can cast
 
   const FishingPoleAsset({
     required this.normal,
     required this.casted,
     required this.tier,
+    required this.maxCastDistance,
   });
 }
 
@@ -118,28 +120,33 @@ class ItemAssets {
   ItemAssets._();
 
   // Fishing Poles (tier 1-4, each with normal and casted/alt variant)
+  // Each tier has progressively longer max cast distance
   static const FishingPoleAsset fishingPole1 = FishingPoleAsset(
     normal: '${AssetPaths.items}/fishing_pole_1.png',
     casted: '${AssetPaths.items}/fishing_pole_alt_1.png',
     tier: 1,
+    maxCastDistance: 100.0, // Starter pole
   );
 
   static const FishingPoleAsset fishingPole2 = FishingPoleAsset(
     normal: '${AssetPaths.items}/fishing_pole_2.png',
     casted: '${AssetPaths.items}/fishing_pole_alt_2.png',
     tier: 2,
+    maxCastDistance: 140.0, // Better range
   );
 
   static const FishingPoleAsset fishingPole3 = FishingPoleAsset(
     normal: '${AssetPaths.items}/fishing_pole_3.png',
     casted: '${AssetPaths.items}/fishing_pole_alt_3.png',
     tier: 3,
+    maxCastDistance: 180.0, // Great range
   );
 
   static const FishingPoleAsset fishingPole4 = FishingPoleAsset(
     normal: '${AssetPaths.items}/fishing_pole_4.png',
     casted: '${AssetPaths.items}/fishing_pole_alt_4.png',
     tier: 4,
+    maxCastDistance: 220.0, // Maximum range
   );
 
   /// All fishing poles indexed by tier (1-4)

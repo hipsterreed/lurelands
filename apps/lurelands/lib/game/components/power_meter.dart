@@ -9,13 +9,14 @@ import '../lurelands_game.dart';
 class PowerMeter extends PositionComponent with HasGameReference<LurelandsGame> {
   PowerMeter()
       : super(
-          size: Vector2(8, 40),
+          size: Vector2(10, 70), // Taller meter
           anchor: Anchor.bottomCenter,
         );
 
   // Meter styling
   static const double borderWidth = 1.5;
-  static const double cornerRadius = 3.0;
+  static const double cornerRadius = 4.0;
+  static const int sectionCount = 6; // More sections for finer control
 
   double _displayPower = 0.0;
   double _targetPower = 0.0;
@@ -92,19 +93,40 @@ class PowerMeter extends PositionComponent with HasGameReference<LurelandsGame> 
       }
     }
 
-    // Level markers
+    // Level markers (show section dividers)
     final markerPaint = Paint()
-      ..color = GameColors.textSecondary.withAlpha(100)
+      ..color = GameColors.textSecondary.withAlpha(120)
       ..strokeWidth = 1;
 
-    for (var i = 1; i < 4; i++) {
-      final y = -meterHeight * (i / 4);
+    for (var i = 1; i < sectionCount; i++) {
+      final y = -meterHeight * (i / sectionCount);
       canvas.drawLine(
         Offset(-meterWidth / 2 + 2, y),
         Offset(meterWidth / 2 - 2, y),
         markerPaint,
       );
     }
+
+    // Draw percentage markers on side (at 50% and 100%)
+    final labelPaint = Paint()
+      ..color = GameColors.textSecondary.withAlpha(150)
+      ..strokeWidth = 2;
+    
+    // 50% mark (thicker line)
+    final halfY = -meterHeight * 0.5;
+    canvas.drawLine(
+      Offset(-meterWidth / 2 - 2, halfY),
+      Offset(-meterWidth / 2 + 3, halfY),
+      labelPaint,
+    );
+    
+    // 100% mark (thicker line at top)
+    final topY = -meterHeight + 2;
+    canvas.drawLine(
+      Offset(-meterWidth / 2 - 2, topY),
+      Offset(-meterWidth / 2 + 3, topY),
+      labelPaint,
+    );
   }
 }
 
