@@ -14,8 +14,10 @@ import 'tree.dart';
 
 /// Player component - animated sprite that can move and fish
 class Player extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
-  Player({required Vector2 position})
-    : super(
+  Player({required Vector2 position, int equippedPoleTier = 1, int equippedLureTier = 1})
+    : _equippedPoleTier = equippedPoleTier,
+      _equippedLureTier = equippedLureTier,
+      super(
         position: position,
         size: Vector2(216, 144), // 2.25x scale of sprite frame (96x64)
         anchor: Anchor.center,
@@ -40,8 +42,24 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   // Casting state
   bool _isCasting = false;
 
+  // Equipment state
+  int _equippedPoleTier;
+  int _equippedLureTier;
+
   bool get isCasting => _isCasting;
   double get facingAngle => _facingAngle;
+  int get equippedPoleTier => _equippedPoleTier;
+  int get equippedLureTier => _equippedLureTier;
+
+  set equippedPoleTier(int tier) {
+    assert(tier >= 1 && tier <= 4, 'Pole tier must be between 1 and 4');
+    _equippedPoleTier = tier;
+  }
+
+  set equippedLureTier(int tier) {
+    assert(tier >= 1 && tier <= 4, 'Lure tier must be between 1 and 4');
+    _equippedLureTier = tier;
+  }
 
   @override
   Future<void> onLoad() async {

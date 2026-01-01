@@ -9,6 +9,8 @@ class PlayerState {
   final double? castTargetY;
   final int color; // ARGB color value for customization
   final double facingAngle; // Radians, 0 = right, PI/2 = down
+  final int equippedPoleTier; // Fishing pole tier (1-4)
+  final int equippedLureTier; // Lure tier (1-4)
 
   const PlayerState({
     required this.id,
@@ -19,6 +21,8 @@ class PlayerState {
     this.castTargetY,
     this.color = 0xFFE74C3C, // Default red
     this.facingAngle = 0.0,
+    this.equippedPoleTier = 1, // Default to tier 1
+    this.equippedLureTier = 1, // Default to tier 1
   });
 
   PlayerState copyWith({
@@ -30,6 +34,8 @@ class PlayerState {
     double? castTargetY,
     int? color,
     double? facingAngle,
+    int? equippedPoleTier,
+    int? equippedLureTier,
   }) {
     return PlayerState(
       id: id ?? this.id,
@@ -40,6 +46,8 @@ class PlayerState {
       castTargetY: castTargetY ?? this.castTargetY,
       color: color ?? this.color,
       facingAngle: facingAngle ?? this.facingAngle,
+      equippedPoleTier: equippedPoleTier ?? this.equippedPoleTier,
+      equippedLureTier: equippedLureTier ?? this.equippedLureTier,
     );
   }
 
@@ -52,6 +60,8 @@ class PlayerState {
         'castTargetY': castTargetY,
         'color': color,
         'facingAngle': facingAngle,
+        'equippedPoleTier': equippedPoleTier,
+        'equippedLureTier': equippedLureTier,
       };
 
   factory PlayerState.fromJson(Map<String, dynamic> json) => PlayerState(
@@ -63,5 +73,7 @@ class PlayerState {
         castTargetY: (json['castTargetY'] as num?)?.toDouble(),
         color: json['color'] as int? ?? 0xFFE74C3C,
         facingAngle: (json['facingAngle'] as num?)?.toDouble() ?? 0.0,
+        equippedPoleTier: json['equippedPoleTier'] as int? ?? 1,
+        equippedLureTier: json['equippedLureTier'] as int? ?? 1,
       );
 }
