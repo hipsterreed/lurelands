@@ -9,6 +9,7 @@ import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import 'cast_line.dart';
 import 'pond.dart';
+import 'tree.dart';
 
 /// Player component - animated sprite that can move and fish
 class Player extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
@@ -172,6 +173,13 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       final pushDirection = position - other.position;
       pushDirection.normalize();
       position += pushDirection * 5;
+    }
+
+    // Push player out of trees
+    if (other is Tree) {
+      final pushDirection = position - other.position;
+      pushDirection.normalize();
+      position += pushDirection * 3;
     }
   }
 }

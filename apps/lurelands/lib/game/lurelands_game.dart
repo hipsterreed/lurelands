@@ -11,11 +11,13 @@ import '../utils/constants.dart';
 import 'components/player.dart';
 import 'components/pond.dart';
 import 'components/sunflower.dart';
+import 'components/tree.dart';
 
 /// Main game class for Lurelands
 class LurelandsGame extends FlameGame with HasCollisionDetection {
   Player? _player;
   final List<Pond> _pondComponents = [];
+  final List<Tree> _treeComponents = [];
 
   // Public getter for player (used by other components)
   Player? get player => _player;
@@ -56,6 +58,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Add random sunflowers around the map
     await _spawnSunflowers();
+
+    // Add random trees around the map
+    await _spawnTrees();
 
     // Create the player at world center
     _player = Player(position: Vector2(GameConstants.worldWidth / 2, GameConstants.worldHeight / 2));
@@ -187,7 +192,33 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// Toggle debug mode for player and ponds
+  /// Spawn trees randomly around the map
+  Future<void> _spawnTrees() async {
+    final random = Random(456); // Different seed for variety
+    const count = 20;
+    
+    for (var i = 0; i < count; i++) {
+      final x = 150 + random.nextDouble() * (GameConstants.worldWidth - 300);
+      final y = 150 + random.nextDouble() * (GameConstants.worldHeight - 300);
+      
+      // Don't place trees inside ponds
+      bool insidePond = false;
+      for (final pond in ponds) {
+        if (pond.containsPoint(x, y)) {
+          insidePond = true;
+          break;
+        }
+      }
+      
+      if (!insidePond) {
+        final tree = Tree.random(Vector2(x, y), random);
+        _treeComponents.add(tree);
+        await world.add(tree);
+      }
+    }
+  }
+
+  /// Toggle debug mode for player, ponds, and trees
   void toggleDebugMode() {
     debugModeNotifier.value = !debugModeNotifier.value;
     final enabled = debugModeNotifier.value;
@@ -203,6 +234,14 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     
     for (final pond in _pondComponents) {
       for (final child in pond.children) {
+        if (child is ShapeHitbox) {
+          child.debugMode = enabled;
+        }
+      }
+    }
+    
+    for (final tree in _treeComponents) {
+      for (final child in tree.children) {
         if (child is ShapeHitbox) {
           child.debugMode = enabled;
         }
