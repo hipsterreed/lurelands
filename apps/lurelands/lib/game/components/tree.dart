@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
@@ -95,6 +96,31 @@ class Tree extends SpriteComponent with HasGameReference<LurelandsGame>, Collisi
         angle = 0;
         _isShaking = false;
       }
+    }
+  }
+
+  @override
+  void render(Canvas canvas) {
+    super.render(canvas);
+
+    // Draw debug box around collision border when debug mode is enabled
+    if (_hitbox.debugMode) {
+      // Get the hitbox's position in component space
+      final hitboxPos = _hitbox.position;
+      final hitboxRadius = _hitbox.radius;
+
+      // Create a paint for the debug box
+      final debugPaint = Paint()
+        ..color = const Color(0xFFFF0000) // Red color for visibility
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+
+      // Draw circle outline for the circular hitbox
+      canvas.drawCircle(
+        Offset(hitboxPos.x, hitboxPos.y),
+        hitboxRadius,
+        debugPaint,
+      );
     }
   }
 
