@@ -200,6 +200,161 @@ class IconAssets {
   static const String fishingPoleCasted = '${AssetPaths.icons}/fishing_pole_casted.png';
 }
 
+/// Water type enum for fish categorization
+enum WaterType {
+  pond,
+  river,
+  ocean,
+  night, // Special night-time fish
+}
+
+/// Fish asset with water type and tier
+class FishAsset {
+  final String path;
+  final WaterType waterType;
+  final int tier;
+
+  const FishAsset({
+    required this.path,
+    required this.waterType,
+    required this.tier,
+  });
+}
+
+/// Fish assets organized by water type and tier
+class FishAssets {
+  FishAssets._();
+
+  // Pond fish (tier 1-4)
+  static const FishAsset pond1 = FishAsset(
+    path: '${AssetPaths.fish}/fish_pond_1.png',
+    waterType: WaterType.pond,
+    tier: 1,
+  );
+  static const FishAsset pond2 = FishAsset(
+    path: '${AssetPaths.fish}/fish_pond_2.png',
+    waterType: WaterType.pond,
+    tier: 2,
+  );
+  static const FishAsset pond3 = FishAsset(
+    path: '${AssetPaths.fish}/fish_pond_3.png',
+    waterType: WaterType.pond,
+    tier: 3,
+  );
+  static const FishAsset pond4 = FishAsset(
+    path: '${AssetPaths.fish}/fish_pond_4.png',
+    waterType: WaterType.pond,
+    tier: 4,
+  );
+
+  // River fish (tier 1-4)
+  static const FishAsset river1 = FishAsset(
+    path: '${AssetPaths.fish}/fish_river_1.png',
+    waterType: WaterType.river,
+    tier: 1,
+  );
+  static const FishAsset river2 = FishAsset(
+    path: '${AssetPaths.fish}/fish_river_2.png',
+    waterType: WaterType.river,
+    tier: 2,
+  );
+  static const FishAsset river3 = FishAsset(
+    path: '${AssetPaths.fish}/fish_river_3.png',
+    waterType: WaterType.river,
+    tier: 3,
+  );
+  static const FishAsset river4 = FishAsset(
+    path: '${AssetPaths.fish}/fish_river_4.png',
+    waterType: WaterType.river,
+    tier: 4,
+  );
+
+  // Ocean fish (tier 1-4)
+  static const FishAsset ocean1 = FishAsset(
+    path: '${AssetPaths.fish}/fish_ocean_1.png',
+    waterType: WaterType.ocean,
+    tier: 1,
+  );
+  static const FishAsset ocean2 = FishAsset(
+    path: '${AssetPaths.fish}/fish_ocean_2.png',
+    waterType: WaterType.ocean,
+    tier: 2,
+  );
+  static const FishAsset ocean3 = FishAsset(
+    path: '${AssetPaths.fish}/fish_ocean_3.png',
+    waterType: WaterType.ocean,
+    tier: 3,
+  );
+  static const FishAsset ocean4 = FishAsset(
+    path: '${AssetPaths.fish}/fish_ocean_4.png',
+    waterType: WaterType.ocean,
+    tier: 4,
+  );
+
+  // Night fish (tier 1-4)
+  static const FishAsset night1 = FishAsset(
+    path: '${AssetPaths.fish}/fish_night_1.png',
+    waterType: WaterType.night,
+    tier: 1,
+  );
+  static const FishAsset night2 = FishAsset(
+    path: '${AssetPaths.fish}/fish_night_2.png',
+    waterType: WaterType.night,
+    tier: 2,
+  );
+  static const FishAsset night3 = FishAsset(
+    path: '${AssetPaths.fish}/fish_night_3.png',
+    waterType: WaterType.night,
+    tier: 3,
+  );
+  static const FishAsset night4 = FishAsset(
+    path: '${AssetPaths.fish}/fish_night_4.png',
+    waterType: WaterType.night,
+    tier: 4,
+  );
+
+  /// All pond fish by tier
+  static const List<FishAsset> pondFish = [pond1, pond2, pond3, pond4];
+
+  /// All river fish by tier
+  static const List<FishAsset> riverFish = [river1, river2, river3, river4];
+
+  /// All ocean fish by tier
+  static const List<FishAsset> oceanFish = [ocean1, ocean2, ocean3, ocean4];
+
+  /// All night fish by tier
+  static const List<FishAsset> nightFish = [night1, night2, night3, night4];
+
+  /// Get fish by water type and tier (1-4)
+  static FishAsset getFish(WaterType waterType, int tier) {
+    assert(tier >= 1 && tier <= 4, 'Fish tier must be between 1 and 4');
+    switch (waterType) {
+      case WaterType.pond:
+        return pondFish[tier - 1];
+      case WaterType.river:
+        return riverFish[tier - 1];
+      case WaterType.ocean:
+        return oceanFish[tier - 1];
+      case WaterType.night:
+        return nightFish[tier - 1];
+    }
+  }
+
+  /// Get all fish for a water type
+  static List<FishAsset> getFishByWaterType(WaterType waterType) {
+    switch (waterType) {
+      case WaterType.pond:
+        return pondFish;
+      case WaterType.river:
+        return riverFish;
+      case WaterType.ocean:
+        return oceanFish;
+      case WaterType.night:
+        return nightFish;
+    }
+  }
+}
+
 /// Image assets (characters, environments, etc.)
 class ImageAssets {
   ImageAssets._();
