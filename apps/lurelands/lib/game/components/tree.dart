@@ -30,6 +30,18 @@ class Tree extends SpriteComponent with HasGameReference<LurelandsGame>, Collisi
 
   // Hitbox reference for debug mode
   late CircleHitbox _hitbox;
+  
+  // Getters for collision checking
+  Vector2 get hitboxWorldPosition {
+    // Tree anchor is bottomCenter, so position is at bottom center
+    // Tree's local coordinate system starts at top-left
+    // Calculate top-left corner of tree in world space
+    final treeTopLeftX = position.x - (size.x / 2);
+    final treeTopLeftY = position.y - size.y;
+    // Add hitbox position (which is in local coordinates)
+    return Vector2(treeTopLeftX + _hitbox.position.x, treeTopLeftY + _hitbox.position.y);
+  }
+  double get hitboxRadius => _hitbox.radius;
 
   @override
   Future<void> onLoad() async {
@@ -48,8 +60,9 @@ class Tree extends SpriteComponent with HasGameReference<LurelandsGame>, Collisi
     }
 
     // Add circular hitbox at the base of the tree (trunk area)
-    final hitboxRadius = size.x * 0.05;
-    _hitbox = CircleHitbox(radius: hitboxRadius, position: Vector2(size.x / 2, size.y - hitboxRadius - 25), anchor: Anchor.center);
+    // Size it to match the visible trunk - about 12% of tree width for reasonable collision
+    final hitboxRadius = size.x * 0.12;
+    _hitbox = CircleHitbox(radius: hitboxRadius, position: Vector2(size.x / 2, size.y - hitboxRadius - 20), anchor: Anchor.center);
     await add(_hitbox);
 
     // Set initial priority based on Y position

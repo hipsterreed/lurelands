@@ -31,6 +31,10 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
 
   // Movement state
   double _facingAngle = 0.0; // Radians, 0 = right
+  Vector2 _lastMovementDirection = Vector2.zero();
+  
+  // Track current collisions
+  final Set<Tree> _collidingTrees = {};
 
   // Casting state
   bool _isCasting = false;
@@ -59,8 +63,13 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     await add(_animationComponent);
 
     // Add smaller collision hitbox (centered on character body, not full sprite frame)
-    // Compact hitbox matching character body
-    await add(RectangleHitbox(size: Vector2(50, 60), position: Vector2((size.x - 50) / 2, size.y - 105)));
+    // Compact hitbox matching character body - reduced top portion
+    const hitboxWidth = 50.0;
+    const hitboxHeight = 50.0; // Reduced from 60 to reduce top collision area
+    await add(RectangleHitbox(
+      size: Vector2(hitboxWidth, hitboxHeight),
+      position: Vector2((size.x - hitboxWidth) / 2, size.y - 95), // Adjusted to keep bottom edge aligned
+    ));
   }
 
   @override
@@ -88,13 +97,37 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     final movement = direction * GameConstants.playerSpeed * dt;
     final newPosition = position + movement;
 
+    // Store movement direction for collision handling
+    if (direction.length > 0) {
+      _lastMovementDirection = direction.clone();
+    }
+
     // Clamp to world bounds
     newPosition.x = newPosition.x.clamp(GameConstants.playerSize / 2, GameConstants.worldWidth - GameConstants.playerSize / 2);
     newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, GameConstants.worldHeight - GameConstants.playerSize / 2);
 
     // Check for pond collision
     if (!_wouldCollideWithPond(newPosition)) {
-      position = newPosition;
+      // If colliding with trees, prevent movement that would make it worse
+      if (_collidingTrees.isEmpty) {
+        position = newPosition;
+      } else {
+        // Only allow movement that moves away from colliding trees
+        bool canMove = true;
+        for (final tree in _collidingTrees) {
+          final treeHitboxPos = tree.hitboxWorldPosition;
+          final currentDist = (position - treeHitboxPos).length;
+          final newDist = (newPosition - treeHitboxPos).length;
+          // If moving would bring us closer to the tree, prevent movement
+          if (newDist < currentDist) {
+            canMove = false;
+            break;
+          }
+        }
+        if (canMove) {
+          position = newPosition;
+        }
+      }
     }
 
     // Update facing direction (flip sprite for left/right)
@@ -124,6 +157,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     }
     return false;
   }
+
 
   /// Start casting into a pond
   void startCasting(PondData pond) {
@@ -165,6 +199,22 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   }
 
   @override
+  void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
+    super.onCollisionStart(intersectionPoints, other);
+    if (other is Tree) {
+      _collidingTrees.add(other);
+    }
+  }
+
+  @override
+  void onCollisionEnd(PositionComponent other) {
+    super.onCollisionEnd(other);
+    if (other is Tree) {
+      _collidingTrees.remove(other);
+    }
+  }
+
+  @override
   void onCollision(Set<Vector2> intersectionPoints, PositionComponent other) {
     super.onCollision(intersectionPoints, other);
 
@@ -177,9 +227,35 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
 
     // Push player out of trees
     if (other is Tree) {
-      final pushDirection = position - other.position;
-      pushDirection.normalize();
-      position += pushDirection * 3;
+      // Get the tree's hitbox position for more accurate push direction
+      final treeHitboxWorldPos = other.hitboxWorldPosition;
+      var pushDirection = position - treeHitboxWorldPos;
+      
+      // If the push direction is too small or zero, use intersection points or movement direction
+      if (pushDirection.length < 0.1) {
+        // Use intersection points if available
+        if (intersectionPoints.isNotEmpty) {
+          // Calculate average intersection point
+          Vector2 avgIntersection = Vector2.zero();
+          for (final point in intersectionPoints) {
+            avgIntersection += point;
+          }
+          avgIntersection /= intersectionPoints.length.toDouble();
+          pushDirection = position - avgIntersection;
+        } else if (_lastMovementDirection.length > 0) {
+          // Fall back to reversing movement direction
+          pushDirection = -_lastMovementDirection;
+        } else {
+          // Last resort: push away from tree center
+          pushDirection = position - other.position;
+        }
+      }
+      
+      if (pushDirection.length > 0) {
+        pushDirection.normalize();
+        // Push back to get out of collision
+        position += pushDirection * 5;
+      }
     }
   }
 }
