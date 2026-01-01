@@ -33,13 +33,9 @@ class Tree extends SpriteComponent with HasGameReference<LurelandsGame>, Collisi
   
   // Getters for collision checking
   Vector2 get hitboxWorldPosition {
-    // Tree anchor is bottomCenter, so position is at bottom center
-    // Tree's local coordinate system starts at top-left
-    // Calculate top-left corner of tree in world space
-    final treeTopLeftX = position.x - (size.x / 2);
-    final treeTopLeftY = position.y - size.y;
-    // Add hitbox position (which is in local coordinates)
-    return Vector2(treeTopLeftX + _hitbox.position.x, treeTopLeftY + _hitbox.position.y);
+    // Use Flame's absolutePosition to get the hitbox center in world space
+    // This properly accounts for all transforms and anchors
+    return _hitbox.absolutePosition;
   }
   double get hitboxRadius => _hitbox.radius;
 
