@@ -1,5 +1,7 @@
+import 'dart:math';
 import 'dart:ui';
 
+import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
@@ -8,10 +10,12 @@ import '../models/pond_data.dart';
 import '../utils/constants.dart';
 import 'components/player.dart';
 import 'components/pond.dart';
+import 'components/sunflower.dart';
 
 /// Main game class for Lurelands
 class LurelandsGame extends FlameGame with HasCollisionDetection {
   Player? _player;
+  final List<Pond> _pondComponents = [];
 
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
@@ -20,6 +24,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   final ValueNotifier<bool> isLoadedNotifier = ValueNotifier(false);
   final ValueNotifier<bool> canCastNotifier = ValueNotifier(false);
   final ValueNotifier<bool> isCastingNotifier = ValueNotifier(false);
+  final ValueNotifier<bool> debugModeNotifier = ValueNotifier(false);
 
   // Static pond data for the world
   final List<PondData> ponds = [
@@ -41,16 +46,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Add ponds
     for (final pondData in ponds) {
-      await world.add(Pond(data: pondData));
+      final pond = Pond(data: pondData);
+      _pondComponents.add(pond);
+      await world.add(pond);
     }
 
+    // Add random sunflowers around the map
+    await _spawnSunflowers();
+
     // Create the player at world center
-    _player = Player(
-      position: Vector2(
-        GameConstants.worldWidth / 2,
-        GameConstants.worldHeight / 2,
-      ),
-    );
+    _player = Player(position: Vector2(GameConstants.worldWidth / 2, GameConstants.worldHeight / 2));
     await world.add(_player!);
 
     // Set up camera to follow player
@@ -69,9 +74,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     if (player == null) return;
 
     // Handle player movement based on joystick input
-    if (joystickDirection.length > 0) {
-      player.move(joystickDirection.normalized(), dt);
-    }
+    player.move(joystickDirection, dt);
 
     // Update casting state notifiers
     _updateCastingState(player);
@@ -92,12 +95,20 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   bool _isPlayerNearPond(Player player) {
     final playerPos = player.position;
+    // Player hitbox is roughly 50x60, so use ~30px as player "radius"
+    const playerHitboxRadius = 30.0;
+    // Small buffer zone where casting is allowed (when hitboxes are close)
+    const castingBuffer = 20.0;
+    
     for (final pond in ponds) {
-      if (pond.isWithinCastingRange(
-        playerPos.x,
-        playerPos.y,
-        GameConstants.castProximityRadius,
-      )) {
+      final dx = playerPos.x - pond.x;
+      final dy = playerPos.y - pond.y;
+      final distance = sqrt(dx * dx + dy * dy);
+      // Distance from player hitbox edge to pond hitbox edge
+      final edgeDistance = distance - pond.radius - playerHitboxRadius;
+      
+      // Enable casting when hitbox edges are within the buffer zone
+      if (edgeDistance <= castingBuffer && edgeDistance >= -playerHitboxRadius) {
         return true;
       }
     }
@@ -110,12 +121,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     if (player == null) return null;
 
     final playerPos = player.position;
+    const playerHitboxRadius = 30.0;
+    const castingBuffer = 20.0;
+    
     for (final pond in ponds) {
-      if (pond.isWithinCastingRange(
-        playerPos.x,
-        playerPos.y,
-        GameConstants.castProximityRadius,
-      )) {
+      final dx = playerPos.x - pond.x;
+      final dy = playerPos.y - pond.y;
+      final distance = sqrt(dx * dx + dy * dy);
+      final edgeDistance = distance - pond.radius - playerHitboxRadius;
+      
+      if (edgeDistance <= castingBuffer && edgeDistance >= -playerHitboxRadius) {
         return pond;
       }
     }
@@ -145,26 +160,66 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
+  /// Spawn sunflowers randomly around the map
+  Future<void> _spawnSunflowers() async {
+    final random = Random(123); // Seeded for consistent placement
+    const count = 30;
+    
+    for (var i = 0; i < count; i++) {
+      final x = 100 + random.nextDouble() * (GameConstants.worldWidth - 200);
+      final y = 100 + random.nextDouble() * (GameConstants.worldHeight - 200);
+      
+      // Don't place sunflowers inside ponds
+      bool insidePond = false;
+      for (final pond in ponds) {
+        if (pond.containsPoint(x, y)) {
+          insidePond = true;
+          break;
+        }
+      }
+      
+      if (!insidePond) {
+        await world.add(Sunflower(position: Vector2(x, y)));
+      }
+    }
+  }
+
+  /// Toggle debug mode for player and ponds
+  void toggleDebugMode() {
+    debugModeNotifier.value = !debugModeNotifier.value;
+    final enabled = debugModeNotifier.value;
+    
+    // Only set debug mode on hitboxes (not parent components) to avoid clutter
+    if (_player != null) {
+      for (final child in _player!.children) {
+        if (child is ShapeHitbox) {
+          child.debugMode = enabled;
+        }
+      }
+    }
+    
+    for (final pond in _pondComponents) {
+      for (final child in pond.children) {
+        if (child is ShapeHitbox) {
+          child.debugMode = enabled;
+        }
+      }
+    }
+  }
+
   @override
   void onRemove() {
     isLoadedNotifier.dispose();
     canCastNotifier.dispose();
     isCastingNotifier.dispose();
+    debugModeNotifier.dispose();
     super.onRemove();
   }
 }
 
 /// Ground component - fills the world with grass
 class Ground extends PositionComponent {
-  Ground()
-      : super(
-          position: Vector2.zero(),
-          size: Vector2(
-            GameConstants.worldWidth,
-            GameConstants.worldHeight,
-          ),
-          priority: 0,
-        );
+  Ground() : super(position: Vector2.zero(), size: Vector2(GameConstants.worldWidth, GameConstants.worldHeight), priority: 0);
 
   @override
   void render(Canvas canvas) {
@@ -184,11 +239,7 @@ class Ground extends PositionComponent {
       final patchSize = 20 + random.nextDouble() * 40;
       final isLight = random.nextBool();
 
-      canvas.drawCircle(
-        Offset(x, y),
-        patchSize,
-        isLight ? lightPaint : darkPaint,
-      );
+      canvas.drawCircle(Offset(x, y), patchSize, isLight ? lightPaint : darkPaint);
     }
   }
 }

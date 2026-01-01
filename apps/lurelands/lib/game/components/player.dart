@@ -1,29 +1,32 @@
 import 'dart:math';
-import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame/sprite.dart';
 
 import '../../models/pond_data.dart';
 import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import 'cast_line.dart';
-import 'fishing_pole.dart';
 import 'pond.dart';
 
-/// Player component - a colored block that can move and fish
-class Player extends PositionComponent
-    with HasGameReference<LurelandsGame>, CollisionCallbacks {
+/// Player component - animated sprite that can move and fish
+class Player extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
   Player({required Vector2 position})
-      : super(
-          position: position,
-          size: Vector2.all(GameConstants.playerSize),
-          anchor: Anchor.center,
-          priority: GameLayers.player.toInt(),
-        );
+    : super(
+        position: position,
+        size: Vector2(216, 144), // 2.25x scale of sprite frame (96x64)
+        anchor: Anchor.center,
+      );
 
-  late FishingPole _fishingPole;
   CastLine? _castLine;
+
+  // Sprite animation
+  late SpriteAnimationComponent _animationComponent;
+  late SpriteAnimation _walkAnimation;
+  late SpriteAnimation _idleAnimation;
+  bool _isMoving = false;
+  bool _facingRight = true;
 
   // Movement state
   double _facingAngle = 0.0; // Radians, 0 = right
@@ -38,81 +41,72 @@ class Player extends PositionComponent
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Add collision hitbox
-    await add(RectangleHitbox());
+    // Load walk sprite sheet (768x64, 8 frames, each 96x64)
+    final walkSheet = SpriteSheet(image: await game.images.load('characters/base_walk_strip8.png'), srcSize: Vector2(96, 64));
 
-    // Add fishing pole as child component
-    _fishingPole = FishingPole();
-    await add(_fishingPole);
+    // Load idle sprite sheet (864x64, 9 frames, each 96x64)
+    final idleSheet = SpriteSheet(image: await game.images.load('characters/base_idle_strip9.png'), srcSize: Vector2(96, 64));
+
+    // Create walk animation (8 frames)
+    _walkAnimation = walkSheet.createAnimation(row: 0, stepTime: 0.1, from: 0, to: 8);
+
+    // Create idle animation (9 frames)
+    _idleAnimation = idleSheet.createAnimation(row: 0, stepTime: 0.15, from: 0, to: 9);
+
+    // Add animation component
+    _animationComponent = SpriteAnimationComponent(animation: _idleAnimation, size: size, anchor: Anchor.center, position: size / 2);
+    await add(_animationComponent);
+
+    // Add smaller collision hitbox (centered on character body, not full sprite frame)
+    // Compact hitbox matching character body
+    await add(RectangleHitbox(size: Vector2(50, 60), position: Vector2((size.x - 50) / 2, size.y - 105)));
   }
 
   @override
-  void render(Canvas canvas) {
-    // Draw player as a colored block
-    final paint = Paint()..color = GameColors.playerDefault;
-    canvas.drawRect(size.toRect(), paint);
-
-    // Draw outline
-    final outlinePaint = Paint()
-      ..color = GameColors.playerOutline
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawRect(size.toRect(), outlinePaint);
-
-    // Draw facing indicator (small triangle)
-    _drawFacingIndicator(canvas);
-  }
-
-  void _drawFacingIndicator(Canvas canvas) {
-    final centerX = size.x / 2;
-    final centerY = size.y / 2;
-    final indicatorSize = 6.0;
-
-    final tipX = centerX + cos(_facingAngle) * (size.x / 2 + indicatorSize);
-    final tipY = centerY + sin(_facingAngle) * (size.y / 2 + indicatorSize);
-
-    final path = Path()
-      ..moveTo(tipX, tipY)
-      ..lineTo(
-        centerX + cos(_facingAngle + 2.5) * (size.x / 2 - 2),
-        centerY + sin(_facingAngle + 2.5) * (size.y / 2 - 2),
-      )
-      ..lineTo(
-        centerX + cos(_facingAngle - 2.5) * (size.x / 2 - 2),
-        centerY + sin(_facingAngle - 2.5) * (size.y / 2 - 2),
-      )
-      ..close();
-
-    final indicatorPaint = Paint()..color = GameColors.fishingPole;
-    canvas.drawPath(path, indicatorPaint);
+  void update(double dt) {
+    super.update(dt);
+    // Update priority based on feet position for proper depth sorting
+    // Player anchor is center, so feet are at position.y + offset
+    priority = (position.y + 20).toInt();
   }
 
   /// Move the player in a direction
   void move(Vector2 direction, double dt) {
     if (_isCasting) return; // Can't move while casting
 
+    final isMovingNow = direction.length > 0;
+
+    // Switch animation based on movement state
+    if (isMovingNow != _isMoving) {
+      _isMoving = isMovingNow;
+      _animationComponent.animation = _isMoving ? _walkAnimation : _idleAnimation;
+    }
+
+    if (!isMovingNow) return;
+
     final movement = direction * GameConstants.playerSpeed * dt;
     final newPosition = position + movement;
 
     // Clamp to world bounds
-    newPosition.x = newPosition.x.clamp(
-      GameConstants.playerSize / 2,
-      GameConstants.worldWidth - GameConstants.playerSize / 2,
-    );
-    newPosition.y = newPosition.y.clamp(
-      GameConstants.playerSize / 2,
-      GameConstants.worldHeight - GameConstants.playerSize / 2,
-    );
+    newPosition.x = newPosition.x.clamp(GameConstants.playerSize / 2, GameConstants.worldWidth - GameConstants.playerSize / 2);
+    newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, GameConstants.worldHeight - GameConstants.playerSize / 2);
 
     // Check for pond collision
     if (!_wouldCollideWithPond(newPosition)) {
       position = newPosition;
     }
 
-    // Update facing angle based on movement direction
-    if (direction.length > 0) {
-      _facingAngle = atan2(direction.y, direction.x);
+    // Update facing direction (flip sprite for left/right)
+    if (direction.x != 0) {
+      final shouldFaceRight = direction.x > 0;
+      if (shouldFaceRight != _facingRight) {
+        _facingRight = shouldFaceRight;
+        _animationComponent.flipHorizontally();
+      }
     }
+
+    // Update facing angle based on movement direction
+    _facingAngle = atan2(direction.y, direction.x);
   }
 
   bool _wouldCollideWithPond(Vector2 newPos) {
@@ -137,10 +131,7 @@ class Player extends PositionComponent
     _isCasting = true;
 
     // Calculate cast target - towards the pond center from player
-    final directionToPond = Vector2(
-      pond.x - position.x,
-      pond.y - position.y,
-    );
+    final directionToPond = Vector2(pond.x - position.x, pond.y - position.y);
     directionToPond.normalize();
 
     // Update facing angle towards pond
@@ -149,18 +140,14 @@ class Player extends PositionComponent
     // Cast line lands inside the pond
     final castDistance = min(
       GameConstants.maxCastDistance,
-      sqrt(pow(pond.x - position.x, 2) + pow(pond.y - position.y, 2)) -
-          GameConstants.playerSize,
+      sqrt(pow(pond.x - position.x, 2) + pow(pond.y - position.y, 2)) - GameConstants.playerSize,
     );
 
     final targetX = position.x + directionToPond.x * castDistance;
     final targetY = position.y + directionToPond.y * castDistance;
 
     // Create cast line
-    _castLine = CastLine(
-      startPosition: position.clone(),
-      endPosition: Vector2(targetX, targetY),
-    );
+    _castLine = CastLine(startPosition: position.clone(), endPosition: Vector2(targetX, targetY));
     game.world.add(_castLine!);
   }
 

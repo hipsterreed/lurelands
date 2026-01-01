@@ -50,17 +50,9 @@ class _GameScreenState extends State<GameScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            CircularProgressIndicator(
-              color: GameColors.pondBlue,
-            ),
+            CircularProgressIndicator(color: GameColors.pondBlue),
             const SizedBox(height: 24),
-            Text(
-              'Loading world...',
-              style: TextStyle(
-                color: GameColors.textPrimary,
-                fontSize: 18,
-              ),
-            ),
+            Text('Loading world...', style: TextStyle(color: GameColors.textPrimary, fontSize: 18)),
           ],
         ),
       ),
@@ -74,27 +66,11 @@ class _GameScreenState extends State<GameScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              color: GameColors.playerDefault,
-              size: 64,
-            ),
+            Icon(Icons.error_outline, color: GameColors.playerDefault, size: 64),
             const SizedBox(height: 24),
-            Text(
-              'Error loading game',
-              style: TextStyle(
-                color: GameColors.textPrimary,
-                fontSize: 20,
-              ),
-            ),
+            Text('Error loading game', style: TextStyle(color: GameColors.textPrimary, fontSize: 20)),
             const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              style: TextStyle(
-                color: GameColors.textSecondary,
-                fontSize: 14,
-              ),
-            ),
+            Text(error.toString(), style: TextStyle(color: GameColors.textSecondary, fontSize: 14)),
           ],
         ),
       ),
@@ -102,22 +78,44 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildHUD() {
-    return Positioned(
-      top: 16,
-      left: 16,
-      child: SafeArea(
-        child: IconButton(
-          onPressed: () => _showExitDialog(),
-          icon: Icon(
-            Icons.menu,
-            color: GameColors.textPrimary.withAlpha(204),
-            size: 28,
+    return SafeArea(
+      child: Stack(
+        children: [
+          // Menu button (top left)
+          Positioned(
+            top: 16,
+            left: 16,
+            child: IconButton(
+              onPressed: () => _showExitDialog(),
+              icon: Icon(Icons.menu, color: GameColors.textPrimary.withAlpha(204), size: 28),
+              style: IconButton.styleFrom(backgroundColor: GameColors.menuBackground.withAlpha(179), padding: const EdgeInsets.all(12)),
+            ),
           ),
-          style: IconButton.styleFrom(
-            backgroundColor: GameColors.menuBackground.withAlpha(179),
-            padding: const EdgeInsets.all(12),
+          // Debug button (top right)
+          Positioned(
+            top: 16,
+            right: 16,
+            child: ValueListenableBuilder<bool>(
+              valueListenable: _game.debugModeNotifier,
+              builder: (context, debugEnabled, _) {
+                return IconButton(
+                  onPressed: () => _game.toggleDebugMode(),
+                  icon: Icon(
+                    Icons.bug_report,
+                    color: debugEnabled ? Colors.yellow : GameColors.textPrimary.withAlpha(204),
+                    size: 28,
+                  ),
+                  style: IconButton.styleFrom(
+                    backgroundColor: debugEnabled 
+                        ? GameColors.pondBlue.withAlpha(200) 
+                        : GameColors.menuBackground.withAlpha(179),
+                    padding: const EdgeInsets.all(12),
+                  ),
+                );
+              },
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -142,11 +140,7 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
               // Action buttons on the right
-              Positioned(
-                right: 30,
-                bottom: 30,
-                child: _buildActionButtons(),
-              ),
+              Positioned(right: 30, bottom: 30, child: _buildActionButtons()),
             ],
           ),
         );
@@ -180,32 +174,16 @@ class _GameScreenState extends State<GameScreen> {
                     height: 80,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: isActive
-                          ? GameColors.pondBlue
-                          : GameColors.menuBackground.withAlpha(128),
-                      border: Border.all(
-                        color: isActive
-                            ? GameColors.pondBlueLight
-                            : GameColors.textSecondary.withAlpha(64),
-                        width: 3,
-                      ),
-                      boxShadow: isActive
-                          ? [
-                              BoxShadow(
-                                color: GameColors.pondBlue.withAlpha(128),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                              ),
-                            ]
-                          : null,
+                      color: isActive ? GameColors.pondBlue : GameColors.menuBackground.withAlpha(128),
+                      border: Border.all(color: isActive ? GameColors.pondBlueLight : GameColors.textSecondary.withAlpha(64), width: 3),
+                      boxShadow: isActive ? [BoxShadow(color: GameColors.pondBlue.withAlpha(128), blurRadius: 12, spreadRadius: 2)] : null,
                     ),
                     child: Center(
-                      child: Icon(
-                        isCasting ? Icons.replay : Icons.phishing,
-                        color: isActive
-                            ? GameColors.textPrimary
-                            : GameColors.textSecondary.withAlpha(128),
-                        size: 36,
+                      child: Image.asset(
+                        isCasting ? 'assets/icons/fishing_pole_casted.png' : 'assets/icons/fishing_pole.png',
+                        width: 40,
+                        height: 40,
+                        opacity: AlwaysStoppedAnimation(isActive ? 1.0 : 0.5),
                       ),
                     ),
                   ),
@@ -215,13 +193,9 @@ class _GameScreenState extends State<GameScreen> {
                   isCasting
                       ? 'REEL'
                       : canCast
-                          ? 'CAST'
-                          : '',
-                  style: TextStyle(
-                    color: GameColors.textPrimary.withAlpha(200),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
+                      ? 'CAST'
+                      : '',
+                  style: TextStyle(color: GameColors.textPrimary.withAlpha(200), fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],
             );
@@ -236,34 +210,20 @@ class _GameScreenState extends State<GameScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: GameColors.menuBackground,
-        title: Text(
-          'Leave World?',
-          style: TextStyle(color: GameColors.textPrimary),
-        ),
-        content: Text(
-          'Return to the main menu?',
-          style: TextStyle(color: GameColors.textSecondary),
-        ),
+        title: Text('Leave World?', style: TextStyle(color: GameColors.textPrimary)),
+        content: Text('Return to the main menu?', style: TextStyle(color: GameColors.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Stay',
-              style: TextStyle(color: GameColors.textSecondary),
-            ),
+            child: Text('Stay', style: TextStyle(color: GameColors.textSecondary)),
           ),
           ElevatedButton(
             onPressed: () {
               Navigator.of(context).pop();
               Navigator.of(context).pushReplacementNamed('/');
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: GameColors.buttonPrimary,
-            ),
-            child: Text(
-              'Leave',
-              style: TextStyle(color: GameColors.textPrimary),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: GameColors.buttonPrimary),
+            child: Text('Leave', style: TextStyle(color: GameColors.textPrimary)),
           ),
         ],
       ),
@@ -276,11 +236,7 @@ class VirtualJoystick extends StatefulWidget {
   final void Function(Offset direction) onDirectionChanged;
   final double size;
 
-  const VirtualJoystick({
-    super.key,
-    required this.onDirectionChanged,
-    this.size = 140,
-  });
+  const VirtualJoystick({super.key, required this.onDirectionChanged, this.size = 140});
 
   @override
   State<VirtualJoystick> createState() => _VirtualJoystickState();
@@ -306,10 +262,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: GameColors.menuBackground.withAlpha(128),
-          border: Border.all(
-            color: GameColors.pondBlue.withAlpha(100),
-            width: 2,
-          ),
+          border: Border.all(color: GameColors.pondBlue.withAlpha(100), width: 2),
         ),
         child: Stack(
           children: [
@@ -320,29 +273,14 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
               child: Transform.translate(
                 offset: _knobPosition,
                 child: AnimatedContainer(
-                  duration: _isDragging
-                      ? Duration.zero
-                      : const Duration(milliseconds: 100),
+                  duration: _isDragging ? Duration.zero : const Duration(milliseconds: 100),
                   width: _knobRadius * 2,
                   height: _knobRadius * 2,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: _isDragging
-                        ? GameColors.pondBlue
-                        : GameColors.pondBlue.withAlpha(180),
-                    border: Border.all(
-                      color: GameColors.pondBlueLight,
-                      width: 2,
-                    ),
-                    boxShadow: _isDragging
-                        ? [
-                            BoxShadow(
-                              color: GameColors.pondBlue.withAlpha(100),
-                              blurRadius: 8,
-                              spreadRadius: 2,
-                            ),
-                          ]
-                        : null,
+                    color: _isDragging ? GameColors.pondBlue : GameColors.pondBlue.withAlpha(180),
+                    border: Border.all(color: GameColors.pondBlueLight, width: 2),
+                    boxShadow: _isDragging ? [BoxShadow(color: GameColors.pondBlue.withAlpha(100), blurRadius: 8, spreadRadius: 2)] : null,
                   ),
                 ),
               ),
@@ -358,11 +296,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
       child: SizedBox(
         width: widget.size * 0.6,
         height: widget.size * 0.6,
-        child: CustomPaint(
-          painter: _DirectionIndicatorPainter(
-            color: GameColors.textSecondary.withAlpha(64),
-          ),
-        ),
+        child: CustomPaint(painter: _DirectionIndicatorPainter(color: GameColors.textSecondary.withAlpha(64))),
       ),
     );
   }
@@ -383,10 +317,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
 
     Offset newPosition;
     if (distance > 0) {
-      newPosition = Offset(
-        localPosition.dx / distance * clampedDistance,
-        localPosition.dy / distance * clampedDistance,
-      );
+      newPosition = Offset(localPosition.dx / distance * clampedDistance, localPosition.dy / distance * clampedDistance);
     } else {
       newPosition = Offset.zero;
     }
@@ -396,10 +327,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
     });
 
     // Normalize direction to 0-1 range
-    final normalizedDirection = Offset(
-      newPosition.dx / _maxKnobDistance,
-      newPosition.dy / _maxKnobDistance,
-    );
+    final normalizedDirection = Offset(newPosition.dx / _maxKnobDistance, newPosition.dy / _maxKnobDistance);
     widget.onDirectionChanged(normalizedDirection);
   }
 
@@ -437,22 +365,15 @@ class _DirectionIndicatorPainter extends CustomPainter {
     _drawArrow(canvas, center, 0, arrowSize, paint);
   }
 
-  void _drawArrow(
-      Canvas canvas, Offset center, double angle, double size, Paint paint) {
+  void _drawArrow(Canvas canvas, Offset center, double angle, double size, Paint paint) {
     final distance = center.dx * 0.7;
     final tipX = center.dx + cos(angle) * distance;
     final tipY = center.dy + sin(angle) * distance;
 
     final path = Path()
       ..moveTo(tipX, tipY)
-      ..lineTo(
-        tipX - cos(angle - 0.5) * size,
-        tipY - sin(angle - 0.5) * size,
-      )
-      ..lineTo(
-        tipX - cos(angle + 0.5) * size,
-        tipY - sin(angle + 0.5) * size,
-      )
+      ..lineTo(tipX - cos(angle - 0.5) * size, tipY - sin(angle - 0.5) * size)
+      ..lineTo(tipX - cos(angle + 0.5) * size, tipY - sin(angle + 0.5) * size)
       ..close();
 
     canvas.drawPath(path, paint);

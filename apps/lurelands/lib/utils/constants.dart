@@ -73,4 +73,3 @@ class GameLayers {
   static const double fishingPole = 11;
   static const double ui = 100;
 }
-

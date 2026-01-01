@@ -12,18 +12,19 @@ class Pond extends PositionComponent with CollisionCallbacks {
   final PondData data;
 
   Pond({required this.data})
-      : super(
-          position: Vector2(data.x, data.y),
-          size: Vector2.all(data.radius * 2),
-          anchor: Anchor.center,
-          priority: GameLayers.pond.toInt(),
-        );
+    : super(
+        position: Vector2(data.x, data.y),
+        size: Vector2.all(data.radius * 2),
+        anchor: Anchor.center,
+        priority: GameLayers.pond.toInt(),
+      );
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
     // Add circular hitbox for collision detection
+    // Default CircleHitbox fills the component as a circle inscribed in the bounds
     await add(CircleHitbox());
   }
 
@@ -35,27 +36,15 @@ class Pond extends PositionComponent with CollisionCallbacks {
 
     // Draw shore/edge
     final shorePaint = Paint()..color = GameColors.pondShore;
-    canvas.drawCircle(
-      Offset(centerX, centerY),
-      radius + 8,
-      shorePaint,
-    );
+    canvas.drawCircle(Offset(centerX, centerY), radius + 8, shorePaint);
 
     // Draw main water body
     final waterPaint = Paint()..color = GameColors.pondBlue;
-    canvas.drawCircle(
-      Offset(centerX, centerY),
-      radius,
-      waterPaint,
-    );
+    canvas.drawCircle(Offset(centerX, centerY), radius, waterPaint);
 
     // Draw darker center
     final deepPaint = Paint()..color = GameColors.pondBlueDark;
-    canvas.drawCircle(
-      Offset(centerX, centerY),
-      radius * 0.6,
-      deepPaint,
-    );
+    canvas.drawCircle(Offset(centerX, centerY), radius * 0.6, deepPaint);
 
     // Draw water highlights
     _drawWaterHighlights(canvas, centerX, centerY, radius);
@@ -75,8 +64,7 @@ class Pond extends PositionComponent with CollisionCallbacks {
       final hx = cx + cos(angle) * dist;
       final hy = cy + sin(angle) * dist;
 
-      final highlightPaint = Paint()
-        ..color = GameColors.pondBlueLight.withAlpha(64);
+      final highlightPaint = Paint()..color = GameColors.pondBlueLight.withAlpha(64);
       canvas.drawCircle(Offset(hx, hy), highlightRadius, highlightPaint);
     }
   }
@@ -102,11 +90,7 @@ class Pond extends PositionComponent with CollisionCallbacks {
 
   /// Check if a player position is within casting range
   bool isPlayerInCastingRange(Vector2 playerPos) {
-    return data.isWithinCastingRange(
-      playerPos.x,
-      playerPos.y,
-      GameConstants.castProximityRadius,
-    );
+    return data.isWithinCastingRange(playerPos.x, playerPos.y, GameConstants.castProximityRadius);
   }
 }
 
