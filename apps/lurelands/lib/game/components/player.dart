@@ -9,6 +9,7 @@ import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import 'cast_line.dart';
 import 'pond.dart';
+import 'power_meter.dart';
 import 'tree.dart';
 
 /// Player component - animated sprite that can move and fish
@@ -71,6 +72,11 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       position: Vector2((size.x - hitboxWidth) / 2, size.y - 95), // Adjusted to keep bottom edge aligned
     );
     await add(playerHitbox);
+
+    // Add power meter next to player
+    final powerMeter = PowerMeter()
+      ..position = Vector2(size.x / 2 + 25, size.y / 2 + 55);
+    await add(powerMeter);
   }
 
   @override
@@ -161,7 +167,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
 
 
   /// Start casting into a pond
-  void startCasting(PondData pond) {
+  /// [power] is a value from 0.0 to 1.0 representing the charge level
+  void startCasting(PondData pond, double power) {
     if (_isCasting) return;
 
     _isCasting = true;
@@ -173,11 +180,13 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     // Update facing angle towards pond
     _facingAngle = atan2(directionToPond.y, directionToPond.x);
 
-    // Cast line lands inside the pond
-    final castDistance = min(
-      GameConstants.maxCastDistance,
-      sqrt(pow(pond.x - position.x, 2) + pow(pond.y - position.y, 2)) - GameConstants.playerSize,
-    );
+    // Calculate cast distance based on power (0.0 to 1.0)
+    final powerDistance = GameConstants.minCastDistance + 
+        (GameConstants.maxCastDistance - GameConstants.minCastDistance) * power;
+    
+    // Cast line lands inside the pond (clamped to distance to pond)
+    final distanceToPond = sqrt(pow(pond.x - position.x, 2) + pow(pond.y - position.y, 2)) - GameConstants.playerSize;
+    final castDistance = min(powerDistance, distanceToPond);
 
     final targetX = position.x + directionToPond.x * castDistance;
     final targetY = position.y + directionToPond.y * castDistance;

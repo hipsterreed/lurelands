@@ -33,6 +33,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   final ValueNotifier<bool> canCastNotifier = ValueNotifier(false);
   final ValueNotifier<bool> isCastingNotifier = ValueNotifier(false);
   final ValueNotifier<bool> debugModeNotifier = ValueNotifier(false);
+  final ValueNotifier<double> castPowerNotifier = ValueNotifier(0.0);
+
+  // Charging state
+  bool _isCharging = false;
+  double _castPower = 0.0;
 
   // Static pond data for the world
   final List<PondData> ponds = [
@@ -89,6 +94,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Update casting state notifiers
     _updateCastingState(player);
+
+    // Handle charging power meter
+    if (_isCharging) {
+      _castPower += GameConstants.castChargeRate * dt;
+      if (_castPower > 1.0) _castPower = 1.0;
+      castPowerNotifier.value = _castPower;
+    }
   }
 
   void _updateCastingState(Player player) {
@@ -148,16 +160,39 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     return null;
   }
 
-  /// Called from UI when cast button is pressed
-  void onCastPressed() {
+  /// Called from UI when cast button is held down
+  void onCastHoldStart() {
     final player = _player;
     if (player == null) return;
 
-    if (!player.isCasting && canCastNotifier.value) {
+    // If already casting, reel in instead
+    if (player.isCasting) {
+      player.reelIn();
+      return;
+    }
+
+    // Start charging if we can cast
+    if (canCastNotifier.value) {
+      _isCharging = true;
+      _castPower = 0.0;
+      castPowerNotifier.value = 0.0;
+    }
+  }
+
+  /// Called from UI when cast button is released
+  void onCastRelease() {
+    final player = _player;
+    if (player == null) return;
+
+    // If we were charging, execute the cast
+    if (_isCharging) {
+      _isCharging = false;
       final nearbyPond = getNearbyPond();
       if (nearbyPond != null) {
-        player.startCasting(nearbyPond);
+        player.startCasting(nearbyPond, _castPower);
       }
+      _castPower = 0.0;
+      castPowerNotifier.value = 0.0;
     }
   }
 
@@ -258,6 +293,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     canCastNotifier.dispose();
     isCastingNotifier.dispose();
     debugModeNotifier.dispose();
+    castPowerNotifier.dispose();
     super.onRemove();
   }
 }

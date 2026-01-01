@@ -161,13 +161,9 @@ class _GameScreenState extends State<GameScreen> {
               children: [
                 // Cast/Reel button
                 GestureDetector(
-                  onTapDown: (_) {
-                    if (isCasting) {
-                      _game.onReelPressed();
-                    } else {
-                      _game.onCastPressed();
-                    }
-                  },
+                  onTapDown: (_) => _game.onCastHoldStart(),
+                  onTapUp: (_) => _game.onCastRelease(),
+                  onTapCancel: () => _game.onCastRelease(),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     width: 80,
@@ -175,8 +171,13 @@ class _GameScreenState extends State<GameScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isActive ? GameColors.pondBlue : GameColors.menuBackground.withAlpha(128),
-                      border: Border.all(color: isActive ? GameColors.pondBlueLight : GameColors.textSecondary.withAlpha(64), width: 3),
-                      boxShadow: isActive ? [BoxShadow(color: GameColors.pondBlue.withAlpha(128), blurRadius: 12, spreadRadius: 2)] : null,
+                      border: Border.all(
+                        color: isActive ? GameColors.pondBlueLight : GameColors.textSecondary.withAlpha(64),
+                        width: 3,
+                      ),
+                      boxShadow: isActive
+                          ? [BoxShadow(color: GameColors.pondBlue.withAlpha(128), blurRadius: 12, spreadRadius: 2)]
+                          : null,
                     ),
                     child: Center(
                       child: Image.asset(
@@ -193,8 +194,8 @@ class _GameScreenState extends State<GameScreen> {
                   isCasting
                       ? 'REEL'
                       : canCast
-                      ? 'CAST'
-                      : '',
+                          ? 'HOLD'
+                          : '',
                   style: TextStyle(color: GameColors.textPrimary.withAlpha(200), fontSize: 12, fontWeight: FontWeight.bold),
                 ),
               ],

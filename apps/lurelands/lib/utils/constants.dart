@@ -15,7 +15,9 @@ class GameConstants {
 
   // Fishing settings
   static const double castProximityRadius = 150.0; // Distance to pond to allow casting
+  static const double minCastDistance = 40.0; // Min distance fishing line can extend
   static const double maxCastDistance = 120.0; // Max distance fishing line can extend
+  static const double castChargeRate = 1.0; // Power fills per second (1.0 = full in 1s)
   static const double castAnimationDuration = 0.5; // seconds
   static const double reelAnimationDuration = 0.3; // seconds
 
