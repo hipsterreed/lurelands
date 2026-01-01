@@ -39,6 +39,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   bool _isCharging = false;
   double _castPower = 0.0;
   double _castAnimationTimer = 0.0;
+  
+  // Lure sit timer (auto-reel after duration)
+  double _lureSitTimer = 0.0;
 
   // Static pond data for the world
   final List<PondData> ponds = [
@@ -72,7 +75,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     await _spawnTrees();
 
     // Create the player at world center
-    _player = Player(position: Vector2(GameConstants.worldWidth / 2, GameConstants.worldHeight / 2));
+    _player = Player(
+      position: Vector2(GameConstants.worldWidth / 2, GameConstants.worldHeight / 2),
+      equippedPoleTier: 1,
+    );
     await world.add(_player!);
 
     // Set up camera to follow player

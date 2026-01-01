@@ -180,11 +180,18 @@ class _GameScreenState extends State<GameScreen> {
                           : null,
                     ),
                     child: Center(
-                      child: Image.asset(
-                        isCasting ? 'assets/icons/fishing_pole_casted.png' : 'assets/icons/fishing_pole.png',
-                        width: 40,
-                        height: 40,
-                        opacity: AlwaysStoppedAnimation(isActive ? 1.0 : 0.5),
+                      child: Builder(
+                        builder: (context) {
+                          final poleTier = _game.player?.equippedPoleTier ?? 1;
+                          final poleAsset = ItemAssets.getFishingPole(poleTier);
+                          final imagePath = isCasting ? poleAsset.casted : poleAsset.normal;
+                          return Image.asset(
+                            imagePath,
+                            width: 40,
+                            height: 40,
+                            opacity: AlwaysStoppedAnimation(isActive ? 1.0 : 0.5),
+                          );
+                        },
                       ),
                     ),
                   ),

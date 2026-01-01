@@ -20,6 +20,7 @@ class GameConstants {
   static const double castChargeRate = 1.0; // Power fills per second (1.0 = full in 1s)
   static const double castAnimationDuration = 0.5; // seconds
   static const double reelAnimationDuration = 0.3; // seconds
+  static const double lureSitDuration = 8.0; // seconds before auto-reel
 
   // Pond settings
   static const double minPondRadius = 80.0;
