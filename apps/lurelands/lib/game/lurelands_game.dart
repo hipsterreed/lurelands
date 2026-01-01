@@ -17,6 +17,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Player? _player;
   final List<Pond> _pondComponents = [];
 
+  // Public getter for player (used by other components)
+  Player? get player => _player;
+
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
 
