@@ -38,6 +38,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Charging state
   bool _isCharging = false;
   double _castPower = 0.0;
+  double _castAnimationTimer = 0.0;
 
   // Static pond data for the world
   final List<PondData> ponds = [
@@ -100,6 +101,15 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       _castPower += GameConstants.castChargeRate * dt;
       if (_castPower > 1.0) _castPower = 1.0;
       castPowerNotifier.value = _castPower;
+    }
+
+    // Handle cast animation timer (hide power bar when lure lands)
+    if (_castAnimationTimer > 0) {
+      _castAnimationTimer -= dt;
+      if (_castAnimationTimer <= 0) {
+        _castPower = 0.0;
+        castPowerNotifier.value = 0.0;
+      }
     }
   }
 
@@ -168,6 +178,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     // If already casting, reel in instead
     if (player.isCasting) {
       player.reelIn();
+      // Reset power when reeling in
+      _castPower = 0.0;
+      castPowerNotifier.value = 0.0;
+      _castAnimationTimer = 0.0;
       return;
     }
 
@@ -190,9 +204,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       final nearbyPond = getNearbyPond();
       if (nearbyPond != null) {
         player.startCasting(nearbyPond, _castPower);
+        // Start timer to hide power bar when lure lands
+        _castAnimationTimer = GameConstants.castAnimationDuration;
+      } else {
+        // No pond nearby, reset power
+        _castPower = 0.0;
+        castPowerNotifier.value = 0.0;
       }
-      _castPower = 0.0;
-      castPowerNotifier.value = 0.0;
     }
   }
 

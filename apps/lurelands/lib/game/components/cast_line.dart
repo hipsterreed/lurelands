@@ -1,8 +1,9 @@
 import 'dart:math';
-import 'dart:ui';
+import 'dart:ui' as ui;
 
 import 'package:flame/components.dart';
 import 'package:flutter/animation.dart';
+import 'package:flutter/services.dart';
 
 import '../../utils/constants.dart';
 
@@ -23,9 +24,19 @@ class CastLine extends PositionComponent {
   double _bobberBobOffset = 0.0;
   double _bobberBobTime = 0.0;
 
+  // Lure sprite
+  late ui.Image _lureImage;
+  static const double _lureSize = 24.0;
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+
+    // Load lure image from assets/items/ (not assets/images/)
+    final data = await rootBundle.load('assets/items/lure_1.png');
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    _lureImage = frame.image;
 
     // Start cast animation
     _animateCast();
@@ -65,7 +76,7 @@ class CastLine extends PositionComponent {
   }
 
   @override
-  void render(Canvas canvas) {
+  void render(ui.Canvas canvas) {
     if (_animationProgress <= 0) return;
 
     // Calculate current line end based on animation progress
@@ -89,41 +100,40 @@ class CastLine extends PositionComponent {
     }
   }
 
-  void _drawLine(Canvas canvas, Vector2 start, Vector2 end) {
-    final linePaint = Paint()
+  void _drawLine(ui.Canvas canvas, Vector2 start, Vector2 end) {
+    final linePaint = ui.Paint()
       ..color = GameColors.fishingLineCast
       ..strokeWidth = 1.5
-      ..style = PaintingStyle.stroke;
+      ..style = ui.PaintingStyle.stroke;
 
     // Draw line with slight curve (catenary-like)
     final midX = (start.x + end.x) / 2;
     final midY = (start.y + end.y) / 2 + 10 * (1 - _animationProgress);
 
     // Simple approximation with two line segments
-    canvas.drawLine(Offset(start.x, start.y), Offset(midX, midY), linePaint);
-    canvas.drawLine(Offset(midX, midY), Offset(end.x, end.y), linePaint);
+    canvas.drawLine(ui.Offset(start.x, start.y), ui.Offset(midX, midY), linePaint);
+    canvas.drawLine(ui.Offset(midX, midY), ui.Offset(end.x, end.y), linePaint);
   }
 
-  void _drawBobber(Canvas canvas, Vector2 pos) {
+  void _drawBobber(ui.Canvas canvas, Vector2 pos) {
     final bobberY = pos.y + _bobberBobOffset;
 
-    // White top
-    final whitePaint = Paint()..color = const Color(0xFFFFFFFF);
-    canvas.drawCircle(Offset(pos.x, bobberY - 2), 4, whitePaint);
-
-    // Red bottom
-    final redPaint = Paint()..color = const Color(0xFFFF3333);
-    canvas.drawCircle(Offset(pos.x, bobberY + 2), 4, redPaint);
-
-    // Outline
-    final outlinePaint = Paint()
-      ..color = const Color(0xFF333333)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawCircle(Offset(pos.x, bobberY), 5, outlinePaint);
+    // Draw lure sprite centered at position
+    final srcRect = ui.Rect.fromLTWH(
+      0,
+      0,
+      _lureImage.width.toDouble(),
+      _lureImage.height.toDouble(),
+    );
+    final dstRect = ui.Rect.fromCenter(
+      center: ui.Offset(pos.x, bobberY),
+      width: _lureSize,
+      height: _lureSize,
+    );
+    canvas.drawImageRect(_lureImage, srcRect, dstRect, ui.Paint());
   }
 
-  void _drawSplash(Canvas canvas, Vector2 pos) {
+  void _drawSplash(ui.Canvas canvas, Vector2 pos) {
     // Animated ripples
     final rippleTime = _bobberBobTime * 0.5;
     for (var i = 0; i < 3; i++) {
@@ -131,11 +141,11 @@ class CastLine extends PositionComponent {
       if (phase < 1.5) {
         final radius = 8 + phase * 20;
         final alpha = ((1.5 - phase) / 1.5 * 0.4 * 255).toInt();
-        final ripplePaint = Paint()
-          ..color = Color.fromARGB(alpha, 255, 255, 255)
-          ..style = PaintingStyle.stroke
+        final ripplePaint = ui.Paint()
+          ..color = ui.Color.fromARGB(alpha, 255, 255, 255)
+          ..style = ui.PaintingStyle.stroke
           ..strokeWidth = 1.5;
-        canvas.drawCircle(Offset(pos.x, pos.y), radius, ripplePaint);
+        canvas.drawCircle(ui.Offset(pos.x, pos.y), radius, ripplePaint);
       }
     }
   }
