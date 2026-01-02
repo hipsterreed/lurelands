@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../game/lurelands_game.dart';
+import '../services/player_id_service.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 
@@ -70,7 +71,7 @@ class _GameScreenState extends State<GameScreen> {
     if (connected) {
       // Successfully connected - create the game
       debugPrint('[GameScreen] Connected! Creating game...');
-      _createGame();
+      await _createGame();
     } else {
       // Connection failed - show error screen
       debugPrint('[GameScreen] Connection FAILED');
@@ -81,13 +82,13 @@ class _GameScreenState extends State<GameScreen> {
     }
   }
 
-  void _createGame() {
-    // Generate a unique player ID (in production, use proper auth)
-    final playerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
+  Future<void> _createGame() async {
+    // Get persistent player ID (loads from local storage or creates new)
+    final playerId = await PlayerIdService.instance.getPlayerId();
 
     // Use player name passed from main menu (will be saved to DB when joining)
     final playerName = widget.playerName;
-    debugPrint('[GameScreen] Creating game with playerName: "$playerName"');
+    debugPrint('[GameScreen] Creating game with playerId: "$playerId", playerName: "$playerName"');
 
     setState(() {
       _isConnecting = false;
@@ -387,11 +388,6 @@ class _GameScreenState extends State<GameScreen> {
             top: 16,
             left: 16,
             child: PopupMenuButton<String>(
-              icon: Icon(
-                Icons.menu,
-                color: GameColors.textPrimary.withAlpha(204),
-                size: 28,
-              ),
               color: GameColors.menuBackground,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),

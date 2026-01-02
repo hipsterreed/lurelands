@@ -44,6 +44,9 @@ dependencies:
   # JSON serialization
   json_annotation: ^4.9.0
 
+  # Local storage for player ID
+  shared_preferences: ^2.3.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

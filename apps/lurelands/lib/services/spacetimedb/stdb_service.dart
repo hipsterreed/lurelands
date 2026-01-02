@@ -505,8 +505,12 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
   @override
   void updatePlayerName(String name) {
-    if (_playerId == null || !isConnected) return;
+    if (_playerId == null || !isConnected) {
+      print('[Bridge] Cannot update name - playerId: $_playerId, isConnected: $isConnected');
+      return;
+    }
 
+    print('[Bridge] Updating player name - playerId: $_playerId, newName: "$name"');
     _sendMessage({
       'type': 'update_name',
       'playerId': _playerId!,

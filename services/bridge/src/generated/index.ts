@@ -43,6 +43,8 @@ import StartCastingReducer from "./start_casting_reducer";
 export { StartCastingReducer };
 import StopCastingReducer from "./stop_casting_reducer";
 export { StopCastingReducer };
+import UpdatePlayerNameReducer from "./update_player_name_reducer";
+export { UpdatePlayerNameReducer };
 import UpdatePositionReducer from "./update_position_reducer";
 export { UpdatePositionReducer };
 
@@ -154,6 +156,7 @@ const reducersSchema = __reducers(
   __reducerSchema("release_fish", ReleaseFishReducer),
   __reducerSchema("start_casting", StartCastingReducer),
   __reducerSchema("stop_casting", StopCastingReducer),
+  __reducerSchema("update_player_name", UpdatePlayerNameReducer),
   __reducerSchema("update_position", UpdatePositionReducer),
 );
 
