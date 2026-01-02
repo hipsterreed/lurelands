@@ -348,6 +348,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       castTargetX: (json['castTargetX'] as num?)?.toDouble(),
       castTargetY: (json['castTargetY'] as num?)?.toDouble(),
       color: json['color'] as int? ?? 0xFFE74C3C,
+      isOnline: json['isOnline'] as bool? ?? true,
     );
   }
 
@@ -407,6 +408,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       x: 1000.0,
       y: 1000.0,
       color: color,
+      isOnline: true,
     );
     _players[playerId] = _localPlayer!;
 

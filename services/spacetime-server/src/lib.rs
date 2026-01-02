@@ -36,6 +36,9 @@ pub struct Player {
     /// Player color for customization (ARGB)
     pub color: u32,
     
+    /// Whether the player is currently online and in the world
+    pub is_online: bool,
+    
     /// Timestamp of last update
     pub last_updated: Timestamp,
 }
@@ -157,11 +160,12 @@ pub struct Ocean {
 /// Spawns the player at a random spawn point
 #[spacetimedb::reducer]
 pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: u32) {
-    // Check if player already exists - if so, preserve their existing data and return
-    if let Some(player) = ctx.db.player().id().find(&player_id) {
+    // Check if player already exists - if so, mark them as online and preserve their data
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
         log::info!("Player {} reconnecting, preserving existing data (name: {})", player_id, player.name);
-        // Just update the timestamp, don't overwrite name or other data
-        // The name should be updated via update_player_name reducer if needed
+        player.is_online = true;
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
         return;
     }
     
@@ -191,6 +195,7 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
         cast_target_x: None,
         cast_target_y: None,
         color,
+        is_online: true,
         last_updated: ctx.timestamp,
     };
     
@@ -199,18 +204,15 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
 }
 
 /// Called when a player explicitly leaves the game world (e.g., logout)
-/// Note: Players are NOT deleted on disconnect - they persist in the database
-/// This reducer is only called when a player explicitly sends a 'leave' message
+/// Marks the player as offline but keeps them in the database for reconnection
 #[spacetimedb::reducer]
 pub fn leave_world(ctx: &ReducerContext, player_id: String) {
-    // For now, we keep players in the database even when they "leave"
-    // This allows them to reconnect and maintain their data
-    // If you want to delete players on explicit logout, uncomment the code below:
-    // if ctx.db.player().id().find(&player_id).is_some() {
-    //     ctx.db.player().id().delete(&player_id);
-    //     log::info!("Player {} left the world", player_id);
-    // }
-    log::info!("Player {} requested to leave (but kept in database for reconnection)", player_id);
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        player.is_online = false;
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
+        log::info!("Player {} left the world (marked as offline)", player_id);
+    }
 }
 
 /// Called when a player moves to update their position
@@ -324,6 +326,7 @@ pub fn update_player_name(ctx: &ReducerContext, player_id: String, name: String)
             cast_target_x: None,
             cast_target_y: None,
             color: 0xFFE74C3C, // Default red color
+            is_online: false, // Created via name update, not yet in world
             last_updated: ctx.timestamp,
         };
         

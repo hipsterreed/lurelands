@@ -12,6 +12,7 @@ class PlayerState {
   final double facingAngle; // Radians, 0 = right, PI/2 = down
   final int equippedPoleTier; // Fishing pole tier (1-4)
   final int equippedLureTier; // Lure tier (1-4)
+  final bool isOnline; // Whether the player is currently online and in the world
 
   const PlayerState({
     required this.id,
@@ -25,6 +26,7 @@ class PlayerState {
     this.facingAngle = 0.0,
     this.equippedPoleTier = 1, // Default to tier 1
     this.equippedLureTier = 1, // Default to tier 1
+    this.isOnline = true, // Default to online
   });
 
   PlayerState copyWith({
@@ -39,6 +41,7 @@ class PlayerState {
     double? facingAngle,
     int? equippedPoleTier,
     int? equippedLureTier,
+    bool? isOnline,
   }) {
     return PlayerState(
       id: id ?? this.id,
@@ -52,6 +55,7 @@ class PlayerState {
       facingAngle: facingAngle ?? this.facingAngle,
       equippedPoleTier: equippedPoleTier ?? this.equippedPoleTier,
       equippedLureTier: equippedLureTier ?? this.equippedLureTier,
+      isOnline: isOnline ?? this.isOnline,
     );
   }
 
@@ -67,6 +71,7 @@ class PlayerState {
         'facingAngle': facingAngle,
         'equippedPoleTier': equippedPoleTier,
         'equippedLureTier': equippedLureTier,
+        'isOnline': isOnline,
       };
 
   factory PlayerState.fromJson(Map<String, dynamic> json) => PlayerState(
@@ -81,5 +86,6 @@ class PlayerState {
         facingAngle: (json['facingAngle'] as num?)?.toDouble() ?? 0.0,
         equippedPoleTier: json['equippedPoleTier'] as int? ?? 1,
         equippedLureTier: json['equippedLureTier'] as int? ?? 1,
+        isOnline: json['isOnline'] as bool? ?? true,
       );
 }

@@ -210,9 +210,10 @@ const app = new Elysia()
       wsLogger.info({ wsId, clientCount: clients.size - 1 }, 'Client disconnected');
       const session = clients.get(wsId);
       
-      // Don't delete player from database on disconnect - they should persist
-      // Players will remain in the database and can reconnect with the same data
-      // Only call leaveWorld if the player explicitly sends a 'leave' message
+      // Mark player as offline when they disconnect (but keep them in database)
+      if (session?.playerId) {
+        stdb.leaveWorld(session.playerId);
+      }
       
       clients.delete(wsId);
     },

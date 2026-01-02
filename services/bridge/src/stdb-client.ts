@@ -229,6 +229,7 @@ export class StdbClient {
       castTargetX: p.castTargetX ?? null,
       castTargetY: p.castTargetY ?? null,
       color: p.color ?? 0xFFE74C3C,
+      isOnline: p.isOnline ?? true,
     };
   }
 

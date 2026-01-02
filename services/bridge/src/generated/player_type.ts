@@ -20,6 +20,7 @@ export default __t.object("Player", {
   castTargetX: __t.option(__t.f32()),
   castTargetY: __t.option(__t.f32()),
   color: __t.u32(),
+  isOnline: __t.bool(),
   lastUpdated: __t.timestamp(),
 });
 
