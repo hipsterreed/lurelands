@@ -323,8 +323,12 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ElevatedButton(
             onPressed: () {
               final newName = _nameController.text.trim();
+              print('[MainMenu] Save button pressed, newName: "$newName"');
               if (newName.isNotEmpty) {
                 SettingsService.instance.playerName = newName;
+                print('[MainMenu] Name saved, current name: "${SettingsService.instance.playerName}"');
+              } else {
+                print('[MainMenu] Name is empty, not saving');
               }
               Navigator.of(context).pop();
             },

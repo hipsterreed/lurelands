@@ -19,6 +19,9 @@ class SettingsService {
     final trimmed = value.trim();
     if (trimmed.isNotEmpty && trimmed.length <= 16) {
       _playerName = trimmed;
+      print('[SettingsService] Name set to: "$_playerName"');
+    } else {
+      print('[SettingsService] Invalid name: "$value" (trimmed: "$trimmed")');
     }
   }
 
