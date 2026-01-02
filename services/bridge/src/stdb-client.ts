@@ -44,6 +44,8 @@ export class StdbClient {
   }
 
   async connect(): Promise<boolean> {
+    // Reset connection state
+    this.isConnected = false;
     return new Promise((resolve) => {
       try {
         stdbLogger.info({ uri: this.uri, module: this.moduleName }, 'Connecting to SpacetimeDB');
@@ -76,6 +78,8 @@ export class StdbClient {
               .onError((errCtx: ErrorContext) => {
                 // Handle subscription errors (best practice from docs)
                 stdbLogger.error({ event: errCtx.event }, 'Subscription error');
+                // Log a helpful message about potential schema mismatches
+                stdbLogger.error('If you see deserialization errors, the SpacetimeDB module may need to be rebuilt and redeployed.');
               })
               .subscribe([
                 'SELECT * FROM spawn_point',
@@ -111,70 +115,91 @@ export class StdbClient {
   }
 
   private loadInitialState(ctx: SubscriptionEventContext) {
-    // Load spawn points
-    this.spawnPoints = [];
-    for (const sp of ctx.db.spawnPoint.iter()) {
-      this.spawnPoints.push({
-        id: sp.id,
-        x: sp.x,
-        y: sp.y,
-        name: sp.name,
-      });
-    }
-    // Load ponds
-    this.ponds = [];
-    for (const p of ctx.db.pond.iter()) {
-      this.ponds.push({
-        id: p.id,
-        x: p.x,
-        y: p.y,
-        radius: p.radius,
-      });
-    }
+    try {
+      // Load spawn points
+      this.spawnPoints = [];
+      for (const sp of ctx.db.spawnPoint.iter()) {
+        this.spawnPoints.push({
+          id: sp.id,
+          x: sp.x,
+          y: sp.y,
+          name: sp.name,
+        });
+      }
+      // Load ponds
+      this.ponds = [];
+      for (const p of ctx.db.pond.iter()) {
+        this.ponds.push({
+          id: p.id,
+          x: p.x,
+          y: p.y,
+          radius: p.radius,
+        });
+      }
 
-    // Load rivers
-    this.rivers = [];
-    for (const r of ctx.db.river.iter()) {
-      this.rivers.push({
-        id: r.id,
-        x: r.x,
-        y: r.y,
-        width: r.width,
-        length: r.length,
-        rotation: r.rotation,
-      });
+      // Load rivers
+      this.rivers = [];
+      for (const r of ctx.db.river.iter()) {
+        this.rivers.push({
+          id: r.id,
+          x: r.x,
+          y: r.y,
+          width: r.width,
+          length: r.length,
+          rotation: r.rotation,
+        });
+      }
+
+      // Load ocean
+      this.ocean = null;
+      for (const o of ctx.db.ocean.iter()) {
+        this.ocean = {
+          id: o.id,
+          x: o.x,
+          y: o.y,
+          width: o.width,
+          height: o.height,
+        };
+        break; // Only one ocean
+      }
+
+      // Load players - handle schema mismatch gracefully
+      this.players.clear();
+      try {
+        for (const p of ctx.db.player.iter()) {
+          this.players.set(p.id, this.mapPlayer(p));
+        }
+      } catch (error: any) {
+        stdbLogger.error({ err: error }, 'Error loading players - schema mismatch?');
+        if (error?.message?.includes('RangeError') || error?.message?.includes('deserialize')) {
+          stdbLogger.error('CRITICAL: Schema mismatch detected! The deployed SpacetimeDB module does not match the expected schema.');
+          stdbLogger.error('Please rebuild and redeploy the Rust module:');
+          stdbLogger.error('  1. cd services/spacetime-server');
+          stdbLogger.error('  2. cargo build --release --target wasm32-unknown-unknown');
+          stdbLogger.error('  3. spacetime publish lurelands');
+          stdbLogger.error('  4. cd ../bridge && bun run generate');
+        }
+        throw error; // Re-throw to prevent partial state
+      }
+
+      stdbLogger.info({
+        spawnPoints: this.spawnPoints.length,
+        ponds: this.ponds.length,
+        rivers: this.rivers.length,
+        hasOcean: !!this.ocean,
+        players: this.players.size,
+      }, 'Initial state loaded');
+
+      // Emit callbacks
+      this.emitWorldState();
+      this.emitPlayersUpdate();
+    } catch (error: any) {
+      stdbLogger.error({ err: error }, 'Failed to load initial state');
+      if (error?.message?.includes('RangeError') || error?.message?.includes('deserialize')) {
+        stdbLogger.error('Schema mismatch! Rebuild and redeploy the SpacetimeDB module.');
+      }
+      throw error;
     }
-
-    // Load ocean
-    this.ocean = null;
-    for (const o of ctx.db.ocean.iter()) {
-      this.ocean = {
-        id: o.id,
-        x: o.x,
-        y: o.y,
-        width: o.width,
-        height: o.height,
-      };
-      break; // Only one ocean
-    }
-
-    // Load players
-    this.players.clear();
-    for (const p of ctx.db.player.iter()) {
-      this.players.set(p.id, this.mapPlayer(p));
-    }
-
-    stdbLogger.info({
-      spawnPoints: this.spawnPoints.length,
-      ponds: this.ponds.length,
-      rivers: this.rivers.length,
-      hasOcean: !!this.ocean,
-      players: this.players.size,
-    }, 'Initial state loaded');
-
-    // Emit callbacks
-    this.emitWorldState();
-    this.emitPlayersUpdate();
   }
 
   private setupTableCallbacks() {
