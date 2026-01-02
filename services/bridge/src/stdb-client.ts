@@ -1,5 +1,6 @@
 import { DbConnection, tables, reducers, type EventContext, type SubscriptionEventContext, type ErrorContext } from './generated';
 import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch } from './types';
+import { stdbLogger } from './logger';
 
 // =============================================================================
 // SpacetimeDB Client Wrapper (using new spacetimedb SDK 1.4+)
@@ -45,7 +46,7 @@ export class StdbClient {
   async connect(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        console.log(`[STDB] Connecting to ${this.uri}/${this.moduleName}...`);
+        stdbLogger.info({ uri: this.uri, module: this.moduleName }, 'Connecting to SpacetimeDB');
         
         // Build connection with optional token for reconnection
         let builder = DbConnection.builder()
@@ -54,13 +55,13 @@ export class StdbClient {
         
         // Use saved token if available (for reconnection with same identity)
         if (this.authToken) {
-          console.log('[STDB] Using saved auth token for reconnection');
+          stdbLogger.debug('Using saved auth token for reconnection');
           builder = builder.withToken(this.authToken);
         }
         
         this.conn = builder
           .onConnect((ctx, identity, token) => {
-            console.log('[STDB] Connected!', identity.toHexString());
+            stdbLogger.info({ identity: identity.toHexString() }, 'Connected');
             this.isConnected = true;
             
             // Save token for future reconnections (best practice from docs)
@@ -69,12 +70,12 @@ export class StdbClient {
             // Subscribe to all tables with error handling
             ctx.subscriptionBuilder()
               .onApplied((subCtx: SubscriptionEventContext) => {
-                console.log('[STDB] Subscription applied, loading initial state...');
+                stdbLogger.info('Subscription applied, loading initial state');
                 this.loadInitialState(subCtx);
               })
               .onError((errCtx: ErrorContext) => {
                 // Handle subscription errors (best practice from docs)
-                console.error('[STDB] Subscription error:', errCtx.event);
+                stdbLogger.error({ event: errCtx.event }, 'Subscription error');
               })
               .subscribe([
                 'SELECT * FROM spawn_point',
@@ -88,12 +89,12 @@ export class StdbClient {
             resolve(true);
           })
           .onConnectError((ctx: ErrorContext, error) => {
-            console.error('[STDB] Connection error:', error);
+            stdbLogger.error({ err: error }, 'Connection error');
             this.isConnected = false;
             resolve(false);
           })
           .onDisconnect((ctx) => {
-            console.log('[STDB] Disconnected');
+            stdbLogger.warn('Disconnected');
             this.isConnected = false;
           })
           .build();
@@ -102,7 +103,7 @@ export class StdbClient {
         this.setupTableCallbacks();
 
       } catch (error) {
-        console.error('[STDB] Connection failed:', error);
+        stdbLogger.error({ err: error }, 'Connection failed');
         this.isConnected = false;
         resolve(false);
       }
@@ -120,8 +121,6 @@ export class StdbClient {
         name: sp.name,
       });
     }
-    console.log(`[STDB] Loaded ${this.spawnPoints.length} spawn points`);
-
     // Load ponds
     this.ponds = [];
     for (const p of ctx.db.pond.iter()) {
@@ -132,7 +131,6 @@ export class StdbClient {
         radius: p.radius,
       });
     }
-    console.log(`[STDB] Loaded ${this.ponds.length} ponds`);
 
     // Load rivers
     this.rivers = [];
@@ -146,7 +144,6 @@ export class StdbClient {
         rotation: r.rotation,
       });
     }
-    console.log(`[STDB] Loaded ${this.rivers.length} rivers`);
 
     // Load ocean
     this.ocean = null;
@@ -160,14 +157,20 @@ export class StdbClient {
       };
       break; // Only one ocean
     }
-    console.log(`[STDB] Ocean loaded: ${this.ocean ? 'yes' : 'no'}`);
 
     // Load players
     this.players.clear();
     for (const p of ctx.db.player.iter()) {
       this.players.set(p.id, this.mapPlayer(p));
     }
-    console.log(`[STDB] Loaded ${this.players.size} players`);
+
+    stdbLogger.info({
+      spawnPoints: this.spawnPoints.length,
+      ponds: this.ponds.length,
+      rivers: this.rivers.length,
+      hasOcean: !!this.ocean,
+      players: this.players.size,
+    }, 'Initial state loaded');
 
     // Emit callbacks
     this.emitWorldState();
@@ -179,7 +182,7 @@ export class StdbClient {
 
     // Player table callbacks
     this.conn.db.player.onInsert((ctx: EventContext, player) => {
-      console.log(`[STDB] Player inserted: ${player.id}`);
+      stdbLogger.debug({ playerId: player.id }, 'Player inserted');
       this.players.set(player.id, this.mapPlayer(player));
       this.emitPlayersUpdate();
     });
@@ -190,14 +193,14 @@ export class StdbClient {
     });
 
     this.conn.db.player.onDelete((ctx: EventContext, player) => {
-      console.log(`[STDB] Player deleted: ${player.id}`);
+      stdbLogger.debug({ playerId: player.id }, 'Player deleted');
       this.players.delete(player.id);
       this.emitPlayersUpdate();
     });
 
     // Fish catch callback
     this.conn.db.fishCatch.onInsert((ctx: EventContext, fc) => {
-      console.log(`[STDB] Fish caught by ${fc.playerId}`);
+      stdbLogger.info({ playerId: fc.playerId, fishType: fc.fishType, rarity: fc.rarity }, 'Fish caught');
       if (this.onFishCaught) {
         this.onFishCaught({
           id: Number(fc.id),
@@ -253,27 +256,26 @@ export class StdbClient {
   // not positional arguments. The property names must match the generated schema.
 
   async joinWorld(playerId: string, name: string, color: number): Promise<{ x: number; y: number } | null> {
-    console.log('[STDB] joinWorld called:', { playerId, name, color });
+    stdbLogger.debug({ playerId, name, color }, 'joinWorld called');
     
     if (!this.conn || !this.isConnected) {
-      console.log('[STDB] Not connected, cannot join world');
+      stdbLogger.warn('Not connected, cannot join world');
       return null;
     }
 
     try {
       // Call reducer with params object (SDK requirement)
       this.conn.reducers.joinWorld({ playerId, name, color: color >>> 0 });
-      console.log('[STDB] joinWorld reducer called');
       
       // Pick a random spawn point
       if (this.spawnPoints.length > 0) {
         const spawn = this.spawnPoints[Math.floor(Math.random() * this.spawnPoints.length)];
-        console.log('[STDB] Returning spawn:', spawn.name);
+        stdbLogger.info({ playerId, spawn: spawn.name }, 'Player spawned');
         return { x: spawn.x, y: spawn.y };
       }
       return { x: 1000, y: 1000 };
     } catch (error) {
-      console.error('[STDB] Failed to join world:', error);
+      stdbLogger.error({ err: error, playerId }, 'Failed to join world');
       return null;
     }
   }
@@ -282,8 +284,9 @@ export class StdbClient {
     if (!this.conn || !this.isConnected) return;
     try {
       this.conn.reducers.leaveWorld({ playerId });
+      stdbLogger.debug({ playerId }, 'Player left world');
     } catch (error) {
-      console.error('[STDB] Failed to leave world:', error);
+      stdbLogger.error({ err: error, playerId }, 'Failed to leave world');
     }
   }
 
@@ -294,14 +297,14 @@ export class StdbClient {
     try {
       this.conn.reducers.updatePosition({ playerId, x, y, facingAngle });
       
-      // Log once per second max
+      // Log once per second max (trace level for high-frequency updates)
       const now = Date.now();
       if (now - this._lastPositionLog > 1000) {
-        console.log('[STDB] Position update:', { playerId: playerId.substring(0, 10), x: x.toFixed(0), y: y.toFixed(0) });
+        stdbLogger.trace({ playerId: playerId.substring(0, 10), x: x.toFixed(0), y: y.toFixed(0) }, 'Position update');
         this._lastPositionLog = now;
       }
     } catch (error) {
-      console.error('[STDB] Position update error:', error);
+      stdbLogger.error({ err: error, playerId }, 'Position update error');
     }
   }
 
@@ -309,8 +312,9 @@ export class StdbClient {
     if (!this.conn || !this.isConnected) return;
     try {
       this.conn.reducers.startCasting({ playerId, targetX, targetY });
+      stdbLogger.debug({ playerId, targetX, targetY }, 'Started casting');
     } catch (error) {
-      console.error('[STDB] Failed to start casting:', error);
+      stdbLogger.error({ err: error, playerId }, 'Failed to start casting');
     }
   }
 
@@ -318,8 +322,9 @@ export class StdbClient {
     if (!this.conn || !this.isConnected) return;
     try {
       this.conn.reducers.stopCasting({ playerId });
+      stdbLogger.debug({ playerId }, 'Stopped casting');
     } catch (error) {
-      console.error('[STDB] Failed to stop casting:', error);
+      stdbLogger.error({ err: error, playerId }, 'Failed to stop casting');
     }
   }
 

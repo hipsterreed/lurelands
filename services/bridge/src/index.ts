@@ -1,6 +1,7 @@
 import { Elysia } from 'elysia';
 import { StdbClient } from './stdb-client';
 import type { ClientMessage, ServerMessage, Player } from './types';
+import { logger, wsLogger, stdbLogger, serverLogger } from './logger';
 
 // =============================================================================
 // Configuration
@@ -65,7 +66,7 @@ function send(ws: any, message: ServerMessage) {
   try {
     ws.send(JSON.stringify(message));
   } catch (error) {
-    console.error('[WS] Failed to send message:', error);
+    wsLogger.error({ err: error, messageType: message.type }, 'Failed to send message');
   }
 }
 
@@ -74,16 +75,16 @@ function send(ws: any, message: ServerMessage) {
 // =============================================================================
 
 async function handleMessage(ws: any, session: ClientSession, message: ClientMessage) {
-  console.log('[WS] Received message:', message.type, message);
+  wsLogger.debug({ type: message.type, message }, 'Received message');
   
   switch (message.type) {
     case 'join': {
-      console.log('[WS] Player joining:', message.playerId, message.name);
+      wsLogger.info({ playerId: message.playerId, name: message.name }, 'Player joining');
       session.playerId = message.playerId;
       
       // Join the world via SpacetimeDB
       const spawnPos = await stdb.joinWorld(message.playerId, message.name, message.color);
-      console.log('[WS] Spawn position:', spawnPos);
+      wsLogger.debug({ spawnPos }, 'Spawn position');
       
       if (spawnPos) {
         send(ws, { type: 'connected', playerId: message.playerId });
@@ -126,7 +127,7 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
     }
 
     default:
-      console.warn('[WS] Unknown message type:', (message as any).type);
+      wsLogger.warn({ type: (message as any).type }, 'Unknown message type');
   }
 }
 
@@ -149,7 +150,7 @@ const app = new Elysia()
   .ws('/ws', {
     open(ws) {
       const wsId = getWsId(ws);
-      console.log('[WS] Client connected, id:', wsId);
+      wsLogger.info({ wsId, clientCount: clients.size + 1 }, 'Client connected');
       clients.set(wsId, { ws, playerId: null });
       
       // Send initial state if available
@@ -160,10 +161,10 @@ const app = new Elysia()
 
     message(ws, rawMessage) {
       const wsId = getWsId(ws);
-      console.log('[WS] Message from:', wsId, 'type:', typeof rawMessage);
+      wsLogger.debug({ wsId, rawType: typeof rawMessage }, 'Message received');
       const session = clients.get(wsId);
       if (!session) {
-        console.log('[WS] No session found for id:', wsId, 'available ids:', Array.from(clients.keys()));
+        wsLogger.warn({ wsId, availableIds: Array.from(clients.keys()) }, 'No session found');
         return;
       }
       // Update ws reference in case it changed
@@ -182,18 +183,18 @@ const app = new Elysia()
           messageStr = JSON.stringify(rawMessage);
         }
         
-        console.log('[WS] Message string:', messageStr.substring(0, 100));
+        wsLogger.debug({ preview: messageStr.substring(0, 100) }, 'Parsing message');
         const message = JSON.parse(messageStr);
         handleMessage(ws, session, message as ClientMessage);
       } catch (error) {
-        console.error('[WS] Failed to parse message:', error);
+        wsLogger.error({ err: error }, 'Failed to parse message');
         send(ws, { type: 'error', message: 'Invalid message format' });
       }
     },
 
     close(ws) {
       const wsId = getWsId(ws);
-      console.log('[WS] Client disconnected, id:', wsId);
+      wsLogger.info({ wsId, clientCount: clients.size - 1 }, 'Client disconnected');
       const session = clients.get(wsId);
       
       // Clean up player from world
@@ -212,28 +213,28 @@ const app = new Elysia()
 // =============================================================================
 
 async function main() {
-  console.log('========================================');
-  console.log('  Lurelands Bridge Service');
-  console.log('========================================');
-  console.log(`  Bridge:      http://${HOST}:${PORT}`);
-  console.log(`  WebSocket:   ws://${HOST}:${PORT}/ws`);
-  console.log(`  SpacetimeDB: ${SPACETIMEDB_URI}/${SPACETIMEDB_MODULE}`);
-  console.log('========================================');
+  logger.info({
+    bridge: `http://${HOST}:${PORT}`,
+    websocket: `ws://${HOST}:${PORT}/ws`,
+    spacetimedb: `${SPACETIMEDB_URI}/${SPACETIMEDB_MODULE}`,
+  }, 'Lurelands Bridge Service starting');
   
   // Connect to SpacetimeDB
   const connected = await stdb.connect();
   
   if (connected) {
-    console.log('[STDB] Successfully connected to SpacetimeDB');
+    stdbLogger.info('Successfully connected to SpacetimeDB');
   } else {
-    console.warn('[STDB] Failed to connect to SpacetimeDB - running in offline mode');
-    console.warn('[STDB] Clients will receive empty world state');
+    stdbLogger.warn('Failed to connect to SpacetimeDB - running in offline mode');
   }
   
-  console.log(`[Server] Listening on ${HOST}:${PORT}`);
+  serverLogger.info({ host: HOST, port: PORT }, 'Server listening');
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  logger.fatal({ err }, 'Fatal error during startup');
+  process.exit(1);
+});
 
 export type App = typeof app;
 
