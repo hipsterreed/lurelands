@@ -20,7 +20,12 @@ interface ClientSession {
   playerId: string | null;
 }
 
-const clients = new Map<any, ClientSession>();
+// Use ws.id as key instead of ws object (Elysia may use different wrapper objects)
+const clients = new Map<string, ClientSession>();
+
+function getWsId(ws: any): string {
+  return ws.id ?? ws.raw?.id ?? String(ws);
+}
 
 // =============================================================================
 // SpacetimeDB Client
@@ -143,8 +148,9 @@ const app = new Elysia()
   // WebSocket endpoint
   .ws('/ws', {
     open(ws) {
-      console.log('[WS] Client connected');
-      clients.set(ws, { ws, playerId: null });
+      const wsId = getWsId(ws);
+      console.log('[WS] Client connected, id:', wsId);
+      clients.set(wsId, { ws, playerId: null });
       
       // Send initial state if available
       if (stdb.getIsConnected()) {
@@ -153,12 +159,15 @@ const app = new Elysia()
     },
 
     message(ws, rawMessage) {
-      console.log('[WS] Raw message received, type:', typeof rawMessage, 'isBuffer:', Buffer.isBuffer(rawMessage));
-      const session = clients.get(ws);
+      const wsId = getWsId(ws);
+      console.log('[WS] Message from:', wsId, 'type:', typeof rawMessage);
+      const session = clients.get(wsId);
       if (!session) {
-        console.log('[WS] No session found for ws');
+        console.log('[WS] No session found for id:', wsId, 'available ids:', Array.from(clients.keys()));
         return;
       }
+      // Update ws reference in case it changed
+      session.ws = ws;
 
       try {
         // Handle different message formats (string, Buffer, object)
@@ -183,15 +192,16 @@ const app = new Elysia()
     },
 
     close(ws) {
-      console.log('[WS] Client disconnected');
-      const session = clients.get(ws);
+      const wsId = getWsId(ws);
+      console.log('[WS] Client disconnected, id:', wsId);
+      const session = clients.get(wsId);
       
       // Clean up player from world
       if (session?.playerId) {
         stdb.leaveWorld(session.playerId);
       }
       
-      clients.delete(ws);
+      clients.delete(wsId);
     },
   })
 
