@@ -5,7 +5,6 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../game/lurelands_game.dart';
-import '../services/settings_service.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 
@@ -14,7 +13,9 @@ const String _bridgeUrl = 'wss://api.lurelands.com/ws';
 
 /// Screen that hosts the Flame GameWidget with mobile touch controls
 class GameScreen extends StatefulWidget {
-  const GameScreen({super.key});
+  final String playerName;
+  
+  const GameScreen({super.key, this.playerName = 'Fisher'});
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -83,8 +84,8 @@ class _GameScreenState extends State<GameScreen> {
     // Generate a unique player ID (in production, use proper auth)
     final playerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
 
-    // Get player name from settings
-    final playerName = SettingsService.instance.playerName;
+    // Use player name passed from main menu (will be saved to DB when joining)
+    final playerName = widget.playerName;
     debugPrint('[GameScreen] Creating game with playerName: "$playerName"');
 
     setState(() {

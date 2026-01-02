@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../services/settings_service.dart';
 import '../utils/constants.dart';
 import 'game_screen.dart';
 
@@ -18,6 +17,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   final TextEditingController _nameController = TextEditingController();
+  String _playerName = 'Fisher'; // Temporary name until saved to DB
 
   @override
   void initState() {
@@ -42,9 +42,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
 
     _animationController.forward();
-
-    // Initialize name controller with current name
-    _nameController.text = SettingsService.instance.playerName;
   }
 
   @override
@@ -58,7 +55,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
-            const GameScreen(),
+            GameScreen(playerName: _playerName),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(
             opacity: animation,
@@ -239,7 +236,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   void _showSettingsDialog() {
-    _nameController.text = SettingsService.instance.playerName;
+    _nameController.text = _playerName;
 
     showDialog(
       context: context,
@@ -323,12 +320,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ElevatedButton(
             onPressed: () {
               final newName = _nameController.text.trim();
-              print('[MainMenu] Save button pressed, newName: "$newName"');
               if (newName.isNotEmpty) {
-                SettingsService.instance.playerName = newName;
-                print('[MainMenu] Name saved, current name: "${SettingsService.instance.playerName}"');
-              } else {
-                print('[MainMenu] Name is empty, not saving');
+                setState(() {
+                  _playerName = newName;
+                });
               }
               Navigator.of(context).pop();
             },
