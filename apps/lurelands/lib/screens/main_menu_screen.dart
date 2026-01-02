@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../services/player_id_service.dart';
+import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import 'game_screen.dart';
 
@@ -17,7 +19,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
   final TextEditingController _nameController = TextEditingController();
-  String _playerName = 'Fisher'; // Temporary name until saved to DB
+  String _playerName = 'Fisher'; // Will be loaded from DB or generated
+  bool _isLoadingPlayerData = true;
+  String? _playerId;
+  SpacetimeDBService? _stdbService;
 
   @override
   void initState() {
@@ -42,6 +47,55 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
 
     _animationController.forward();
+    _initializePlayer();
+  }
+
+  Future<void> _initializePlayer() async {
+    setState(() {
+      _isLoadingPlayerData = true;
+    });
+
+    // Check for existing player ID
+    _playerId = await PlayerIdService.instance.getPlayerId();
+    
+    // Connect to database to fetch player data
+    _stdbService = BridgeSpacetimeDBService();
+    const bridgeUrl = 'wss://api.lurelands.com/ws';
+    
+    final connected = await _stdbService!.connect(bridgeUrl);
+    
+    if (connected && _playerId != null) {
+      // Try to fetch existing player data
+      final playerData = await _stdbService!.fetchPlayerData(_playerId!);
+      
+      if (playerData != null) {
+        // Player exists in database, use their name
+        setState(() {
+          _playerName = playerData.name;
+          _isLoadingPlayerData = false;
+        });
+        print('[MainMenu] Loaded existing player: ${playerData.name}');
+      } else {
+        // Player ID exists but not in database, create new player with Fisher + random
+        final randomSuffix = DateTime.now().millisecondsSinceEpoch % 10000;
+        setState(() {
+          _playerName = 'Fisher$randomSuffix';
+          _isLoadingPlayerData = false;
+        });
+        print('[MainMenu] Player ID exists but not in DB, using: $_playerName');
+      }
+    } else {
+      // No connection or no player ID, create new player with Fisher + random
+      final randomSuffix = DateTime.now().millisecondsSinceEpoch % 10000;
+      setState(() {
+        _playerName = 'Fisher$randomSuffix';
+        _isLoadingPlayerData = false;
+      });
+      print('[MainMenu] Creating new player: $_playerName');
+    }
+    
+    // Disconnect after fetching
+    await _stdbService?.disconnect();
   }
 
   @override
@@ -70,6 +124,41 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   @override
   Widget build(BuildContext context) {
+    // Show loading screen while fetching player data
+    if (_isLoadingPlayerData) {
+      return Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                GameColors.menuBackground,
+                GameColors.menuAccent,
+                GameColors.menuBackground.withAlpha(230),
+              ],
+            ),
+          ),
+          child: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text(
+                  'Loading...',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       body: Container(
         decoration: BoxDecoration(
@@ -319,20 +408,27 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final newName = _nameController.text.trim();
               print('[MainMenu] Settings save - newName: "$newName"');
-              if (newName.isNotEmpty) {
+              if (newName.isNotEmpty && _playerId != null) {
                 setState(() {
                   _playerName = newName;
                 });
-                print('[MainMenu] Settings save - _playerName updated to: "$_playerName"');
                 
-                // If we're in the game, update the name in the database immediately
-                // We need to check if there's a way to access the game instance
-                // For now, this will be handled when entering the world
+                // Update name in database immediately
+                if (_stdbService == null || !_stdbService!.isConnected) {
+                  _stdbService = BridgeSpacetimeDBService();
+                  const bridgeUrl = 'wss://api.lurelands.com/ws';
+                  await _stdbService!.connect(bridgeUrl);
+                }
+                
+                if (_stdbService!.isConnected) {
+                  _stdbService!.updatePlayerName(newName);
+                  print('[MainMenu] Settings save - name updated in database: "$newName"');
+                }
               } else {
-                print('[MainMenu] Settings save - name is empty, not updating');
+                print('[MainMenu] Settings save - name is empty or no player ID, not updating');
               }
               Navigator.of(context).pop();
             },

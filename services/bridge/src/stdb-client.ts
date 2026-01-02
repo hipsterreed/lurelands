@@ -264,13 +264,22 @@ export class StdbClient {
     }
 
     try {
-      // Call reducer with params object (SDK requirement)
+      // Check if player already exists - if so, use their existing position
+      const existingPlayer = this.getPlayer(playerId);
+      if (existingPlayer) {
+        stdbLogger.info({ playerId, x: existingPlayer.x, y: existingPlayer.y }, 'Player reconnecting, using existing position');
+        // Call reducer to update timestamp but preserve existing data
+        this.conn.reducers.joinWorld({ playerId, name, color: color >>> 0 });
+        return { x: existingPlayer.x, y: existingPlayer.y };
+      }
+
+      // New player - call reducer to create them
       this.conn.reducers.joinWorld({ playerId, name, color: color >>> 0 });
       
-      // Pick a random spawn point
+      // Pick a random spawn point for new players
       if (this.spawnPoints.length > 0) {
         const spawn = this.spawnPoints[Math.floor(Math.random() * this.spawnPoints.length)];
-        stdbLogger.info({ playerId, spawn: spawn.name }, 'Player spawned');
+        stdbLogger.info({ playerId, spawn: spawn.name }, 'New player spawned');
         return { x: spawn.x, y: spawn.y };
       }
       return { x: 1000, y: 1000 };
@@ -351,6 +360,10 @@ export class StdbClient {
 
   getPlayers(): Player[] {
     return Array.from(this.players.values());
+  }
+
+  getPlayer(playerId: string): Player | null {
+    return this.players.get(playerId) || null;
   }
 
   getIsConnected(): boolean {

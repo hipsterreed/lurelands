@@ -157,12 +157,11 @@ pub struct Ocean {
 /// Spawns the player at a random spawn point
 #[spacetimedb::reducer]
 pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: u32) {
-    // Check if player already exists - if so, update their name and return
-    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
-        log::info!("Player {} reconnecting, updating name to: {}", player_id, name);
-        player.name = name;
-        player.last_updated = ctx.timestamp;
-        ctx.db.player().id().update(player);
+    // Check if player already exists - if so, preserve their existing data and return
+    if let Some(player) = ctx.db.player().id().find(&player_id) {
+        log::info!("Player {} reconnecting, preserving existing data (name: {})", player_id, player.name);
+        // Just update the timestamp, don't overwrite name or other data
+        // The name should be updated via update_player_name reducer if needed
         return;
     }
     

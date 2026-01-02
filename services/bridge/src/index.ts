@@ -133,6 +133,12 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       break;
     }
 
+    case 'fetch_player': {
+      const player = stdb.getPlayer(message.playerId);
+      send(ws, { type: 'player_data', player });
+      break;
+    }
+
     default:
       wsLogger.warn({ type: (message as any).type }, 'Unknown message type');
   }

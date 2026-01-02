@@ -77,7 +77,8 @@ export type ClientMessage =
   | { type: 'cast'; targetX: number; targetY: number }
   | { type: 'reel' }
   | { type: 'leave' }
-  | { type: 'update_name'; playerId: string; name: string };
+  | { type: 'update_name'; playerId: string; name: string }
+  | { type: 'fetch_player'; playerId: string };
 
 // =============================================================================
 // Bridge → Client Messages
@@ -92,5 +93,6 @@ export type ServerMessage =
   | { type: 'player_left'; playerId: string }
   | { type: 'player_updated'; player: Player }
   | { type: 'fish_caught'; catch: FishCatch }
+  | { type: 'player_data'; player: Player | null }
   | { type: 'error'; message: string };
 

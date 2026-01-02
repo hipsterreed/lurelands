@@ -99,6 +99,10 @@ abstract class SpacetimeDBService {
   /// Update the player's display name
   void updatePlayerName(String name);
 
+  /// Fetch player data from the database by player ID
+  /// Returns null if player doesn't exist
+  Future<PlayerState?> fetchPlayerData(String playerId);
+
   /// Get the world state (water bodies, spawn points)
   WorldState get worldState;
 
@@ -305,6 +309,18 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
           final player = _parsePlayer(playerData);
           _players[player.id] = player;
           _emitPlayerUpdate();
+        }
+        break;
+
+      case 'player_data':
+        final playerData = data['player'] as Map<String, dynamic>?;
+        if (_fetchPlayerCompleter != null) {
+          if (playerData != null) {
+            final player = _parsePlayer(playerData);
+            _fetchPlayerCompleter!.complete(player);
+          } else {
+            _fetchPlayerCompleter!.complete(null);
+          }
         }
         break;
 
@@ -522,6 +538,41 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       _localPlayer = _localPlayer!.copyWith(name: name);
       _players[_playerId!] = _localPlayer!;
       _emitPlayerUpdate();
+    }
+  }
+
+  Completer<PlayerState?>? _fetchPlayerCompleter;
+
+  @override
+  Future<PlayerState?> fetchPlayerData(String playerId) async {
+    if (!isConnected) {
+      print('[Bridge] Cannot fetch player - not connected');
+      return null;
+    }
+
+    print('[Bridge] Fetching player data for: $playerId');
+    _fetchPlayerCompleter = Completer<PlayerState?>();
+
+    _sendMessage({
+      'type': 'fetch_player',
+      'playerId': playerId,
+    });
+
+    try {
+      final result = await _fetchPlayerCompleter!.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('[Bridge] Fetch player data TIMED OUT');
+          return null;
+        },
+      );
+      print('[Bridge] Got player data: ${result != null ? result.name : "null"}');
+      return result;
+    } catch (e) {
+      print('[Bridge] fetchPlayerData error: $e');
+      return null;
+    } finally {
+      _fetchPlayerCompleter = null;
     }
   }
 

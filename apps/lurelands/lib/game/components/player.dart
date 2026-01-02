@@ -109,7 +109,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     if (_playerName != null && _playerName.isNotEmpty) {
       final nameLabel = PlayerNameLabel(
         playerName: _playerName,
-        position: Vector2(size.x / 2 + 16, 48), // Centered above the sprite
+        position: Vector2(size.x / 2 + 24, 56), // Positioned above the sprite
       );
       await add(nameLabel);
     }
