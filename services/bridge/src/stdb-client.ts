@@ -364,7 +364,30 @@ export class StdbClient {
   }
 
   getPlayer(playerId: string): Player | null {
-    return this.players.get(playerId) || null;
+    // First check the in-memory cache
+    const cached = this.players.get(playerId);
+    if (cached) {
+      return cached;
+    }
+
+    // If not in cache, query the database directly by iterating
+    // (The cache should have all players after loadInitialState, but this is a fallback)
+    if (this.conn) {
+      try {
+        for (const player of this.conn.db.player.iter()) {
+          if (player.id === playerId) {
+            const mapped = this.mapPlayer(player);
+            // Cache it for future lookups
+            this.players.set(playerId, mapped);
+            return mapped;
+          }
+        }
+      } catch (error) {
+        stdbLogger.error({ err: error, playerId }, 'Error querying player from database');
+      }
+    }
+
+    return null;
   }
 
   getIsConnected(): boolean {
