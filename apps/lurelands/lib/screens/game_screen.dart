@@ -9,9 +9,7 @@ import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 
 /// Bridge server URL (Bun/Elysia bridge to SpacetimeDB)
-/// Use your Mac's local IP when testing on physical devices.
-/// For Android emulator, use 10.0.2.2 instead of localhost.
-const String _bridgeUrl = 'ws://192.168.87.22:8080/ws';
+const String _bridgeUrl = 'wss://api.lurelands.com/ws';
 
 /// Screen that hosts the Flame GameWidget with mobile touch controls
 class GameScreen extends StatefulWidget {
