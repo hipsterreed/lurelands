@@ -1,0 +1,21 @@
+{
+  "name": "lurelands-bridge",
+  "version": "1.0.0",
+  "description": "WebSocket bridge between Flutter clients and SpacetimeDB",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "generate": "spacetime generate --lang typescript --out-dir src/generated --project-path ../spacetime-server"
+  },
+  "dependencies": {
+    "spacetimedb": "^1.1.0",
+    "elysia": "^1.2.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5.0.0"
+  }
+}
+

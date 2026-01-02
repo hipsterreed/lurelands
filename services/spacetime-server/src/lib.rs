@@ -63,8 +63,8 @@ pub struct FishCatch {
     /// Rarity tier (common, uncommon, rare, epic, legendary)
     pub rarity: String,
     
-    /// Which pond it was caught in
-    pub pond_id: String,
+    /// Which water body it was caught in
+    pub water_body_id: String,
     
     /// Whether the fish was released back
     pub released: bool,
@@ -73,15 +73,80 @@ pub struct FishCatch {
     pub caught_at: Timestamp,
 }
 
-/// Pond data - stores information about fishing ponds
+/// Spawn point data - defines where players can spawn in the world
+#[derive(Clone)]
+#[spacetimedb::table(name = spawn_point, public)]
+pub struct SpawnPoint {
+    #[primary_key]
+    pub id: String,
+    
+    /// X position in the game world
+    pub x: f32,
+    
+    /// Y position in the game world
+    pub y: f32,
+    
+    /// Human-readable name for this spawn point
+    pub name: String,
+}
+
+/// Pond data - circular fishing ponds
+#[derive(Clone)]
 #[spacetimedb::table(name = pond, public)]
 pub struct Pond {
     #[primary_key]
     pub id: String,
     
+    /// Center X position
     pub x: f32,
+    
+    /// Center Y position
     pub y: f32,
+    
+    /// Radius of the pond
     pub radius: f32,
+}
+
+/// River data - rectangular river segments
+#[derive(Clone)]
+#[spacetimedb::table(name = river, public)]
+pub struct River {
+    #[primary_key]
+    pub id: String,
+    
+    /// Center X position
+    pub x: f32,
+    
+    /// Center Y position
+    pub y: f32,
+    
+    /// Width of the river (perpendicular to flow)
+    pub width: f32,
+    
+    /// Length of the river segment
+    pub length: f32,
+    
+    /// Rotation in radians (0 = horizontal)
+    pub rotation: f32,
+}
+
+/// Ocean data - large rectangular water body (typically on map edge)
+#[spacetimedb::table(name = ocean, public)]
+pub struct Ocean {
+    #[primary_key]
+    pub id: String,
+    
+    /// Top-left X position
+    pub x: f32,
+    
+    /// Top-left Y position
+    pub y: f32,
+    
+    /// Width of the ocean area
+    pub width: f32,
+    
+    /// Height of the ocean area
+    pub height: f32,
 }
 
 // =============================================================================
@@ -89,6 +154,7 @@ pub struct Pond {
 // =============================================================================
 
 /// Called when a player joins the game world
+/// Spawns the player at a random spawn point
 #[spacetimedb::reducer]
 pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: u32) {
     // Check if player already exists
@@ -97,12 +163,27 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
         return;
     }
     
-    // Spawn player at world center
+    // Get all spawn points and pick one randomly
+    let spawn_points: Vec<SpawnPoint> = ctx.db.spawn_point().iter().collect();
+    
+    let (spawn_x, spawn_y) = if spawn_points.is_empty() {
+        // Fallback to center if no spawn points defined
+        log::warn!("No spawn points found, using default center position");
+        (1000.0, 1000.0)
+    } else {
+        // Use player_id hash for pseudo-random spawn point selection
+        let hash: usize = player_id.bytes().map(|b| b as usize).sum();
+        let index = hash % spawn_points.len();
+        let spawn = &spawn_points[index];
+        log::info!("Player {} spawning at {} ({}, {})", player_id, spawn.name, spawn.x, spawn.y);
+        (spawn.x, spawn.y)
+    };
+    
     let player = Player {
         id: player_id.clone(),
         name,
-        x: 1000.0,
-        y: 1000.0,
+        x: spawn_x,
+        y: spawn_y,
         facing_angle: 0.0,
         is_casting: false,
         cast_target_x: None,
@@ -112,13 +193,13 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
     };
     
     ctx.db.player().insert(player);
-    log::info!("Player {} joined the world", player_id);
+    log::info!("Player {} joined the world at ({}, {})", player_id, spawn_x, spawn_y);
 }
 
 /// Called when a player leaves the game world
 #[spacetimedb::reducer]
 pub fn leave_world(ctx: &ReducerContext, player_id: String) {
-    if let Some(player) = ctx.db.player().id().find(&player_id) {
+    if ctx.db.player().id().find(&player_id).is_some() {
         ctx.db.player().id().delete(&player_id);
         log::info!("Player {} left the world", player_id);
     }
@@ -162,7 +243,7 @@ pub fn stop_casting(ctx: &ReducerContext, player_id: String) {
     }
 }
 
-/// Called when a player catches a fish (for future use)
+/// Called when a player catches a fish
 #[spacetimedb::reducer]
 pub fn catch_fish(
     ctx: &ReducerContext,
@@ -171,7 +252,7 @@ pub fn catch_fish(
     fish_type: String,
     size: f32,
     rarity: String,
-    pond_id: String,
+    water_body_id: String,
 ) {
     let catch = FishCatch {
         id: 0, // auto-incremented
@@ -180,7 +261,7 @@ pub fn catch_fish(
         fish_type,
         size,
         rarity,
-        pond_id,
+        water_body_id,
         released: false,
         caught_at: ctx.timestamp,
     };
@@ -189,7 +270,7 @@ pub fn catch_fish(
     log::info!("Player {} caught fish {}", player_id, fish_id);
 }
 
-/// Called when a player releases a caught fish (for future use)
+/// Called when a player releases a caught fish
 #[spacetimedb::reducer]
 pub fn release_fish(ctx: &ReducerContext, catch_id: u64) {
     if let Some(mut catch) = ctx.db.fish_catch().id().find(&catch_id) {
@@ -203,21 +284,61 @@ pub fn release_fish(ctx: &ReducerContext, catch_id: u64) {
 // INITIALIZATION
 // =============================================================================
 
-/// Initialize the database with default pond data
+/// Initialize the database with world data
 #[spacetimedb::reducer(init)]
 pub fn init(ctx: &ReducerContext) {
-    // Add default ponds
-    let ponds = vec![
-        Pond { id: "pond_1".to_string(), x: 400.0, y: 400.0, radius: 120.0 },
-        Pond { id: "pond_2".to_string(), x: 1500.0, y: 300.0, radius: 100.0 },
-        Pond { id: "pond_3".to_string(), x: 800.0, y: 1400.0, radius: 140.0 },
-        Pond { id: "pond_4".to_string(), x: 1600.0, y: 1500.0, radius: 90.0 },
+    // Add spawn points spread across the playable area (avoiding ocean on left)
+    let spawn_points = vec![
+        SpawnPoint { id: "spawn_1".to_string(), x: 400.0, y: 300.0, name: "Top Left".to_string() },
+        SpawnPoint { id: "spawn_2".to_string(), x: 1700.0, y: 300.0, name: "Top Right".to_string() },
+        SpawnPoint { id: "spawn_3".to_string(), x: 1000.0, y: 1000.0, name: "Center".to_string() },
+        SpawnPoint { id: "spawn_4".to_string(), x: 400.0, y: 1700.0, name: "Bottom Left".to_string() },
+        SpawnPoint { id: "spawn_5".to_string(), x: 1700.0, y: 1700.0, name: "Bottom Right".to_string() },
     ];
     
-    for pond in ponds {
-        ctx.db.pond().insert(pond);
+    for spawn in &spawn_points {
+        ctx.db.spawn_point().insert(spawn.clone());
     }
+    log::info!("Initialized {} spawn points", spawn_points.len());
     
-    log::info!("Lurelands server initialized with {} ponds", 4);
+    // Add ponds (matching frontend lurelands_game.dart)
+    let ponds = vec![
+        Pond { id: "pond_1".to_string(), x: 600.0, y: 600.0, radius: 100.0 },
+        Pond { id: "pond_2".to_string(), x: 1400.0, y: 1200.0, radius: 80.0 },
+    ];
+    
+    for pond in &ponds {
+        ctx.db.pond().insert(pond.clone());
+    }
+    log::info!("Initialized {} ponds", ponds.len());
+    
+    // Add rivers (matching frontend lurelands_game.dart)
+    let rivers = vec![
+        River {
+            id: "river_1".to_string(),
+            x: 1000.0,
+            y: 400.0,
+            width: 80.0,
+            length: 600.0,
+            rotation: 0.3, // Slight diagonal
+        },
+    ];
+    
+    for river in &rivers {
+        ctx.db.river().insert(river.clone());
+    }
+    log::info!("Initialized {} rivers", rivers.len());
+    
+    // Add ocean (on the left side of the map)
+    let ocean = Ocean {
+        id: "ocean_1".to_string(),
+        x: 0.0,
+        y: 0.0,
+        width: 250.0,
+        height: 2000.0,
+    };
+    ctx.db.ocean().insert(ocean);
+    log::info!("Initialized ocean");
+    
+    log::info!("Lurelands server initialization complete");
 }
-

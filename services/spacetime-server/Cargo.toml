@@ -8,7 +8,7 @@ description = "SpacetimeDB server module for Lurelands multiplayer fishing game"
 crate-type = ["cdylib"]
 
 [dependencies]
-spacetimedb = "1.0"
+spacetimedb = "1.11.1"
 log = "0.4"
 
 [profile.release]

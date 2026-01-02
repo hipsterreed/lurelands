@@ -7,6 +7,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/water_body_data.dart';
+import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import 'components/ocean.dart';
 import 'components/player.dart';
@@ -17,6 +18,25 @@ import 'components/tree.dart';
 
 /// Main game class for Lurelands
 class LurelandsGame extends FlameGame with HasCollisionDetection {
+  /// SpacetimeDB service for multiplayer sync
+  final SpacetimeDBService stdbService;
+
+  /// Player ID for the local player
+  final String playerId;
+
+  /// Player name
+  final String playerName;
+
+  /// Player color (ARGB)
+  final int playerColor;
+
+  LurelandsGame({
+    required this.stdbService,
+    required this.playerId,
+    this.playerName = 'Player',
+    this.playerColor = 0xFFE74C3C,
+  });
+
   Player? _player;
   final List<Pond> _pondComponents = [];
   final List<River> _riverComponents = [];
@@ -25,7 +45,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   // Public getter for player (used by other components)
   Player? get player => _player;
-  
+
   // Public getter for trees (used by player for collision checking)
   List<Tree> get trees => _treeComponents;
 
@@ -43,38 +63,21 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   bool _isCharging = false;
   double _castPower = 0.0;
   double _castAnimationTimer = 0.0;
-  
+
   // Lure sit timer (auto-reel after duration)
   double _lureSitTimer = 0.0;
 
-  // Water body data for the world
-  final List<PondData> ponds = [
-    const PondData(id: 'pond_1', x: 600, y: 600, radius: 100),
-    const PondData(id: 'pond_2', x: 1400, y: 1200, radius: 80),
-  ];
-
-  final List<RiverData> rivers = [
-    const RiverData(
-      id: 'river_1',
-      x: 1000,
-      y: 400,
-      width: 80,
-      length: 600,
-      rotation: 0.3, // Slight diagonal
-    ),
-  ];
-
-  // Ocean on the left side of the map
-  final OceanData ocean = const OceanData(
-    id: 'ocean_1',
-    x: 0,
-    y: 0,
-    width: 250,
-    height: 2000,
-  );
+  // Water body data from server (or fallback)
+  List<PondData> _ponds = [];
+  List<RiverData> _rivers = [];
+  OceanData? _ocean;
 
   /// All water bodies for collision/spawning checks
-  List<WaterBodyData> get allWaterBodies => [...ponds, ...rivers, ocean];
+  List<WaterBodyData> get allWaterBodies => [
+        ..._ponds,
+        ..._rivers,
+        if (_ocean != null) _ocean!,
+      ];
 
   @override
   Color backgroundColor() => GameColors.grassGreen;
@@ -83,22 +86,44 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Future<void> onLoad() async {
     await super.onLoad();
 
+    // Get world state from server
+    final worldState = stdbService.worldState;
+
+    // Use server data if available, otherwise use fallback
+    _ponds = worldState.ponds.isNotEmpty
+        ? worldState.ponds
+        : const [
+            PondData(id: 'pond_1', x: 600, y: 600, radius: 100),
+            PondData(id: 'pond_2', x: 1400, y: 1200, radius: 80),
+          ];
+
+    _rivers = worldState.rivers.isNotEmpty
+        ? worldState.rivers
+        : const [
+            RiverData(id: 'river_1', x: 1000, y: 400, width: 80, length: 600, rotation: 0.3),
+          ];
+
+    _ocean = worldState.ocean ??
+        const OceanData(id: 'ocean_1', x: 0, y: 0, width: 250, height: 2000);
+
     // Add ground
     await world.add(Ground());
 
     // Add ocean (on left side)
-    _oceanComponent = Ocean(data: ocean);
-    await world.add(_oceanComponent!);
+    if (_ocean != null) {
+      _oceanComponent = Ocean(data: _ocean!);
+      await world.add(_oceanComponent!);
+    }
 
     // Add rivers
-    for (final riverData in rivers) {
+    for (final riverData in _rivers) {
       final river = River(data: riverData);
       _riverComponents.add(river);
       await world.add(river);
     }
 
     // Add ponds
-    for (final pondData in ponds) {
+    for (final pondData in _ponds) {
       final pond = Pond(data: pondData);
       _pondComponents.add(pond);
       await world.add(pond);
@@ -110,9 +135,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     // Add random trees around the map
     await _spawnTrees();
 
-    // Create the player at world center (offset from ocean)
+    // Join the world and get spawn position
+    final spawnPosition = await stdbService.joinWorld(playerId, playerName, playerColor);
+
+    // Determine player spawn position
+    final spawnX = spawnPosition?.x ?? 1000.0;
+    final spawnY = spawnPosition?.y ?? 1000.0;
+
+    // Create the player at spawn position
     _player = Player(
-      position: Vector2(GameConstants.worldWidth / 2 + 200, GameConstants.worldHeight / 2),
+      position: Vector2(spawnX, spawnY),
       equippedPoleTier: 1,
     );
     await world.add(_player!);
@@ -134,6 +166,15 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Handle player movement based on joystick input
     player.move(joystickDirection, dt);
+
+    // Sync position to server periodically (throttled in the service)
+    if (joystickDirection.length > 0.1) {
+      stdbService.updatePlayerPosition(
+        player.position.x,
+        player.position.y,
+        player.facingAngle,
+      );
+    }
 
     // Update casting state notifiers
     _updateCastingState(player);
@@ -159,6 +200,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       _lureSitTimer -= dt;
       if (_lureSitTimer <= 0) {
         player.reelIn();
+        stdbService.stopCasting();
         _lureSitTimer = 0.0;
       }
     }
@@ -180,7 +222,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   bool _isPlayerNearWater(Player player) {
     final playerPos = player.position;
     const castingBuffer = 50.0;
-    
+
     // Check all water bodies
     for (final waterBody in allWaterBodies) {
       if (waterBody.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
@@ -197,7 +239,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     final playerPos = player.position;
     const castingBuffer = 50.0;
-    
+
     for (final waterBody in allWaterBodies) {
       if (waterBody.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
         return waterBody;
@@ -214,6 +256,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     // If already casting, reel in instead
     if (player.isCasting) {
       player.reelIn();
+      stdbService.stopCasting();
       // Reset power and timers when reeling in
       _castPower = 0.0;
       castPowerNotifier.value = 0.0;
@@ -241,6 +284,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       final nearbyWater = getNearbyWaterBody();
       if (nearbyWater != null) {
         player.startCasting(nearbyWater, _castPower);
+
+        // Notify server about casting
+        final castLine = player.castLine;
+        if (castLine != null) {
+          stdbService.startCasting(castLine.endPosition.x, castLine.endPosition.y);
+        }
+
         // Start timer to hide power bar when lure lands
         _castAnimationTimer = GameConstants.castAnimationDuration;
         // Start lure sit timer for auto-reel
@@ -260,6 +310,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     if (player.isCasting) {
       player.reelIn();
+      stdbService.stopCasting();
       _lureSitTimer = 0.0;
     }
   }
@@ -278,12 +329,12 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Future<void> _spawnSunflowers() async {
     final random = Random(123); // Seeded for consistent placement
     const count = 30;
-    
+
     for (var i = 0; i < count; i++) {
       // Start after ocean area
       final x = 300 + random.nextDouble() * (GameConstants.worldWidth - 400);
       final y = 100 + random.nextDouble() * (GameConstants.worldHeight - 200);
-      
+
       // Don't place sunflowers inside any water body
       if (!_isInsideWater(x, y)) {
         await world.add(Sunflower(position: Vector2(x, y)));
@@ -295,12 +346,12 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Future<void> _spawnTrees() async {
     final random = Random(456); // Different seed for variety
     const count = 20;
-    
+
     for (var i = 0; i < count; i++) {
       // Start after ocean area
       final x = 350 + random.nextDouble() * (GameConstants.worldWidth - 450);
       final y = 150 + random.nextDouble() * (GameConstants.worldHeight - 300);
-      
+
       // Don't place trees inside any water body
       if (!_isInsideWater(x, y)) {
         final tree = Tree.random(Vector2(x, y), random);
@@ -314,7 +365,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   void toggleDebugMode() {
     debugModeNotifier.value = !debugModeNotifier.value;
     final enabled = debugModeNotifier.value;
-    
+
     // Only set debug mode on hitboxes (not parent components) to avoid clutter
     if (_player != null) {
       for (final child in _player!.children) {
@@ -323,7 +374,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         }
       }
     }
-    
+
     for (final pond in _pondComponents) {
       for (final child in pond.children) {
         if (child is ShapeHitbox) {
@@ -331,7 +382,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         }
       }
     }
-    
+
     for (final tree in _treeComponents) {
       for (final child in tree.children) {
         if (child is ShapeHitbox) {
@@ -343,6 +394,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   @override
   void onRemove() {
+    // Leave the world when game is disposed
+    stdbService.leaveWorld();
+
     isLoadedNotifier.dispose();
     canCastNotifier.dispose();
     isCastingNotifier.dispose();
@@ -354,7 +408,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
 /// Ground component - fills the world with grass
 class Ground extends PositionComponent {
-  Ground() : super(position: Vector2.zero(), size: Vector2(GameConstants.worldWidth, GameConstants.worldHeight), priority: 0);
+  Ground()
+      : super(
+            position: Vector2.zero(),
+            size: Vector2(GameConstants.worldWidth, GameConstants.worldHeight),
+            priority: 0);
 
   // Checker tile size
   static const double tileSize = 48.0;

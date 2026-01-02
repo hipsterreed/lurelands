@@ -1,12 +1,75 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../models/player_state.dart';
+import '../../models/water_body_data.dart';
+
+/// Connection state for SpacetimeDB
+enum StdbConnectionState {
+  disconnected,
+  connecting,
+  connected,
+  error,
+}
+
+/// Data received from SpacetimeDB containing world state
+class WorldState {
+  final List<PondData> ponds;
+  final List<RiverData> rivers;
+  final OceanData? ocean;
+  final List<SpawnPointData> spawnPoints;
+
+  const WorldState({
+    this.ponds = const [],
+    this.rivers = const [],
+    this.ocean,
+    this.spawnPoints = const [],
+  });
+
+  factory WorldState.fromJson(Map<String, dynamic> json) {
+    final pondsJson = json['ponds'] as List? ?? [];
+    final riversJson = json['rivers'] as List? ?? [];
+    final oceanJson = json['ocean'] as Map<String, dynamic>?;
+    final spawnPointsJson = json['spawnPoints'] as List? ?? [];
+
+    return WorldState(
+      ponds: pondsJson.map((e) => PondData.fromJson(e as Map<String, dynamic>)).toList(),
+      rivers: riversJson.map((e) => RiverData.fromJson(e as Map<String, dynamic>)).toList(),
+      ocean: oceanJson != null ? OceanData.fromJson(oceanJson) : null,
+      spawnPoints: spawnPointsJson.map((e) => SpawnPointData.fromJson(e as Map<String, dynamic>)).toList(),
+    );
+  }
+}
+
+/// Spawn point data from the server
+class SpawnPointData {
+  final String id;
+  final double x;
+  final double y;
+  final String name;
+
+  const SpawnPointData({
+    required this.id,
+    required this.x,
+    required this.y,
+    required this.name,
+  });
+
+  factory SpawnPointData.fromJson(Map<String, dynamic> json) => SpawnPointData(
+        id: json['id'] as String,
+        x: (json['x'] as num).toDouble(),
+        y: (json['y'] as num).toDouble(),
+        name: json['name'] as String? ?? 'Spawn Point',
+      );
+}
 
 /// Abstract interface for SpacetimeDB communication.
-/// This will be implemented with actual WebSocket logic in Phase 2.
 abstract class SpacetimeDBService {
   /// Connect to the SpacetimeDB server
-  Future<void> connect(String serverUrl);
+  Future<bool> connect(String serverUrl);
 
   /// Disconnect from the server
   Future<void> disconnect();
@@ -14,8 +77,12 @@ abstract class SpacetimeDBService {
   /// Check if currently connected
   bool get isConnected;
 
+  /// Current connection state
+  StdbConnectionState get state;
+
   /// Join the game world with a player ID
-  Future<void> joinWorld(String playerId);
+  /// Returns the spawn position assigned by the server
+  Future<({double x, double y})?> joinWorld(String playerId, String name, int color);
 
   /// Leave the game world
   Future<void> leaveWorld();
@@ -29,108 +96,419 @@ abstract class SpacetimeDBService {
   /// Notify that player stopped casting / reeled in
   void stopCasting();
 
+  /// Get the world state (water bodies, spawn points)
+  WorldState get worldState;
+
   /// Stream of all player states (including local player)
   Stream<List<PlayerState>> get playerUpdates;
 
   /// Stream of connection state changes
-  Stream<bool> get connectionState;
+  Stream<StdbConnectionState> get connectionStateStream;
+
+  /// Stream of world state updates
+  Stream<WorldState> get worldStateUpdates;
+
+  /// Dispose resources
+  void dispose();
 }
 
-/// Stub implementation for Phase 1 (single-player mode).
-/// Returns only the local player's state.
-class StubSpacetimeDBService implements SpacetimeDBService {
-  bool _isConnected = false;
-  PlayerState? _localPlayer;
+/// Bridge-based SpacetimeDB service implementation.
+/// Connects to the Bun/Elysia bridge which handles SpacetimeDB communication.
+class BridgeSpacetimeDBService implements SpacetimeDBService {
+  WebSocketChannel? _channel;
+  StreamSubscription? _subscription;
+  StdbConnectionState _state = StdbConnectionState.disconnected;
+  String? _playerId;
+  Timer? _reconnectTimer;
+  String? _serverUrl;
+  Completer<({double x, double y})?>? _spawnCompleter;
 
-  final _playerUpdatesController =
-      StreamController<List<PlayerState>>.broadcast();
-  final _connectionStateController = StreamController<bool>.broadcast();
+  // Local state
+  PlayerState? _localPlayer;
+  final Map<String, PlayerState> _players = {};
+  WorldState _worldState = const WorldState();
+
+  // Stream controllers
+  final _playerUpdatesController = StreamController<List<PlayerState>>.broadcast();
+  final _connectionStateController = StreamController<StdbConnectionState>.broadcast();
+  final _worldStateController = StreamController<WorldState>.broadcast();
+
+  // Throttle position updates to avoid flooding
+  DateTime? _lastPositionUpdate;
+  static const _positionUpdateInterval = Duration(milliseconds: 50); // 20 updates/sec max
 
   @override
-  Future<void> connect(String serverUrl) async {
-    // Simulate connection delay
-    await Future.delayed(const Duration(milliseconds: 100));
-    _isConnected = true;
-    _connectionStateController.add(true);
+  StdbConnectionState get state => _state;
+
+  @override
+  bool get isConnected => _state == StdbConnectionState.connected;
+
+  @override
+  WorldState get worldState => _worldState;
+
+  @override
+  Stream<List<PlayerState>> get playerUpdates => _playerUpdatesController.stream;
+
+  @override
+  Stream<StdbConnectionState> get connectionStateStream => _connectionStateController.stream;
+
+  @override
+  Stream<WorldState> get worldStateUpdates => _worldStateController.stream;
+
+  void _setState(StdbConnectionState newState) {
+    if (_state != newState) {
+      _state = newState;
+      _connectionStateController.add(newState);
+    }
+  }
+
+  @override
+  Future<bool> connect(String serverUrl) async {
+    print('[Bridge] connect() called with: $serverUrl');
+    
+    if (_state == StdbConnectionState.connecting || _state == StdbConnectionState.connected) {
+      print('[Bridge] Already connecting/connected, returning ${_state == StdbConnectionState.connected}');
+      return _state == StdbConnectionState.connected;
+    }
+
+    _serverUrl = serverUrl;
+    _setState(StdbConnectionState.connecting);
+
+    try {
+      // Connect to bridge WebSocket endpoint
+      print('[Bridge] Parsing URI and connecting...');
+      final uri = Uri.parse(serverUrl);
+      _channel = WebSocketChannel.connect(uri);
+
+      // Wait for connection with timeout
+      print('[Bridge] Waiting for WebSocket ready...');
+      await _channel!.ready.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('[Bridge] Connection TIMED OUT');
+          throw TimeoutException('Connection timed out');
+        },
+      );
+
+      print('[Bridge] WebSocket ready! Setting up listener...');
+      
+      // Set up message listener
+      _subscription = _channel!.stream.listen(
+        _onMessage,
+        onError: _onError,
+        onDone: _onDone,
+      );
+
+      _setState(StdbConnectionState.connected);
+      print('[Bridge] Connected successfully!');
+      return true;
+    } catch (e) {
+      print('[Bridge] Connection error: $e');
+      _setState(StdbConnectionState.error);
+      await _cleanup();
+      return false;
+    }
   }
 
   @override
   Future<void> disconnect() async {
-    _isConnected = false;
-    _localPlayer = null;
-    _connectionStateController.add(false);
+    _reconnectTimer?.cancel();
+    await _cleanup();
+    _setState(StdbConnectionState.disconnected);
+  }
+
+  Future<void> _cleanup() async {
+    await _subscription?.cancel();
+    _subscription = null;
+    await _channel?.sink.close();
+    _channel = null;
+  }
+
+  void _onMessage(dynamic message) {
+    print('[Bridge] Received message: $message');
+    try {
+      final data = message is String ? jsonDecode(message) : message;
+      _handleMessage(data as Map<String, dynamic>);
+    } catch (e) {
+      print('[Bridge] Error parsing message: $e');
+    }
+  }
+
+  void _handleMessage(Map<String, dynamic> data) {
+    final type = data['type'] as String?;
+    print('[Bridge] Handling message type: $type');
+
+    switch (type) {
+      case 'connected':
+        print('[Bridge] Server confirmed connection');
+        break;
+
+      case 'world_state':
+        final worldData = data['data'] as Map<String, dynamic>?;
+        if (worldData != null) {
+          _worldState = WorldState.fromJson(worldData);
+          _worldStateController.add(_worldState);
+        }
+        break;
+
+      case 'spawn':
+        final x = (data['x'] as num?)?.toDouble();
+        final y = (data['y'] as num?)?.toDouble();
+        if (x != null && y != null) {
+          _spawnCompleter?.complete((x: x, y: y));
+          _spawnCompleter = null;
+          
+          // Update local player position
+          if (_localPlayer != null) {
+            _localPlayer = _localPlayer!.copyWith(x: x, y: y);
+            _players[_localPlayer!.id] = _localPlayer!;
+            _emitPlayerUpdate();
+          }
+        }
+        break;
+
+      case 'players':
+        final playersData = data['players'] as List?;
+        if (playersData != null) {
+          _players.clear();
+          for (final playerJson in playersData) {
+            final player = _parsePlayer(playerJson as Map<String, dynamic>);
+            _players[player.id] = player;
+          }
+          _emitPlayerUpdate();
+        }
+        break;
+
+      case 'player_joined':
+        final playerData = data['player'] as Map<String, dynamic>?;
+        if (playerData != null) {
+          final player = _parsePlayer(playerData);
+          _players[player.id] = player;
+          _emitPlayerUpdate();
+        }
+        break;
+
+      case 'player_left':
+        final playerId = data['playerId'] as String?;
+        if (playerId != null) {
+          _players.remove(playerId);
+          _emitPlayerUpdate();
+        }
+        break;
+
+      case 'player_updated':
+        final playerData = data['player'] as Map<String, dynamic>?;
+        if (playerData != null) {
+          final player = _parsePlayer(playerData);
+          _players[player.id] = player;
+          _emitPlayerUpdate();
+        }
+        break;
+
+      case 'fish_caught':
+        // Handle fish caught notification (for future UI)
+        break;
+
+      case 'error':
+        final errorMessage = data['message'] as String?;
+        if (errorMessage != null) {
+          print('[Bridge] Error: $errorMessage');
+        }
+        break;
+    }
+  }
+
+  PlayerState _parsePlayer(Map<String, dynamic> json) {
+    return PlayerState(
+      id: json['id'] as String,
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      facingAngle: (json['facingAngle'] as num?)?.toDouble() ?? 0.0,
+      isCasting: json['isCasting'] as bool? ?? false,
+      castTargetX: (json['castTargetX'] as num?)?.toDouble(),
+      castTargetY: (json['castTargetY'] as num?)?.toDouble(),
+      color: json['color'] as int? ?? 0xFFE74C3C,
+    );
+  }
+
+  void _onError(Object error) {
+    _setState(StdbConnectionState.error);
+    _scheduleReconnect();
+  }
+
+  void _onDone() {
+    if (_state == StdbConnectionState.connected) {
+      _setState(StdbConnectionState.error);
+      _scheduleReconnect();
+    }
+  }
+
+  void _scheduleReconnect() {
+    _reconnectTimer?.cancel();
+    if (_serverUrl != null) {
+      _reconnectTimer = Timer(const Duration(seconds: 5), () {
+        connect(_serverUrl!);
+      });
+    }
+  }
+
+  void _sendMessage(Map<String, dynamic> message) {
+    print('[Bridge] _sendMessage() - channel: ${_channel != null}, isConnected: $isConnected');
+    if (_channel != null && isConnected) {
+      try {
+        final encoded = jsonEncode(message);
+        print('[Bridge] Sending: $encoded');
+        _channel!.sink.add(encoded);
+      } catch (e) {
+        print('[Bridge] Send error: $e');
+        _setState(StdbConnectionState.error);
+      }
+    } else {
+      print('[Bridge] Cannot send - not connected');
+    }
   }
 
   @override
-  bool get isConnected => _isConnected;
+  Future<({double x, double y})?> joinWorld(String playerId, String name, int color) async {
+    print('[Bridge] joinWorld() called - playerId: $playerId, isConnected: $isConnected');
+    
+    if (!isConnected) {
+      print('[Bridge] Not connected, returning null');
+      return null;
+    }
 
-  @override
-  Future<void> joinWorld(String playerId) async {
+    _playerId = playerId;
+    _spawnCompleter = Completer<({double x, double y})?>();
+
+    // Create local player with temporary position
     _localPlayer = PlayerState(
       id: playerId,
-      x: 1000.0, // Start at center of world
+      x: 1000.0,
       y: 1000.0,
+      color: color,
     );
-    _emitPlayerUpdate();
+    _players[playerId] = _localPlayer!;
+
+    // Send join message to bridge
+    print('[Bridge] Sending join message...');
+    _sendMessage({
+      'type': 'join',
+      'playerId': playerId,
+      'name': name,
+      'color': color,
+    });
+
+    // Wait for spawn position from server (with timeout)
+    print('[Bridge] Waiting for spawn response...');
+    try {
+      final result = await _spawnCompleter!.future.timeout(
+        const Duration(seconds: 5),
+        onTimeout: () {
+          print('[Bridge] Spawn response TIMED OUT, using fallback');
+          // Fallback to random spawn point if server doesn't respond
+          if (_worldState.spawnPoints.isNotEmpty) {
+            final random = Random();
+            final spawn = _worldState.spawnPoints[random.nextInt(_worldState.spawnPoints.length)];
+            return (x: spawn.x, y: spawn.y);
+          }
+          return (x: 1000.0, y: 1000.0);
+        },
+      );
+      print('[Bridge] Got spawn position: $result');
+      return result;
+    } catch (e) {
+      print('[Bridge] joinWorld error: $e');
+      return (x: 1000.0, y: 1000.0);
+    }
   }
 
   @override
   Future<void> leaveWorld() async {
+    if (_playerId != null && isConnected) {
+      _sendMessage({'type': 'leave'});
+    }
+    _players.remove(_playerId);
     _localPlayer = null;
-    _playerUpdatesController.add([]);
+    _playerId = null;
+    _emitPlayerUpdate();
   }
 
   @override
   void updatePlayerPosition(double x, double y, double facingAngle) {
+    if (_playerId == null || !isConnected) return;
+
+    // Throttle updates
+    final now = DateTime.now();
+    if (_lastPositionUpdate != null &&
+        now.difference(_lastPositionUpdate!) < _positionUpdateInterval) {
+      return;
+    }
+    _lastPositionUpdate = now;
+
+    _sendMessage({
+      'type': 'move',
+      'x': x,
+      'y': y,
+      'angle': facingAngle,
+    });
+
+    // Update local state immediately for responsiveness
     if (_localPlayer != null) {
-      _localPlayer = _localPlayer!.copyWith(
-        x: x,
-        y: y,
-        facingAngle: facingAngle,
-      );
+      _localPlayer = _localPlayer!.copyWith(x: x, y: y, facingAngle: facingAngle);
+      _players[_playerId!] = _localPlayer!;
       _emitPlayerUpdate();
     }
   }
 
   @override
   void startCasting(double targetX, double targetY) {
+    if (_playerId == null || !isConnected) return;
+
+    _sendMessage({
+      'type': 'cast',
+      'targetX': targetX,
+      'targetY': targetY,
+    });
+
     if (_localPlayer != null) {
       _localPlayer = _localPlayer!.copyWith(
         isCasting: true,
         castTargetX: targetX,
         castTargetY: targetY,
       );
+      _players[_playerId!] = _localPlayer!;
       _emitPlayerUpdate();
     }
   }
 
   @override
   void stopCasting() {
+    if (_playerId == null || !isConnected) return;
+
+    _sendMessage({'type': 'reel'});
+
     if (_localPlayer != null) {
       _localPlayer = _localPlayer!.copyWith(
         isCasting: false,
         castTargetX: null,
         castTargetY: null,
       );
+      _players[_playerId!] = _localPlayer!;
       _emitPlayerUpdate();
     }
   }
 
-  @override
-  Stream<List<PlayerState>> get playerUpdates => _playerUpdatesController.stream;
-
-  @override
-  Stream<bool> get connectionState => _connectionStateController.stream;
-
   void _emitPlayerUpdate() {
-    if (_localPlayer != null) {
-      _playerUpdatesController.add([_localPlayer!]);
-    }
+    _playerUpdatesController.add(_players.values.toList());
   }
 
+  @override
   void dispose() {
+    _reconnectTimer?.cancel();
+    disconnect();
     _playerUpdatesController.close();
     _connectionStateController.close();
+    _worldStateController.close();
   }
 }
 

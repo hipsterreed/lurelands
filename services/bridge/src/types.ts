@@ -1,0 +1,95 @@
+// =============================================================================
+// Types shared between bridge and Flutter client
+// =============================================================================
+
+// --- World Data Types ---
+
+export interface SpawnPoint {
+  id: string;
+  x: number;
+  y: number;
+  name: string;
+}
+
+export interface Pond {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+}
+
+export interface River {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  length: number;
+  rotation: number;
+}
+
+export interface Ocean {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface WorldState {
+  spawnPoints: SpawnPoint[];
+  ponds: Pond[];
+  rivers: River[];
+  ocean: Ocean | null;
+}
+
+// --- Player Types ---
+
+export interface Player {
+  id: string;
+  name: string;
+  x: number;
+  y: number;
+  facingAngle: number;
+  isCasting: boolean;
+  castTargetX: number | null;
+  castTargetY: number | null;
+  color: number;
+}
+
+export interface FishCatch {
+  id: number;
+  fishId: string;
+  playerId: string;
+  fishType: string;
+  size: number;
+  rarity: string;
+  waterBodyId: string;
+  released: boolean;
+}
+
+// =============================================================================
+// Client → Bridge Messages
+// =============================================================================
+
+export type ClientMessage =
+  | { type: 'join'; playerId: string; name: string; color: number }
+  | { type: 'move'; x: number; y: number; angle: number }
+  | { type: 'cast'; targetX: number; targetY: number }
+  | { type: 'reel' }
+  | { type: 'leave' };
+
+// =============================================================================
+// Bridge → Client Messages
+// =============================================================================
+
+export type ServerMessage =
+  | { type: 'connected'; playerId: string }
+  | { type: 'world_state'; data: WorldState }
+  | { type: 'spawn'; x: number; y: number }
+  | { type: 'players'; players: Player[] }
+  | { type: 'player_joined'; player: Player }
+  | { type: 'player_left'; playerId: string }
+  | { type: 'player_updated'; player: Player }
+  | { type: 'fish_caught'; catch: FishCatch }
+  | { type: 'error'; message: string };
+

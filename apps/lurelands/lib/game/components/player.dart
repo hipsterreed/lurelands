@@ -50,6 +50,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   double get facingAngle => _facingAngle;
   int get equippedPoleTier => _equippedPoleTier;
   int get equippedLureTier => _equippedLureTier;
+  CastLine? get castLine => _castLine;
 
   set equippedPoleTier(int tier) {
     assert(tier >= 1 && tier <= 4, 'Pole tier must be between 1 and 4');
