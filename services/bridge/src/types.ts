@@ -76,7 +76,8 @@ export type ClientMessage =
   | { type: 'move'; x: number; y: number; angle: number }
   | { type: 'cast'; targetX: number; targetY: number }
   | { type: 'reel' }
-  | { type: 'leave' };
+  | { type: 'leave' }
+  | { type: 'update_name'; playerId: string; name: string };
 
 // =============================================================================
 // Bridge → Client Messages

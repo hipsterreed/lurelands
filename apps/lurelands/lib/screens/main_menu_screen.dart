@@ -52,6 +52,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   void _enterWorld() {
+    print('[MainMenu] Entering world with playerName: "$_playerName"');
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -320,10 +321,18 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ElevatedButton(
             onPressed: () {
               final newName = _nameController.text.trim();
+              print('[MainMenu] Settings save - newName: "$newName"');
               if (newName.isNotEmpty) {
                 setState(() {
                   _playerName = newName;
                 });
+                print('[MainMenu] Settings save - _playerName updated to: "$_playerName"');
+                
+                // If we're in the game, update the name in the database immediately
+                // We need to check if there's a way to access the game instance
+                // For now, this will be handled when entering the world
+              } else {
+                print('[MainMenu] Settings save - name is empty, not updating');
               }
               Navigator.of(context).pop();
             },

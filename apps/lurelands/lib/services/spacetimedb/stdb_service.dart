@@ -96,6 +96,9 @@ abstract class SpacetimeDBService {
   /// Notify that player stopped casting / reeled in
   void stopCasting();
 
+  /// Update the player's display name
+  void updatePlayerName(String name);
+
   /// Get the world state (water bodies, spawn points)
   WorldState get worldState;
 
@@ -495,6 +498,24 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
         castTargetX: null,
         castTargetY: null,
       );
+      _players[_playerId!] = _localPlayer!;
+      _emitPlayerUpdate();
+    }
+  }
+
+  @override
+  void updatePlayerName(String name) {
+    if (_playerId == null || !isConnected) return;
+
+    _sendMessage({
+      'type': 'update_name',
+      'playerId': _playerId!,
+      'name': name,
+    });
+
+    // Update local state immediately
+    if (_localPlayer != null) {
+      _localPlayer = _localPlayer!.copyWith(name: name);
       _players[_playerId!] = _localPlayer!;
       _emitPlayerUpdate();
     }

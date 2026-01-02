@@ -126,6 +126,13 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       break;
     }
 
+    case 'update_name': {
+      if (session.playerId) {
+        await stdb.updatePlayerName(session.playerId, message.name);
+      }
+      break;
+    }
+
     default:
       wsLogger.warn({ type: (message as any).type }, 'Unknown message type');
   }

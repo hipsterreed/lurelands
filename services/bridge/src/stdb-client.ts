@@ -328,6 +328,16 @@ export class StdbClient {
     }
   }
 
+  async updatePlayerName(playerId: string, name: string): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    try {
+      this.conn.reducers.updatePlayerName({ playerId, name });
+      stdbLogger.info({ playerId, name }, 'Updated player name');
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId }, 'Failed to update player name');
+    }
+  }
+
   // --- Getters ---
 
   getWorldState(): WorldState {

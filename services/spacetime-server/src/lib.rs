@@ -283,6 +283,19 @@ pub fn release_fish(ctx: &ReducerContext, catch_id: u64) {
     }
 }
 
+/// Called when a player updates their display name
+#[spacetimedb::reducer]
+pub fn update_player_name(ctx: &ReducerContext, player_id: String, name: String) {
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        player.name = name.clone();
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
+        log::info!("Player {} updated name to: {}", player_id, name);
+    } else {
+        log::warn!("Player {} tried to update name but doesn't exist", player_id);
+    }
+}
+
 // =============================================================================
 // INITIALIZATION
 // =============================================================================

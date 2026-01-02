@@ -25,6 +25,7 @@ class _GameScreenState extends State<GameScreen> {
   LurelandsGame? _game;
   late SpacetimeDBService _stdbService;
   StreamSubscription<StdbConnectionState>? _connectionSubscription;
+  final TextEditingController _nameController = TextEditingController();
 
   // Connection state (unused but kept for potential future use)
   // ignore: unused_field
@@ -112,6 +113,7 @@ class _GameScreenState extends State<GameScreen> {
   void dispose() {
     _connectionSubscription?.cancel();
     _stdbService.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -384,16 +386,66 @@ class _GameScreenState extends State<GameScreen> {
           Positioned(
             top: 16,
             left: 16,
-            child: IconButton(
-              onPressed: () => _showExitDialog(),
+            child: PopupMenuButton<String>(
               icon: Icon(
                 Icons.menu,
                 color: GameColors.textPrimary.withAlpha(204),
                 size: 28,
               ),
-              style: IconButton.styleFrom(
-                backgroundColor: GameColors.menuBackground.withAlpha(179),
+              color: GameColors.menuBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(
+                  color: GameColors.pondBlue.withAlpha(80),
+                  width: 1,
+                ),
+              ),
+              onSelected: (value) {
+                if (value == 'settings') {
+                  _showSettingsDialog();
+                } else if (value == 'exit') {
+                  _showExitDialog();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'settings',
+                  child: Row(
+                    children: [
+                      Icon(Icons.settings, color: GameColors.textPrimary, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Settings',
+                        style: TextStyle(color: GameColors.textPrimary),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: 'exit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.exit_to_app, color: GameColors.textPrimary, size: 20),
+                      const SizedBox(width: 12),
+                      Text(
+                        'Exit',
+                        style: TextStyle(color: GameColors.textPrimary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              child: Container(
+                decoration: BoxDecoration(
+                  color: GameColors.menuBackground.withAlpha(179),
+                  borderRadius: BorderRadius.circular(8),
+                ),
                 padding: const EdgeInsets.all(12),
+                child: Icon(
+                  Icons.menu,
+                  color: GameColors.textPrimary.withAlpha(204),
+                  size: 28,
+                ),
               ),
             ),
           ),
@@ -537,6 +589,114 @@ class _GameScreenState extends State<GameScreen> {
           },
         );
       },
+    );
+  }
+
+  void _showSettingsDialog() {
+    // Get current player name from game
+    final currentName = _game?.playerName ?? widget.playerName;
+    _nameController.text = currentName;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: GameColors.menuBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: GameColors.pondBlue.withAlpha(80),
+            width: 2,
+          ),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.settings, color: GameColors.pondBlue, size: 24),
+            const SizedBox(width: 12),
+            Text(
+              'Settings',
+              style: TextStyle(
+                color: GameColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Player Name',
+              style: TextStyle(
+                color: GameColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              maxLength: 16,
+              style: TextStyle(color: GameColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Enter your name...',
+                hintStyle: TextStyle(
+                  color: GameColors.textSecondary.withAlpha(128),
+                ),
+                counterStyle: TextStyle(
+                  color: GameColors.textSecondary.withAlpha(128),
+                  fontSize: 10,
+                ),
+                filled: true,
+                fillColor: GameColors.menuAccent,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: GameColors.pondBlue,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: GameColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newName = _nameController.text.trim();
+              if (newName.isNotEmpty && _game != null) {
+                // Update name in database immediately
+                _stdbService.updatePlayerName(newName);
+                debugPrint('[GameScreen] Updated player name to: "$newName"');
+              }
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: GameColors.pondBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 
