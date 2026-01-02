@@ -57,15 +57,18 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
     // Check for existing player ID
     _playerId = await PlayerIdService.instance.getPlayerId();
+    print('[MainMenu] Got player ID: $_playerId');
     
     // Connect to database to fetch player data
     _stdbService = BridgeSpacetimeDBService();
     const bridgeUrl = 'wss://api.lurelands.com/ws';
     
     final connected = await _stdbService!.connect(bridgeUrl);
+    print('[MainMenu] Connected to bridge: $connected');
     
     if (connected && _playerId != null) {
       // Try to fetch existing player data
+      print('[MainMenu] Fetching player data for: $_playerId');
       final playerData = await _stdbService!.fetchPlayerData(_playerId!);
       
       if (playerData != null) {
@@ -91,7 +94,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         _playerName = 'Fisher$randomSuffix';
         _isLoadingPlayerData = false;
       });
-      print('[MainMenu] Creating new player: $_playerName');
+      print('[MainMenu] Creating new player: $_playerName (connected: $connected, playerId: $_playerId)');
     }
     
     // Disconnect after fetching

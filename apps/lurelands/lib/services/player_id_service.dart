@@ -12,29 +12,54 @@ class PlayerIdService {
   /// Get the player ID, creating a new one if it doesn't exist
   Future<String> getPlayerId() async {
     if (_cachedPlayerId != null) {
+      print('[PlayerIdService] Using cached player ID: $_cachedPlayerId');
       return _cachedPlayerId!;
     }
 
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final storedId = prefs.getString(_playerIdKey);
+    // Retry logic for hot restart - SharedPreferences plugin might not be ready immediately
+    for (int attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (attempt > 0) {
+          // Wait a bit before retrying (plugin might not be ready during hot restart)
+          await Future.delayed(Duration(milliseconds: 100 * attempt));
+        }
 
-      if (storedId != null && storedId.isNotEmpty) {
-        _cachedPlayerId = storedId;
-        return storedId;
+        final prefs = await SharedPreferences.getInstance();
+        final storedId = prefs.getString(_playerIdKey);
+
+        print('[PlayerIdService] Loaded from storage (attempt ${attempt + 1}): $storedId');
+
+        if (storedId != null && storedId.isNotEmpty) {
+          _cachedPlayerId = storedId;
+          print('[PlayerIdService] Using stored player ID: $storedId');
+          return storedId;
+        }
+
+        // Generate new player ID
+        final newId = 'player_${DateTime.now().millisecondsSinceEpoch}_${_generateRandomString(6)}';
+        await prefs.setString(_playerIdKey, newId);
+        _cachedPlayerId = newId;
+        print('[PlayerIdService] Generated new player ID: $newId');
+        return newId;
+      } catch (e) {
+        print('[PlayerIdService] Error loading player ID (attempt ${attempt + 1}): $e');
+        if (attempt == 2) {
+          // Last attempt failed, use fallback
+          // But try to use a consistent fallback based on a stable identifier
+          // For now, generate a new one but log the issue
+          final fallbackId = 'player_${DateTime.now().millisecondsSinceEpoch}_${_generateRandomString(6)}';
+          _cachedPlayerId = fallbackId;
+          print('[PlayerIdService] Using fallback player ID: $fallbackId (SharedPreferences unavailable)');
+          return fallbackId;
+        }
+        // Continue to next attempt
       }
-
-      // Generate new player ID
-      final newId = 'player_${DateTime.now().millisecondsSinceEpoch}_${_generateRandomString(6)}';
-      await prefs.setString(_playerIdKey, newId);
-      _cachedPlayerId = newId;
-      return newId;
-    } catch (e) {
-      // Fallback if SharedPreferences fails
-      final fallbackId = 'player_${DateTime.now().millisecondsSinceEpoch}_${_generateRandomString(6)}';
-      _cachedPlayerId = fallbackId;
-      return fallbackId;
     }
+
+    // Should never reach here, but just in case
+    final fallbackId = 'player_${DateTime.now().millisecondsSinceEpoch}_${_generateRandomString(6)}';
+    _cachedPlayerId = fallbackId;
+    return fallbackId;
   }
 
   /// Generate a random string for uniqueness

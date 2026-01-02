@@ -198,13 +198,19 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
     log::info!("Player {} joined the world at ({}, {})", player_id, spawn_x, spawn_y);
 }
 
-/// Called when a player leaves the game world
+/// Called when a player explicitly leaves the game world (e.g., logout)
+/// Note: Players are NOT deleted on disconnect - they persist in the database
+/// This reducer is only called when a player explicitly sends a 'leave' message
 #[spacetimedb::reducer]
 pub fn leave_world(ctx: &ReducerContext, player_id: String) {
-    if ctx.db.player().id().find(&player_id).is_some() {
-        ctx.db.player().id().delete(&player_id);
-        log::info!("Player {} left the world", player_id);
-    }
+    // For now, we keep players in the database even when they "leave"
+    // This allows them to reconnect and maintain their data
+    // If you want to delete players on explicit logout, uncomment the code below:
+    // if ctx.db.player().id().find(&player_id).is_some() {
+    //     ctx.db.player().id().delete(&player_id);
+    //     log::info!("Player {} left the world", player_id);
+    // }
+    log::info!("Player {} requested to leave (but kept in database for reconnection)", player_id);
 }
 
 /// Called when a player moves to update their position
@@ -283,15 +289,46 @@ pub fn release_fish(ctx: &ReducerContext, catch_id: u64) {
 }
 
 /// Called when a player updates their display name
+/// If the player doesn't exist, creates them with a default spawn position
 #[spacetimedb::reducer]
 pub fn update_player_name(ctx: &ReducerContext, player_id: String, name: String) {
     if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        // Player exists, just update the name
         player.name = name.clone();
         player.last_updated = ctx.timestamp;
         ctx.db.player().id().update(player);
         log::info!("Player {} updated name to: {}", player_id, name);
     } else {
-        log::warn!("Player {} tried to update name but doesn't exist", player_id);
+        // Player doesn't exist, create them with default position
+        // Get spawn points and pick one based on player_id hash (consistent spawn)
+        let spawn_points: Vec<SpawnPoint> = ctx.db.spawn_point().iter().collect();
+        
+        let (spawn_x, spawn_y) = if spawn_points.is_empty() {
+            // Fallback to center if no spawn points defined
+            (1000.0, 1000.0)
+        } else {
+            // Use player_id hash for pseudo-random spawn point selection (consistent)
+            let hash: usize = player_id.bytes().map(|b| b as usize).sum();
+            let index = hash % spawn_points.len();
+            let spawn = &spawn_points[index];
+            (spawn.x, spawn.y)
+        };
+        
+        let player = Player {
+            id: player_id.clone(),
+            name: name.clone(),
+            x: spawn_x,
+            y: spawn_y,
+            facing_angle: 0.0,
+            is_casting: false,
+            cast_target_x: None,
+            cast_target_y: None,
+            color: 0xFFE74C3C, // Default red color
+            last_updated: ctx.timestamp,
+        };
+        
+        ctx.db.player().insert(player);
+        log::info!("Player {} created with name: {} at ({}, {})", player_id, name, spawn_x, spawn_y);
     }
 }
 
