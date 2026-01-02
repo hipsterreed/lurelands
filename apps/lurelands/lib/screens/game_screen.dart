@@ -85,6 +85,7 @@ class _GameScreenState extends State<GameScreen> {
 
     // Get player name from settings
     final playerName = SettingsService.instance.playerName;
+    debugPrint('[GameScreen] Creating game with playerName: "$playerName"');
 
     setState(() {
       _isConnecting = false;

@@ -384,6 +384,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     // Create local player with temporary position
     _localPlayer = PlayerState(
       id: playerId,
+      name: name,
       x: 1000.0,
       y: 1000.0,
       color: color,
@@ -391,7 +392,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _players[playerId] = _localPlayer!;
 
     // Send join message to bridge
-    print('[Bridge] Sending join message...');
+    print('[Bridge] Sending join message with name: "$name"');
     _sendMessage({
       'type': 'join',
       'playerId': playerId,
