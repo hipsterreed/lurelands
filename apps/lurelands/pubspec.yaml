@@ -73,10 +73,9 @@ flutter:
   # Game assets
   assets:
     - assets/icons/
-    - assets/ui/
-    - assets/fish/
     - assets/items/
     - assets/images/characters/
+    - assets/images/fish/
     - assets/images/plants/
 
   # An image asset can refer to one or more resolution-specific "variants", see
