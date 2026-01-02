@@ -3,10 +3,14 @@ import 'package:flutter/services.dart';
 
 import 'screens/main_menu_screen.dart';
 import 'screens/game_screen.dart';
+import 'services/settings_service.dart';
 import 'utils/constants.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize settings service
+  await SettingsService.instance.init();
 
   // Set preferred orientations for mobile (landscape only for this game)
   SystemChrome.setPreferredOrientations([

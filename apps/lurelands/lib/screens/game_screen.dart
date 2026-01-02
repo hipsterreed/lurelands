@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../game/lurelands_game.dart';
+import '../services/settings_service.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 
@@ -82,12 +83,15 @@ class _GameScreenState extends State<GameScreen> {
     // Generate a unique player ID (in production, use proper auth)
     final playerId = 'player_${DateTime.now().millisecondsSinceEpoch}';
 
+    // Get player name from settings
+    final playerName = SettingsService.instance.playerName;
+
     setState(() {
       _isConnecting = false;
       _game = LurelandsGame(
         stdbService: _stdbService,
         playerId: playerId,
-        playerName: 'Player',
+        playerName: playerName,
         playerColor: 0xFFE74C3C,
       );
     });

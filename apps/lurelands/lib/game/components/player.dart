@@ -8,20 +8,28 @@ import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import 'cast_line.dart';
+import 'player_name_label.dart';
 import 'pond.dart';
 import 'power_meter.dart';
 import 'tree.dart';
 
 /// Player component - animated sprite that can move and fish
 class Player extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
-  Player({required Vector2 position, int equippedPoleTier = 1, int equippedLureTier = 1})
-    : _equippedPoleTier = equippedPoleTier,
-      _equippedLureTier = equippedLureTier,
-      super(
-        position: position,
-        size: Vector2(216, 144), // 2.25x scale of sprite frame (96x64)
-        anchor: Anchor.center,
-      );
+  Player({
+    required Vector2 position,
+    int equippedPoleTier = 1,
+    int equippedLureTier = 1,
+    String? playerName,
+  })  : _equippedPoleTier = equippedPoleTier,
+        _equippedLureTier = equippedLureTier,
+        _playerName = playerName,
+        super(
+          position: position,
+          size: Vector2(216, 144), // 2.25x scale of sprite frame (96x64)
+          anchor: Anchor.center,
+        );
+
+  final String? _playerName;
 
   CastLine? _castLine;
 
@@ -96,6 +104,15 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     final powerMeter = PowerMeter()
       ..position = Vector2(size.x / 2 + 25, size.y / 2 + 55);
     await add(powerMeter);
+
+    // Add player name label above the character
+    if (_playerName != null && _playerName.isNotEmpty) {
+      final nameLabel = PlayerNameLabel(
+        playerName: _playerName,
+        position: Vector2(size.x / 2 + 8, 35), // Centered above the sprite
+      );
+      await add(nameLabel);
+    }
   }
 
   @override

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/settings_service.dart';
 import '../utils/constants.dart';
 import 'game_screen.dart';
 
@@ -16,6 +17,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  final TextEditingController _nameController = TextEditingController();
 
   @override
   void initState() {
@@ -40,11 +42,15 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     );
 
     _animationController.forward();
+
+    // Initialize name controller with current name
+    _nameController.text = SettingsService.instance.playerName;
   }
 
   @override
   void dispose() {
     _animationController.dispose();
+    _nameController.dispose();
     super.dispose();
   }
 
@@ -80,35 +86,57 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ),
         ),
         child: SafeArea(
-          child: AnimatedBuilder(
-            animation: _animationController,
-            builder: (context, child) {
-              return Opacity(
-                opacity: _fadeAnimation.value,
-                child: Transform.scale(
-                  scale: _scaleAnimation.value,
-                  child: child,
+          child: Stack(
+            children: [
+              // Settings button (top right)
+              Positioned(
+                top: 16,
+                right: 16,
+                child: IconButton(
+                  onPressed: _showSettingsDialog,
+                  icon: Icon(
+                    Icons.settings,
+                    color: GameColors.textSecondary,
+                    size: 28,
+                  ),
+                  style: IconButton.styleFrom(
+                    backgroundColor: GameColors.menuAccent.withAlpha(200),
+                    padding: const EdgeInsets.all(12),
+                  ),
                 ),
-              );
-            },
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Title
-                  _buildTitle(),
-                  const SizedBox(height: 16),
-                  // Subtitle
-                  _buildSubtitle(),
-                  const SizedBox(height: 60),
-                  // Enter World Button
-                  _buildEnterButton(),
-                  const SizedBox(height: 30),
-                  // Version info
-                  _buildVersionInfo(),
-                ],
               ),
-            ),
+              // Main content
+              AnimatedBuilder(
+                animation: _animationController,
+                builder: (context, child) {
+                  return Opacity(
+                    opacity: _fadeAnimation.value,
+                    child: Transform.scale(
+                      scale: _scaleAnimation.value,
+                      child: child,
+                    ),
+                  );
+                },
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // Title
+                      _buildTitle(),
+                      const SizedBox(height: 16),
+                      // Subtitle
+                      _buildSubtitle(),
+                      const SizedBox(height: 60),
+                      // Enter World Button
+                      _buildEnterButton(),
+                      const SizedBox(height: 30),
+                      // Version info
+                      _buildVersionInfo(),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -206,6 +234,110 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       style: TextStyle(
         fontSize: 11,
         color: GameColors.textSecondary.withAlpha(128),
+      ),
+    );
+  }
+
+  void _showSettingsDialog() {
+    _nameController.text = SettingsService.instance.playerName;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: GameColors.menuBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: GameColors.pondBlue.withAlpha(80),
+            width: 2,
+          ),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.settings, color: GameColors.pondBlue, size: 24),
+            const SizedBox(width: 12),
+            Text(
+              'Settings',
+              style: TextStyle(
+                color: GameColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Player Name',
+              style: TextStyle(
+                color: GameColors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _nameController,
+              maxLength: 16,
+              style: TextStyle(color: GameColors.textPrimary),
+              decoration: InputDecoration(
+                hintText: 'Enter your name...',
+                hintStyle: TextStyle(
+                  color: GameColors.textSecondary.withAlpha(128),
+                ),
+                counterStyle: TextStyle(
+                  color: GameColors.textSecondary.withAlpha(128),
+                  fontSize: 10,
+                ),
+                filled: true,
+                fillColor: GameColors.menuAccent,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: BorderSide(
+                    color: GameColors.pondBlue,
+                    width: 2,
+                  ),
+                ),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: GameColors.textSecondary),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newName = _nameController.text.trim();
+              if (newName.isNotEmpty) {
+                SettingsService.instance.playerName = newName;
+              }
+              Navigator.of(context).pop();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: GameColors.pondBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
       ),
     );
   }

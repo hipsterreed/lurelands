@@ -146,6 +146,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     _player = Player(
       position: Vector2(spawnX, spawnY),
       equippedPoleTier: 1,
+      playerName: playerName,
     );
     await world.add(_player!);
 

@@ -321,6 +321,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   PlayerState _parsePlayer(Map<String, dynamic> json) {
     return PlayerState(
       id: json['id'] as String,
+      name: json['name'] as String? ?? 'Player',
       x: (json['x'] as num).toDouble(),
       y: (json['y'] as num).toDouble(),
       facingAngle: (json['facingAngle'] as num?)?.toDouble() ?? 0.0,

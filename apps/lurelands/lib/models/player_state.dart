@@ -2,6 +2,7 @@
 /// Designed for serialization to sync with SpacetimeDB.
 class PlayerState {
   final String id;
+  final String name; // Player display name
   final double x;
   final double y;
   final bool isCasting;
@@ -16,6 +17,7 @@ class PlayerState {
     required this.id,
     required this.x,
     required this.y,
+    this.name = 'Player', // Default name
     this.isCasting = false,
     this.castTargetX,
     this.castTargetY,
@@ -27,6 +29,7 @@ class PlayerState {
 
   PlayerState copyWith({
     String? id,
+    String? name,
     double? x,
     double? y,
     bool? isCasting,
@@ -39,6 +42,7 @@ class PlayerState {
   }) {
     return PlayerState(
       id: id ?? this.id,
+      name: name ?? this.name,
       x: x ?? this.x,
       y: y ?? this.y,
       isCasting: isCasting ?? this.isCasting,
@@ -53,6 +57,7 @@ class PlayerState {
 
   Map<String, dynamic> toJson() => {
         'id': id,
+        'name': name,
         'x': x,
         'y': y,
         'isCasting': isCasting,
@@ -66,6 +71,7 @@ class PlayerState {
 
   factory PlayerState.fromJson(Map<String, dynamic> json) => PlayerState(
         id: json['id'] as String,
+        name: json['name'] as String? ?? 'Player',
         x: (json['x'] as num).toDouble(),
         y: (json['y'] as num).toDouble(),
         isCasting: json['isCasting'] as bool? ?? false,
