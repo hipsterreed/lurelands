@@ -156,7 +156,7 @@ class LurelandsWorld extends World {
   bool isInsideWater(double x, double y) => _isInsideWater(x, y);
 }
 
-/// Ground component - fills the world with a checkered grass pattern
+/// Ground component - solid green with scattered pixel shade spots
 class Ground extends PositionComponent {
   Ground()
       : super(
@@ -165,30 +165,63 @@ class Ground extends PositionComponent {
           priority: 0,
         );
 
-  // Checker tile size
-  static const double tileSize = 48.0;
+  // Size of shade pixels
+  static const double pixelSize = 6.0;
+  
+  // Cached texture image
+  Image? _textureImage;
+  bool _textureGenerated = false;
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    await _generateTexture();
+  }
+
+  /// Generate the ground texture with sparse pixel spots
+  Future<void> _generateTexture() async {
+    final recorder = PictureRecorder();
+    final canvas = Canvas(recorder);
+    
+    // Draw solid base color
+    final basePaint = Paint()..color = GameColors.grassGreen;
+    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), basePaint);
+    
+    // Seeded random for consistent spots
+    final random = Random(789);
+    
+    // Shade colors
+    final darkPaint = Paint()..color = GameColors.grassGreenDark;
+    final lightPaint = Paint()..color = GameColors.grassGreenLight;
+    
+    // Scatter sparse pixel spots across the map
+    final spotCount = 800; // Adjust for density
+    
+    for (var i = 0; i < spotCount; i++) {
+      final x = (random.nextDouble() * size.x / pixelSize).floor() * pixelSize;
+      final y = (random.nextDouble() * size.y / pixelSize).floor() * pixelSize;
+      final isLight = random.nextBool();
+      
+      canvas.drawRect(
+        Rect.fromLTWH(x, y, pixelSize, pixelSize),
+        isLight ? lightPaint : darkPaint,
+      );
+    }
+    
+    // Convert to image
+    final picture = recorder.endRecording();
+    _textureImage = await picture.toImage(size.x.toInt(), size.y.toInt());
+    _textureGenerated = true;
+  }
 
   @override
   void render(Canvas canvas) {
-    final lightPaint = Paint()..color = GameColors.grassGreen;
-    // Slightly darker shade of the base green
-    final darkPaint = Paint()..color = const Color(0xFF437320);
-
-    // Draw checkered pattern
-    final tilesX = (size.x / tileSize).ceil();
-    final tilesY = (size.y / tileSize).ceil();
-
-    for (var row = 0; row < tilesY; row++) {
-      for (var col = 0; col < tilesX; col++) {
-        final isLight = (row + col) % 2 == 0;
-        final rect = Rect.fromLTWH(
-          col * tileSize,
-          row * tileSize,
-          tileSize,
-          tileSize,
-        );
-        canvas.drawRect(rect, isLight ? lightPaint : darkPaint);
-      }
+    if (_textureGenerated && _textureImage != null) {
+      canvas.drawImage(_textureImage!, Offset.zero, Paint());
+    } else {
+      // Fallback while texture generates
+      final basePaint = Paint()..color = GameColors.grassGreen;
+      canvas.drawRect(size.toRect(), basePaint);
     }
   }
 }
