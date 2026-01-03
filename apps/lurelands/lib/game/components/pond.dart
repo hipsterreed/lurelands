@@ -3,14 +3,22 @@ import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flutter/painting.dart' show Alignment, RadialGradient;
 
 import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
 import '../../utils/seeded_random.dart';
 
-/// Pond component - a circular body of water
+/// Pond component - a circular body of water with animated ripples
 class Pond extends PositionComponent with CollisionCallbacks {
   final PondData data;
+
+  // Animation time
+  double _time = 0;
+
+  // Pre-computed ripple data for performance
+  late List<_RippleData> _ripples;
+  late List<_HighlightData> _highlights;
 
   Pond({required this.data})
     : super(
@@ -24,9 +32,54 @@ class Pond extends PositionComponent with CollisionCallbacks {
   Future<void> onLoad() async {
     await super.onLoad();
 
+    // Pre-compute ripple positions
+    _initRipples();
+    _initHighlights();
+
     // Add circular hitbox for collision detection
-    // Default CircleHitbox fills the component as a circle inscribed in the bounds
     await add(CircleHitbox());
+  }
+
+  void _initRipples() {
+    final random = SeededRandom(data.id.hashCode);
+    _ripples = [];
+
+    // Create 3-5 ripple sources at random positions
+    final rippleCount = 3 + random.nextInt(3);
+    for (var i = 0; i < rippleCount; i++) {
+      final angle = random.nextDouble() * 2 * pi;
+      final dist = random.nextDouble() * data.radius * 0.6;
+      _ripples.add(_RippleData(
+        x: cos(angle) * dist,
+        y: sin(angle) * dist,
+        phaseOffset: random.nextDouble() * 2 * pi,
+        speed: 0.8 + random.nextDouble() * 0.4,
+        maxRadius: 20 + random.nextDouble() * 25,
+      ));
+    }
+  }
+
+  void _initHighlights() {
+    final random = SeededRandom(data.id.hashCode * 2);
+    _highlights = [];
+
+    // Create shimmering highlight spots
+    for (var i = 0; i < 6; i++) {
+      final angle = random.nextDouble() * 2 * pi;
+      final dist = random.nextDouble() * data.radius * 0.7;
+      _highlights.add(_HighlightData(
+        x: cos(angle) * dist,
+        y: sin(angle) * dist,
+        baseRadius: 5 + random.nextDouble() * 12,
+        phaseOffset: random.nextDouble() * 2 * pi,
+      ));
+    }
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
   }
 
   @override
@@ -39,47 +92,114 @@ class Pond extends PositionComponent with CollisionCallbacks {
     final shorePaint = Paint()..color = GameColors.pondShore;
     canvas.drawCircle(Offset(centerX, centerY), radius + 8, shorePaint);
 
-    // Draw main water body
-    final waterPaint = Paint()..color = GameColors.pondBlue;
-    canvas.drawCircle(Offset(centerX, centerY), radius, waterPaint);
+    // Draw main water body with radial gradient
+    _drawWaterBody(canvas, centerX, centerY, radius);
 
-    // Draw darker center
-    final deepPaint = Paint()..color = GameColors.pondBlueDark;
-    canvas.drawCircle(Offset(centerX, centerY), radius * 0.6, deepPaint);
+    // Draw animated ripples
+    _drawAnimatedRipples(canvas, centerX, centerY, radius);
 
-    // Draw water highlights
-    _drawWaterHighlights(canvas, centerX, centerY, radius);
+    // Draw shimmering highlights
+    _drawShimmeringHighlights(canvas, centerX, centerY, radius);
 
-    // Draw ripple effect
-    _drawRipples(canvas, centerX, centerY, radius);
+    // Draw subtle caustic patterns
+    _drawCaustics(canvas, centerX, centerY, radius);
   }
 
-  void _drawWaterHighlights(Canvas canvas, double cx, double cy, double radius) {
-    // Draw a few highlight circles
-    final random = SeededRandom(data.id.hashCode);
-    for (var i = 0; i < 5; i++) {
-      final angle = random.nextDouble() * 2 * pi;
-      final dist = random.nextDouble() * radius * 0.7;
-      final highlightRadius = 5 + random.nextDouble() * 15;
+  void _drawWaterBody(Canvas canvas, double cx, double cy, double radius) {
+    // Create radial gradient for depth effect
+    final gradient = RadialGradient(
+      center: Alignment.center,
+      radius: 1.0,
+      colors: [
+        GameColors.pondBlueDark, // Deep center
+        GameColors.pondBlue, // Mid
+        GameColors.pondBlueLight.withAlpha(200), // Edge
+      ],
+      stops: const [0.0, 0.5, 1.0],
+    );
 
-      final hx = cx + cos(angle) * dist;
-      final hy = cy + sin(angle) * dist;
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: radius);
+    final paint = Paint()..shader = gradient.createShader(rect);
+    canvas.drawCircle(Offset(cx, cy), radius, paint);
+  }
 
-      final highlightPaint = Paint()..color = GameColors.pondBlueLight.withAlpha(64);
-      canvas.drawCircle(Offset(hx, hy), highlightRadius, highlightPaint);
+  void _drawAnimatedRipples(Canvas canvas, double cx, double cy, double radius) {
+    for (final ripple in _ripples) {
+      // Calculate animated ripple state
+      final phase = (_time * ripple.speed + ripple.phaseOffset) % (2 * pi);
+      final progress = phase / (2 * pi);
+
+      // Draw 2 concentric expanding rings per ripple source
+      for (var ring = 0; ring < 2; ring++) {
+        final ringProgress = (progress + ring * 0.5) % 1.0;
+        final currentRadius = ringProgress * ripple.maxRadius;
+        final alpha = ((1.0 - ringProgress) * 60).toInt().clamp(0, 255);
+
+        if (alpha > 5) {
+          final ripplePaint = Paint()
+            ..color = GameColors.pondBlueLight.withAlpha(alpha)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.5 + (1.0 - ringProgress) * 1.5;
+
+          canvas.drawCircle(
+            Offset(cx + ripple.x, cy + ripple.y),
+            currentRadius,
+            ripplePaint,
+          );
+        }
+      }
     }
   }
 
-  void _drawRipples(Canvas canvas, double cx, double cy, double radius) {
-    // Draw concentric ripple lines
-    final ripplePaint = Paint()
-      ..color = GameColors.pondBlueLight.withAlpha(32)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+  void _drawShimmeringHighlights(Canvas canvas, double cx, double cy, double radius) {
+    for (final highlight in _highlights) {
+      // Oscillating size and opacity
+      final shimmer = sin(_time * 2.5 + highlight.phaseOffset);
+      final radiusMod = highlight.baseRadius * (0.7 + shimmer * 0.3);
+      final alpha = (40 + shimmer * 25).toInt().clamp(15, 70);
 
-    for (var i = 1; i <= 3; i++) {
-      final rippleRadius = radius * (0.3 + i * 0.2);
-      canvas.drawCircle(Offset(cx, cy), rippleRadius, ripplePaint);
+      final highlightPaint = Paint()
+        ..color = const Color(0xFFFFFFFF).withAlpha(alpha);
+
+      canvas.drawCircle(
+        Offset(cx + highlight.x, cy + highlight.y),
+        radiusMod,
+        highlightPaint,
+      );
+    }
+  }
+
+  void _drawCaustics(Canvas canvas, double cx, double cy, double radius) {
+    // Subtle moving light patterns on the water surface
+    final causticPaint = Paint()
+      ..color = GameColors.pondBlueLight.withAlpha(25)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    final random = SeededRandom(data.id.hashCode * 3);
+
+    for (var i = 0; i < 4; i++) {
+      final baseAngle = (i / 4) * 2 * pi;
+      final animAngle = baseAngle + _time * 0.3;
+      final dist = radius * (0.3 + random.nextDouble() * 0.3);
+
+      final path = Path();
+      final startX = cx + cos(animAngle) * dist;
+      final startY = cy + sin(animAngle) * dist;
+      path.moveTo(startX, startY);
+
+      // Draw wavy caustic line
+      for (var j = 1; j <= 3; j++) {
+        final segAngle = animAngle + j * 0.5;
+        final segDist = dist + j * 10;
+        final waveOffset = sin(_time * 2 + j) * 5;
+        path.lineTo(
+          cx + cos(segAngle) * segDist + waveOffset,
+          cy + sin(segAngle) * segDist,
+        );
+      }
+
+      canvas.drawPath(path, causticPaint);
     }
   }
 
@@ -93,4 +213,36 @@ class Pond extends PositionComponent with CollisionCallbacks {
   bool isPlayerInCastingRange(Vector2 playerPos) {
     return data.isWithinCastingRange(playerPos.x, playerPos.y, GameConstants.castProximityRadius);
   }
+}
+
+/// Pre-computed ripple animation data
+class _RippleData {
+  final double x;
+  final double y;
+  final double phaseOffset;
+  final double speed;
+  final double maxRadius;
+
+  _RippleData({
+    required this.x,
+    required this.y,
+    required this.phaseOffset,
+    required this.speed,
+    required this.maxRadius,
+  });
+}
+
+/// Pre-computed highlight animation data
+class _HighlightData {
+  final double x;
+  final double y;
+  final double baseRadius;
+  final double phaseOffset;
+
+  _HighlightData({
+    required this.x,
+    required this.y,
+    required this.baseRadius,
+    required this.phaseOffset,
+  });
 }
