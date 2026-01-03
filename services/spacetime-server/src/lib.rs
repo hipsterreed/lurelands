@@ -76,6 +76,27 @@ pub struct FishCatch {
     pub caught_at: Timestamp,
 }
 
+/// Player inventory - tracks items owned by players (stacked by item_id + rarity)
+#[spacetimedb::table(name = inventory, public)]
+pub struct Inventory {
+    /// Unique row identifier
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    
+    /// Player who owns this inventory entry
+    pub player_id: String,
+    
+    /// Item identifier (e.g., "fish_ocean_1", "pole_2")
+    pub item_id: String,
+    
+    /// Star rarity for fish (1-3), 0 for non-fish items
+    pub rarity: u8,
+    
+    /// Quantity of this item stack
+    pub quantity: u32,
+}
+
 /// Spawn point data - defines where players can spawn in the world
 #[derive(Clone)]
 #[spacetimedb::table(name = spawn_point, public)]
@@ -258,26 +279,46 @@ pub fn stop_casting(ctx: &ReducerContext, player_id: String) {
 pub fn catch_fish(
     ctx: &ReducerContext,
     player_id: String,
-    fish_id: String,
+    item_id: String,
     fish_type: String,
     size: f32,
-    rarity: String,
+    rarity: u8,
     water_body_id: String,
 ) {
+    // Log the catch event
     let catch = FishCatch {
         id: 0, // auto-incremented
-        fish_id: fish_id.clone(),
+        fish_id: item_id.clone(),
         player_id: player_id.clone(),
-        fish_type,
+        fish_type: fish_type.clone(),
         size,
-        rarity,
+        rarity: format!("{}star", rarity),
         water_body_id,
         released: false,
         caught_at: ctx.timestamp,
     };
     
     ctx.db.fish_catch().insert(catch);
-    log::info!("Player {} caught fish {}", player_id, fish_id);
+    log::info!("Player {} caught fish {} ({}star)", player_id, item_id, rarity);
+    
+    // Also add to inventory
+    let existing = ctx.db.inventory().iter().find(|inv| {
+        inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity
+    });
+    
+    if let Some(mut inv) = existing {
+        inv.quantity += 1;
+        ctx.db.inventory().id().update(inv);
+    } else {
+        let inv = Inventory {
+            id: 0,
+            player_id: player_id.clone(),
+            item_id: item_id.clone(),
+            rarity,
+            quantity: 1,
+        };
+        ctx.db.inventory().insert(inv);
+    }
 }
 
 /// Called when a player releases a caught fish
@@ -288,6 +329,56 @@ pub fn release_fish(ctx: &ReducerContext, catch_id: u64) {
         ctx.db.fish_catch().id().update(catch);
         log::info!("Fish from catch {} was released", catch_id);
     }
+}
+
+/// Add an item to a player's inventory (creates new stack or increments existing)
+#[spacetimedb::reducer]
+pub fn add_to_inventory(
+    ctx: &ReducerContext,
+    player_id: String,
+    item_id: String,
+    rarity: u8,
+    quantity: u32,
+) {
+    // Look for existing stack with same player_id, item_id, and rarity
+    let existing = ctx.db.inventory().iter().find(|inv| {
+        inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity
+    });
+    
+    if let Some(mut inv) = existing {
+        // Update existing stack
+        inv.quantity += quantity;
+        let new_quantity = inv.quantity; // Save before move
+        ctx.db.inventory().id().update(inv);
+        log::info!(
+            "Updated inventory for player {}: {} x{} (rarity {})",
+            player_id, item_id, new_quantity, rarity
+        );
+    } else {
+        // Create new stack
+        let inv = Inventory {
+            id: 0, // auto-incremented
+            player_id: player_id.clone(),
+            item_id: item_id.clone(),
+            rarity,
+            quantity,
+        };
+        ctx.db.inventory().insert(inv);
+        log::info!(
+            "Added to inventory for player {}: {} x{} (rarity {})",
+            player_id, item_id, quantity, rarity
+        );
+    }
+}
+
+/// Get a player's full inventory (for initial load)
+/// Note: Clients typically use subscriptions, but this can be used for one-time queries
+#[spacetimedb::reducer]
+pub fn get_player_inventory(ctx: &ReducerContext, player_id: String) {
+    // This reducer doesn't return data directly - clients subscribe to the inventory table
+    // and filter by player_id. This is just for logging/debugging.
+    let count = ctx.db.inventory().iter().filter(|inv| inv.player_id == player_id).count();
+    log::info!("Player {} has {} inventory stacks", player_id, count);
 }
 
 /// Called when a player updates their display name

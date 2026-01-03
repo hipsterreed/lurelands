@@ -9,6 +9,7 @@ import '../game/lurelands_game.dart';
 import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
+import '../widgets/inventory_panel.dart';
 
 /// Bridge server URL (Bun/Elysia bridge to SpacetimeDB)
 const String _bridgeUrl = 'wss://api.lurelands.com/ws';
@@ -27,6 +28,7 @@ class _GameScreenState extends State<GameScreen> {
   LurelandsGame? _game;
   late SpacetimeDBService _stdbService;
   StreamSubscription<StdbConnectionState>? _connectionSubscription;
+  StreamSubscription<List<InventoryEntry>>? _inventorySubscription;
   final TextEditingController _nameController = TextEditingController();
 
   // Connection state (unused but kept for potential future use)
@@ -34,6 +36,10 @@ class _GameScreenState extends State<GameScreen> {
   StdbConnectionState _connectionState = StdbConnectionState.disconnected;
   bool _isConnecting = true;
   String? _connectionError;
+  
+  // Inventory state
+  bool _showInventory = false;
+  List<InventoryEntry> _inventoryItems = [];
 
   @override
   void initState() {
@@ -94,6 +100,18 @@ class _GameScreenState extends State<GameScreen> {
     final playerName = widget.playerName;
     debugPrint('[GameScreen] Creating game with playerId: "$playerId", playerName: "$playerName"');
 
+    // Subscribe to inventory updates
+    _inventorySubscription = _stdbService.inventoryUpdates.listen((items) {
+      if (mounted) {
+        setState(() {
+          _inventoryItems = items;
+        });
+      }
+    });
+    
+    // Initialize inventory from current state
+    _inventoryItems = _stdbService.inventory;
+
     setState(() {
       _isConnecting = false;
       _game = LurelandsGame(
@@ -117,6 +135,7 @@ class _GameScreenState extends State<GameScreen> {
   @override
   void dispose() {
     _connectionSubscription?.cancel();
+    _inventorySubscription?.cancel();
     _stdbService.dispose();
     _nameController.dispose();
     super.dispose();
@@ -156,6 +175,12 @@ class _GameScreenState extends State<GameScreen> {
           _buildFishingMinigameOverlay(),
           // Fishing state messages (bite alert, caught, escaped)
           _buildFishingStateOverlay(),
+          // Inventory panel overlay
+          if (_showInventory)
+            InventoryPanel(
+              items: _inventoryItems,
+              onClose: () => setState(() => _showInventory = false),
+            ),
         ],
       ),
     );
@@ -565,6 +590,51 @@ class _GameScreenState extends State<GameScreen> {
                   Icons.menu,
                   color: GameColors.textPrimary.withAlpha(204),
                   size: 28,
+                ),
+              ),
+            ),
+          ),
+          // Inventory button (top right, before debug)
+          Positioned(
+            top: 16,
+            right: 72,
+            child: GestureDetector(
+              onTap: () => setState(() => _showInventory = true),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: GameColors.menuBackground.withAlpha(179),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                padding: const EdgeInsets.all(12),
+                child: Stack(
+                  children: [
+                    Icon(
+                      Icons.backpack,
+                      color: GameColors.textPrimary.withAlpha(204),
+                      size: 28,
+                    ),
+                    // Item count badge
+                    if (_inventoryItems.isNotEmpty)
+                      Positioned(
+                        right: -2,
+                        top: -2,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: GameColors.pondBlue,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            '${_inventoryItems.fold<int>(0, (sum, e) => sum + e.quantity)}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),

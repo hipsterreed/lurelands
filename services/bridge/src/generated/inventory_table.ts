@@ -10,11 +10,10 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  playerId: __t.string(),
-  itemId: __t.string(),
-  fishType: __t.string(),
-  size: __t.f32(),
+export default __t.row({
+  id: __t.u64().primaryKey(),
+  playerId: __t.string().name("player_id"),
+  itemId: __t.string().name("item_id"),
   rarity: __t.u8(),
-  waterBodyId: __t.string(),
-};
+  quantity: __t.u32(),
+});

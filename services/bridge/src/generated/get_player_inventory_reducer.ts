@@ -12,9 +12,4 @@ import {
 
 export default {
   playerId: __t.string(),
-  itemId: __t.string(),
-  fishType: __t.string(),
-  size: __t.f32(),
-  rarity: __t.u8(),
-  waterBodyId: __t.string(),
 };

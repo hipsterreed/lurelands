@@ -45,6 +45,14 @@ stdb.setCallbacks({
   onFishCaught: (fishCatch) => {
     broadcast({ type: 'fish_caught', catch: fishCatch });
   },
+  onInventoryUpdate: (playerId, items) => {
+    // Send inventory update only to the player who owns it
+    for (const [wsId, session] of clients) {
+      if (session.playerId === playerId) {
+        send(session.ws, { type: 'inventory', items });
+      }
+    }
+  },
 });
 
 // =============================================================================
@@ -91,6 +99,9 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
         send(ws, { type: 'spawn', x: spawnPos.x, y: spawnPos.y });
         send(ws, { type: 'world_state', data: stdb.getWorldState() });
         send(ws, { type: 'players', players: stdb.getPlayers() });
+        // Send player's inventory
+        const inventory = stdb.getPlayerInventory(message.playerId);
+        send(ws, { type: 'inventory', items: inventory });
       } else {
         send(ws, { type: 'error', message: 'Failed to join world' });
       }
@@ -136,6 +147,22 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
     case 'fetch_player': {
       const player = stdb.getPlayer(message.playerId);
       send(ws, { type: 'player_data', player });
+      break;
+    }
+
+    case 'catch_fish': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId, itemId: message.itemId, rarity: message.rarity }, 'Player catching fish');
+        await stdb.catchFish(session.playerId, message.itemId, message.rarity, message.waterBodyId);
+      }
+      break;
+    }
+
+    case 'get_inventory': {
+      if (session.playerId) {
+        const items = stdb.getPlayerInventory(session.playerId);
+        send(ws, { type: 'inventory', items });
+      }
       break;
     }
 

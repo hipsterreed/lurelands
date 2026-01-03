@@ -248,6 +248,341 @@ enum WaterType {
   night, // Special night-time fish
 }
 
+/// Item type enum for inventory categorization
+enum ItemType {
+  fish,
+  pole,
+  lure,
+  bait,
+}
+
+/// Definition of an item in the game (for client-side lookup)
+class ItemDefinition {
+  final String id;
+  final String name;
+  final String description;
+  final ItemType type;
+  final int basePrice;
+  final String assetPath;
+  final WaterType? waterType; // For fish only
+  final int? tier; // For equipment tiers
+
+  const ItemDefinition({
+    required this.id,
+    required this.name,
+    required this.description,
+    required this.type,
+    required this.basePrice,
+    required this.assetPath,
+    this.waterType,
+    this.tier,
+  });
+
+  /// Get the sell price based on rarity (stars)
+  int getSellPrice(int rarity) {
+    // Higher rarity = higher multiplier
+    final multiplier = rarity <= 1 ? 1.0 : (rarity == 2 ? 2.0 : 4.0);
+    return (basePrice * multiplier).round();
+  }
+}
+
+/// Centralized catalog of all game items
+class GameItems {
+  GameItems._();
+
+  // --- Fish ---
+  // Pond fish
+  static const ItemDefinition fishPond1 = ItemDefinition(
+    id: 'fish_pond_1',
+    name: 'Pond Minnow',
+    description: 'A common small fish found in ponds.',
+    type: ItemType.fish,
+    basePrice: 10,
+    assetPath: '${AssetPaths.fish}/fish_pond_1.png',
+    waterType: WaterType.pond,
+    tier: 1,
+  );
+  static const ItemDefinition fishPond2 = ItemDefinition(
+    id: 'fish_pond_2',
+    name: 'Golden Koi',
+    description: 'A beautiful golden fish prized by collectors.',
+    type: ItemType.fish,
+    basePrice: 25,
+    assetPath: '${AssetPaths.fish}/fish_pond_2.png',
+    waterType: WaterType.pond,
+    tier: 2,
+  );
+  static const ItemDefinition fishPond3 = ItemDefinition(
+    id: 'fish_pond_3',
+    name: 'Mystic Carp',
+    description: 'A rare carp with an ethereal glow.',
+    type: ItemType.fish,
+    basePrice: 50,
+    assetPath: '${AssetPaths.fish}/fish_pond_3.png',
+    waterType: WaterType.pond,
+    tier: 3,
+  );
+  static const ItemDefinition fishPond4 = ItemDefinition(
+    id: 'fish_pond_4',
+    name: 'Ancient Pond Dragon',
+    description: 'A legendary creature of pond folklore.',
+    type: ItemType.fish,
+    basePrice: 150,
+    assetPath: '${AssetPaths.fish}/fish_pond_4.png',
+    waterType: WaterType.pond,
+    tier: 4,
+  );
+
+  // River fish
+  static const ItemDefinition fishRiver1 = ItemDefinition(
+    id: 'fish_river_1',
+    name: 'Brook Trout',
+    description: 'A common river fish, easy to catch.',
+    type: ItemType.fish,
+    basePrice: 12,
+    assetPath: '${AssetPaths.fish}/fish_river_1.png',
+    waterType: WaterType.river,
+    tier: 1,
+  );
+  static const ItemDefinition fishRiver2 = ItemDefinition(
+    id: 'fish_river_2',
+    name: 'Silver Salmon',
+    description: 'A sleek salmon with silver scales.',
+    type: ItemType.fish,
+    basePrice: 30,
+    assetPath: '${AssetPaths.fish}/fish_river_2.png',
+    waterType: WaterType.river,
+    tier: 2,
+  );
+  static const ItemDefinition fishRiver3 = ItemDefinition(
+    id: 'fish_river_3',
+    name: 'Giant Catfish',
+    description: 'A massive catfish lurking in deep waters.',
+    type: ItemType.fish,
+    basePrice: 60,
+    assetPath: '${AssetPaths.fish}/fish_river_3.png',
+    waterType: WaterType.river,
+    tier: 3,
+  );
+  static const ItemDefinition fishRiver4 = ItemDefinition(
+    id: 'fish_river_4',
+    name: 'Legendary Sturgeon',
+    description: 'An ancient fish from a bygone era.',
+    type: ItemType.fish,
+    basePrice: 180,
+    assetPath: '${AssetPaths.fish}/fish_river_4.png',
+    waterType: WaterType.river,
+    tier: 4,
+  );
+
+  // Ocean fish
+  static const ItemDefinition fishOcean1 = ItemDefinition(
+    id: 'fish_ocean_1',
+    name: 'Sea Perch',
+    description: 'A common ocean fish found near shores.',
+    type: ItemType.fish,
+    basePrice: 15,
+    assetPath: '${AssetPaths.fish}/fish_ocean_1.png',
+    waterType: WaterType.ocean,
+    tier: 1,
+  );
+  static const ItemDefinition fishOcean2 = ItemDefinition(
+    id: 'fish_ocean_2',
+    name: 'Bluefin Tuna',
+    description: 'A fast and powerful ocean predator.',
+    type: ItemType.fish,
+    basePrice: 40,
+    assetPath: '${AssetPaths.fish}/fish_ocean_2.png',
+    waterType: WaterType.ocean,
+    tier: 2,
+  );
+  static const ItemDefinition fishOcean3 = ItemDefinition(
+    id: 'fish_ocean_3',
+    name: 'Giant Marlin',
+    description: 'A trophy fish sought by expert anglers.',
+    type: ItemType.fish,
+    basePrice: 80,
+    assetPath: '${AssetPaths.fish}/fish_ocean_3.png',
+    waterType: WaterType.ocean,
+    tier: 3,
+  );
+  static const ItemDefinition fishOcean4 = ItemDefinition(
+    id: 'fish_ocean_4',
+    name: 'Kraken\'s Catch',
+    description: 'A mythical deep-sea creature.',
+    type: ItemType.fish,
+    basePrice: 250,
+    assetPath: '${AssetPaths.fish}/fish_ocean_4.png',
+    waterType: WaterType.ocean,
+    tier: 4,
+  );
+
+  // Night fish
+  static const ItemDefinition fishNight1 = ItemDefinition(
+    id: 'fish_night_1',
+    name: 'Glowing Minnow',
+    description: 'A small fish that glows in the dark.',
+    type: ItemType.fish,
+    basePrice: 20,
+    assetPath: '${AssetPaths.fish}/fish_night_1.png',
+    waterType: WaterType.night,
+    tier: 1,
+  );
+  static const ItemDefinition fishNight2 = ItemDefinition(
+    id: 'fish_night_2',
+    name: 'Moonfish',
+    description: 'A silvery fish that appears under moonlight.',
+    type: ItemType.fish,
+    basePrice: 45,
+    assetPath: '${AssetPaths.fish}/fish_night_2.png',
+    waterType: WaterType.night,
+    tier: 2,
+  );
+  static const ItemDefinition fishNight3 = ItemDefinition(
+    id: 'fish_night_3',
+    name: 'Shadow Lurker',
+    description: 'A mysterious fish that dwells in darkness.',
+    type: ItemType.fish,
+    basePrice: 90,
+    assetPath: '${AssetPaths.fish}/fish_night_3.png',
+    waterType: WaterType.night,
+    tier: 3,
+  );
+  static const ItemDefinition fishNight4 = ItemDefinition(
+    id: 'fish_night_4',
+    name: 'Void Leviathan',
+    description: 'A legendary creature from the abyss.',
+    type: ItemType.fish,
+    basePrice: 300,
+    assetPath: '${AssetPaths.fish}/fish_night_4.png',
+    waterType: WaterType.night,
+    tier: 4,
+  );
+
+  // --- Poles ---
+  static const ItemDefinition pole1 = ItemDefinition(
+    id: 'pole_1',
+    name: 'Wooden Rod',
+    description: 'A basic fishing rod for beginners.',
+    type: ItemType.pole,
+    basePrice: 50,
+    assetPath: '${AssetPaths.items}/fishing_pole_1.png',
+    tier: 1,
+  );
+  static const ItemDefinition pole2 = ItemDefinition(
+    id: 'pole_2',
+    name: 'Steel Rod',
+    description: 'A sturdy rod with better casting distance.',
+    type: ItemType.pole,
+    basePrice: 200,
+    assetPath: '${AssetPaths.items}/fishing_pole_2.png',
+    tier: 2,
+  );
+  static const ItemDefinition pole3 = ItemDefinition(
+    id: 'pole_3',
+    name: 'Carbon Fiber Rod',
+    description: 'A lightweight rod for serious anglers.',
+    type: ItemType.pole,
+    basePrice: 500,
+    assetPath: '${AssetPaths.items}/fishing_pole_3.png',
+    tier: 3,
+  );
+  static const ItemDefinition pole4 = ItemDefinition(
+    id: 'pole_4',
+    name: 'Legendary Angler\'s Rod',
+    description: 'The ultimate fishing rod, crafted by masters.',
+    type: ItemType.pole,
+    basePrice: 1500,
+    assetPath: '${AssetPaths.items}/fishing_pole_4.png',
+    tier: 4,
+  );
+
+  // --- Lures ---
+  static const ItemDefinition lure1 = ItemDefinition(
+    id: 'lure_1',
+    name: 'Basic Lure',
+    description: 'A simple lure for common fish.',
+    type: ItemType.lure,
+    basePrice: 10,
+    assetPath: '${AssetPaths.items}/lure_1.png',
+    tier: 1,
+  );
+  static const ItemDefinition lure2 = ItemDefinition(
+    id: 'lure_2',
+    name: 'Spinner Lure',
+    description: 'A flashy lure that attracts more fish.',
+    type: ItemType.lure,
+    basePrice: 30,
+    assetPath: '${AssetPaths.items}/lure_2.png',
+    tier: 2,
+  );
+  static const ItemDefinition lure3 = ItemDefinition(
+    id: 'lure_3',
+    name: 'Golden Lure',
+    description: 'A premium lure for rare catches.',
+    type: ItemType.lure,
+    basePrice: 80,
+    assetPath: '${AssetPaths.items}/lure_3.png',
+    tier: 3,
+  );
+  static const ItemDefinition lure4 = ItemDefinition(
+    id: 'lure_4',
+    name: 'Enchanted Lure',
+    description: 'A magical lure that calls legendary fish.',
+    type: ItemType.lure,
+    basePrice: 250,
+    assetPath: '${AssetPaths.items}/lure_4.png',
+    tier: 4,
+  );
+
+  /// All items indexed by ID
+  static const Map<String, ItemDefinition> all = {
+    // Fish - Pond
+    'fish_pond_1': fishPond1,
+    'fish_pond_2': fishPond2,
+    'fish_pond_3': fishPond3,
+    'fish_pond_4': fishPond4,
+    // Fish - River
+    'fish_river_1': fishRiver1,
+    'fish_river_2': fishRiver2,
+    'fish_river_3': fishRiver3,
+    'fish_river_4': fishRiver4,
+    // Fish - Ocean
+    'fish_ocean_1': fishOcean1,
+    'fish_ocean_2': fishOcean2,
+    'fish_ocean_3': fishOcean3,
+    'fish_ocean_4': fishOcean4,
+    // Fish - Night
+    'fish_night_1': fishNight1,
+    'fish_night_2': fishNight2,
+    'fish_night_3': fishNight3,
+    'fish_night_4': fishNight4,
+    // Poles
+    'pole_1': pole1,
+    'pole_2': pole2,
+    'pole_3': pole3,
+    'pole_4': pole4,
+    // Lures
+    'lure_1': lure1,
+    'lure_2': lure2,
+    'lure_3': lure3,
+    'lure_4': lure4,
+  };
+
+  /// Get item definition by ID
+  static ItemDefinition? get(String id) => all[id];
+
+  /// Get all fish items
+  static List<ItemDefinition> get allFish => all.values
+      .where((item) => item.type == ItemType.fish)
+      .toList();
+
+  /// Get fish item ID from water type and tier
+  static String getFishId(WaterType waterType, int tier) {
+    return 'fish_${waterType.name}_$tier';
+  }
+}
+
 /// Fish asset with water type and tier
 class FishAsset {
   final String path;

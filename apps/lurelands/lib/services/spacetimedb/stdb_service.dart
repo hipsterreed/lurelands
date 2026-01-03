@@ -2,10 +2,39 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../models/player_state.dart';
 import '../../models/water_body_data.dart';
+
+/// Represents an inventory entry from the server
+class InventoryEntry {
+  final int id;
+  final String playerId;
+  final String itemId;
+  final int rarity; // 1-3 stars for fish, 0 for non-fish
+  final int quantity;
+
+  const InventoryEntry({
+    required this.id,
+    required this.playerId,
+    required this.itemId,
+    required this.rarity,
+    required this.quantity,
+  });
+
+  factory InventoryEntry.fromJson(Map<String, dynamic> json) => InventoryEntry(
+        id: json['id'] as int,
+        playerId: json['playerId'] as String,
+        itemId: json['itemId'] as String,
+        rarity: json['rarity'] as int,
+        quantity: json['quantity'] as int,
+      );
+
+  /// Unique key for this stack (itemId + rarity)
+  String get stackKey => '$itemId:$rarity';
+}
 
 /// Connection state for SpacetimeDB
 enum StdbConnectionState {
@@ -115,6 +144,18 @@ abstract class SpacetimeDBService {
   /// Stream of world state updates
   Stream<WorldState> get worldStateUpdates;
 
+  /// Stream of inventory updates
+  Stream<List<InventoryEntry>> get inventoryUpdates;
+
+  /// Current inventory items
+  List<InventoryEntry> get inventory;
+
+  /// Notify that player caught a fish
+  void catchFish(String itemId, int rarity, String waterBodyId);
+
+  /// Request inventory refresh
+  void requestInventory();
+
   /// Dispose resources
   void dispose();
 }
@@ -134,11 +175,13 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   PlayerState? _localPlayer;
   final Map<String, PlayerState> _players = {};
   WorldState _worldState = const WorldState();
+  List<InventoryEntry> _inventory = [];
 
   // Stream controllers
   final _playerUpdatesController = StreamController<List<PlayerState>>.broadcast();
   final _connectionStateController = StreamController<StdbConnectionState>.broadcast();
   final _worldStateController = StreamController<WorldState>.broadcast();
+  final _inventoryController = StreamController<List<InventoryEntry>>.broadcast();
 
   // Throttle position updates to avoid flooding
   DateTime? _lastPositionUpdate;
@@ -161,6 +204,12 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
   @override
   Stream<WorldState> get worldStateUpdates => _worldStateController.stream;
+
+  @override
+  Stream<List<InventoryEntry>> get inventoryUpdates => _inventoryController.stream;
+
+  @override
+  List<InventoryEntry> get inventory => _inventory;
 
   void _setState(StdbConnectionState newState) {
     if (_state != newState) {
@@ -326,6 +375,34 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
       case 'fish_caught':
         // Handle fish caught notification (for future UI)
+        debugPrint('[Bridge] Fish caught notification received');
+        break;
+
+      case 'inventory':
+        final itemsData = data['items'] as List?;
+        if (itemsData != null) {
+          _inventory = itemsData
+              .map((e) => InventoryEntry.fromJson(e as Map<String, dynamic>))
+              .toList();
+          _inventoryController.add(_inventory);
+          debugPrint('[Bridge] Inventory updated: ${_inventory.length} stacks');
+        }
+        break;
+
+      case 'inventory_updated':
+        final itemData = data['item'] as Map<String, dynamic>?;
+        if (itemData != null) {
+          final updatedItem = InventoryEntry.fromJson(itemData);
+          // Update or add the item in our local list
+          final index = _inventory.indexWhere((e) => e.stackKey == updatedItem.stackKey);
+          if (index >= 0) {
+            _inventory[index] = updatedItem;
+          } else {
+            _inventory.add(updatedItem);
+          }
+          _inventoryController.add(_inventory);
+          debugPrint('[Bridge] Inventory item updated: ${updatedItem.itemId} x${updatedItem.quantity}');
+        }
         break;
 
       case 'error':
@@ -543,6 +620,32 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     }
   }
 
+  @override
+  void catchFish(String itemId, int rarity, String waterBodyId) {
+    if (_playerId == null || !isConnected) {
+      debugPrint('[Bridge] Cannot catch fish - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Catching fish: $itemId, rarity: $rarity, waterBody: $waterBodyId');
+    _sendMessage({
+      'type': 'catch_fish',
+      'itemId': itemId,
+      'rarity': rarity,
+      'waterBodyId': waterBodyId,
+    });
+  }
+
+  @override
+  void requestInventory() {
+    if (!isConnected) {
+      debugPrint('[Bridge] Cannot request inventory - not connected');
+      return;
+    }
+
+    _sendMessage({'type': 'get_inventory'});
+  }
+
   Completer<PlayerState?>? _fetchPlayerCompleter;
 
   @override
@@ -589,6 +692,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _playerUpdatesController.close();
     _connectionStateController.close();
     _worldStateController.close();
+    _inventoryController.close();
   }
 }
 

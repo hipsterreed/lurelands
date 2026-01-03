@@ -68,6 +68,14 @@ export interface FishCatch {
   released: boolean;
 }
 
+export interface InventoryItem {
+  id: number;
+  playerId: string;
+  itemId: string;
+  rarity: number;  // 1-3 for fish stars, 0 for non-fish
+  quantity: number;
+}
+
 // =============================================================================
 // Client → Bridge Messages
 // =============================================================================
@@ -79,7 +87,9 @@ export type ClientMessage =
   | { type: 'reel' }
   | { type: 'leave' }
   | { type: 'update_name'; playerId: string; name: string }
-  | { type: 'fetch_player'; playerId: string };
+  | { type: 'fetch_player'; playerId: string }
+  | { type: 'catch_fish'; itemId: string; rarity: number; waterBodyId: string }
+  | { type: 'get_inventory' };
 
 // =============================================================================
 // Bridge → Client Messages
@@ -95,5 +105,7 @@ export type ServerMessage =
   | { type: 'player_updated'; player: Player }
   | { type: 'fish_caught'; catch: FishCatch }
   | { type: 'player_data'; player: Player | null }
+  | { type: 'inventory'; items: InventoryItem[] }
+  | { type: 'inventory_updated'; item: InventoryItem }
   | { type: 'error'; message: string };
 

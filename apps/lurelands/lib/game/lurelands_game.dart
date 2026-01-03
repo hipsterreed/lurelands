@@ -357,10 +357,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   void onFishCaught() {
     fishingStateNotifier.value = FishingState.caught;
     
-    // TODO: Add fish to inventory, notify server
+    // Add fish to inventory via server
     final fish = hookedFishNotifier.value;
     if (fish != null) {
-      debugPrint('[Game] Caught fish: ${fish.waterType.name} tier ${fish.tier}');
+      final itemId = GameItems.getFishId(fish.waterType, fish.tier);
+      // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
+      final rarity = fish.tier <= 2 ? 1 : (fish.tier == 3 ? 2 : 3);
+      final waterBodyId = _currentWaterBody?.id ?? 'unknown';
+      
+      debugPrint('[Game] Caught fish: $itemId ($rarity star) from $waterBodyId');
+      stdbService.catchFish(itemId, rarity, waterBodyId);
     }
     
     // Reel in

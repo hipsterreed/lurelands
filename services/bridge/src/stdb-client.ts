@@ -1,5 +1,5 @@
 import { DbConnection, tables, reducers, type EventContext, type SubscriptionEventContext, type ErrorContext } from './generated';
-import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch } from './types';
+import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem } from './types';
 import { stdbLogger } from './logger';
 
 // =============================================================================
@@ -10,6 +10,7 @@ import { stdbLogger } from './logger';
 export type PlayerUpdateCallback = (players: Player[]) => void;
 export type WorldStateCallback = (worldState: WorldState) => void;
 export type FishCaughtCallback = (fishCatch: FishCatch) => void;
+export type InventoryUpdateCallback = (playerId: string, items: InventoryItem[]) => void;
 
 export class StdbClient {
   private conn: DbConnection | null = null;
@@ -22,11 +23,15 @@ export class StdbClient {
   private rivers: River[] = [];
   private ocean: Ocean | null = null;
   private spawnPoints: SpawnPoint[] = [];
+  
+  // Inventory cache - Map<playerId, Map<"itemId:rarity", InventoryItem>>
+  private inventory: Map<string, Map<string, InventoryItem>> = new Map();
 
   // Callbacks
   private onPlayersUpdate: PlayerUpdateCallback | null = null;
   private onWorldState: WorldStateCallback | null = null;
   private onFishCaught: FishCaughtCallback | null = null;
+  private onInventoryUpdate: InventoryUpdateCallback | null = null;
 
   constructor(
     private uri: string,
@@ -37,10 +42,12 @@ export class StdbClient {
     onPlayersUpdate?: PlayerUpdateCallback;
     onWorldState?: WorldStateCallback;
     onFishCaught?: FishCaughtCallback;
+    onInventoryUpdate?: InventoryUpdateCallback;
   }) {
     this.onPlayersUpdate = callbacks.onPlayersUpdate ?? null;
     this.onWorldState = callbacks.onWorldState ?? null;
     this.onFishCaught = callbacks.onFishCaught ?? null;
+    this.onInventoryUpdate = callbacks.onInventoryUpdate ?? null;
   }
 
   async connect(): Promise<boolean> {
@@ -88,6 +95,7 @@ export class StdbClient {
                 'SELECT * FROM ocean',
                 'SELECT * FROM player',
                 'SELECT * FROM fish_catch',
+                'SELECT * FROM inventory',
               ]);
             
             resolve(true);
@@ -182,12 +190,23 @@ export class StdbClient {
         throw error; // Re-throw to prevent partial state
       }
 
+      // Load inventory
+      this.inventory.clear();
+      try {
+        for (const inv of ctx.db.inventory.iter()) {
+          this.cacheInventoryItem(inv);
+        }
+      } catch (error: any) {
+        stdbLogger.warn({ err: error }, 'Error loading inventory - table may not exist yet');
+      }
+
       stdbLogger.info({
         spawnPoints: this.spawnPoints.length,
         ponds: this.ponds.length,
         rivers: this.rivers.length,
         hasOcean: !!this.ocean,
         players: this.players.size,
+        inventoryEntries: Array.from(this.inventory.values()).reduce((sum, map) => sum + map.size, 0),
       }, 'Initial state loaded');
 
       // Emit callbacks
@@ -239,6 +258,52 @@ export class StdbClient {
         });
       }
     });
+
+    // Inventory callbacks
+    this.conn.db.inventory.onInsert((ctx: EventContext, inv) => {
+      stdbLogger.debug({ playerId: inv.playerId, itemId: inv.itemId, rarity: inv.rarity, qty: inv.quantity }, 'Inventory item inserted');
+      this.cacheInventoryItem(inv);
+      this.emitInventoryUpdate(inv.playerId);
+    });
+
+    this.conn.db.inventory.onUpdate((ctx: EventContext, oldInv, newInv) => {
+      stdbLogger.debug({ playerId: newInv.playerId, itemId: newInv.itemId, qty: newInv.quantity }, 'Inventory item updated');
+      this.cacheInventoryItem(newInv);
+      this.emitInventoryUpdate(newInv.playerId);
+    });
+
+    this.conn.db.inventory.onDelete((ctx: EventContext, inv) => {
+      stdbLogger.debug({ playerId: inv.playerId, itemId: inv.itemId }, 'Inventory item deleted');
+      const playerInv = this.inventory.get(inv.playerId);
+      if (playerInv) {
+        playerInv.delete(`${inv.itemId}:${inv.rarity}`);
+      }
+      this.emitInventoryUpdate(inv.playerId);
+    });
+  }
+
+  // --- Inventory helpers ---
+
+  private cacheInventoryItem(inv: any) {
+    const playerId = inv.playerId;
+    if (!this.inventory.has(playerId)) {
+      this.inventory.set(playerId, new Map());
+    }
+    const key = `${inv.itemId}:${inv.rarity}`;
+    this.inventory.get(playerId)!.set(key, {
+      id: Number(inv.id),
+      playerId: inv.playerId,
+      itemId: inv.itemId,
+      rarity: inv.rarity,
+      quantity: inv.quantity,
+    });
+  }
+
+  private emitInventoryUpdate(playerId: string) {
+    if (this.onInventoryUpdate) {
+      const items = this.getPlayerInventory(playerId);
+      this.onInventoryUpdate(playerId, items);
+    }
   }
 
   // --- Mapping functions ---
@@ -373,6 +438,27 @@ export class StdbClient {
     }
   }
 
+  async catchFish(playerId: string, itemId: string, rarity: number, waterBodyId: string): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    try {
+      // Extract fish_type from itemId (e.g., "fish_ocean_1" -> "ocean")
+      const parts = itemId.split('_');
+      const fishType = parts.length >= 2 ? parts[1] : 'unknown';
+      
+      this.conn.reducers.catchFish({
+        playerId,
+        itemId,
+        fishType,
+        size: 1.0, // Default size for now
+        rarity,
+        waterBodyId,
+      });
+      stdbLogger.info({ playerId, itemId, rarity, waterBodyId }, 'Caught fish');
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId, itemId }, 'Failed to catch fish');
+    }
+  }
+
   // --- Getters ---
 
   getWorldState(): WorldState {
@@ -419,6 +505,12 @@ export class StdbClient {
     return this.isConnected;
   }
 
+  getPlayerInventory(playerId: string): InventoryItem[] {
+    const playerInv = this.inventory.get(playerId);
+    if (!playerInv) return [];
+    return Array.from(playerInv.values());
+  }
+
   disconnect() {
     if (this.conn) {
       this.conn.disconnect();
@@ -426,5 +518,6 @@ export class StdbClient {
     }
     this.isConnected = false;
     this.players.clear();
+    this.inventory.clear();
   }
 }

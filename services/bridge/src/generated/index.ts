@@ -31,8 +31,12 @@ import {
 } from "spacetimedb";
 
 // Import and reexport all reducer arg types
+import AddToInventoryReducer from "./add_to_inventory_reducer";
+export { AddToInventoryReducer };
 import CatchFishReducer from "./catch_fish_reducer";
 export { CatchFishReducer };
+import GetPlayerInventoryReducer from "./get_player_inventory_reducer";
+export { GetPlayerInventoryReducer };
 import JoinWorldReducer from "./join_world_reducer";
 export { JoinWorldReducer };
 import LeaveWorldReducer from "./leave_world_reducer";
@@ -53,6 +57,8 @@ export { UpdatePositionReducer };
 // Import and reexport all table handle types
 import FishCatchRow from "./fish_catch_table";
 export { FishCatchRow };
+import InventoryRow from "./inventory_table";
+export { InventoryRow };
 import OceanRow from "./ocean_table";
 export { OceanRow };
 import PlayerRow from "./player_table";
@@ -67,6 +73,8 @@ export { SpawnPointRow };
 // Import and reexport all types
 import FishCatch from "./fish_catch_type";
 export { FishCatch };
+import Inventory from "./inventory_type";
+export { Inventory };
 import Ocean from "./ocean_type";
 export { Ocean };
 import Player from "./player_type";
@@ -91,6 +99,17 @@ const tablesSchema = __schema(
       { name: 'fish_catch_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, FishCatchRow),
+  __table({
+    name: 'inventory',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'inventory_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, InventoryRow),
   __table({
     name: 'ocean',
     indexes: [
@@ -150,7 +169,9 @@ const tablesSchema = __schema(
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("add_to_inventory", AddToInventoryReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
+  __reducerSchema("get_player_inventory", GetPlayerInventoryReducer),
   __reducerSchema("join_world", JoinWorldReducer),
   __reducerSchema("leave_world", LeaveWorldReducer),
   __reducerSchema("release_fish", ReleaseFishReducer),
