@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'dart:ui';
 
 import 'package:flame/collisions.dart';
@@ -5,6 +6,7 @@ import 'package:flame/components.dart';
 import 'package:flame/extensions.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 
 import '../models/water_body_data.dart';
 import '../services/spacetimedb/stdb_service.dart';
@@ -12,6 +14,30 @@ import '../utils/constants.dart';
 import 'components/player.dart';
 import 'components/tree.dart';
 import 'world/lurelands_world.dart';
+
+/// Fishing state machine states
+enum FishingState {
+  idle,           // Not fishing
+  casting,        // Line is being cast (animation)
+  waiting,        // Bobber in water, waiting for bite
+  bite,           // Fish is biting! Player must tap quickly
+  minigame,       // Player is in the fishing minigame
+  caught,         // Fish was caught
+  escaped,        // Fish got away
+}
+
+/// Data about the fish currently being caught
+class HookedFish {
+  final WaterType waterType;
+  final int tier;
+  final String assetPath;
+
+  const HookedFish({
+    required this.waterType,
+    required this.tier,
+    required this.assetPath,
+  });
+}
 
 /// Main game class for Lurelands
 class LurelandsGame extends FlameGame with HasCollisionDetection {
@@ -52,6 +78,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   final ValueNotifier<bool> isCastingNotifier = ValueNotifier(false);
   final ValueNotifier<bool> debugModeNotifier = ValueNotifier(false);
   final ValueNotifier<double> castPowerNotifier = ValueNotifier(0.0);
+  
+  // Fishing state notifiers
+  final ValueNotifier<FishingState> fishingStateNotifier = ValueNotifier(FishingState.idle);
+  final ValueNotifier<HookedFish?> hookedFishNotifier = ValueNotifier(null);
 
   // Charging state
   bool _isCharging = false;
@@ -60,6 +90,12 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   // Lure sit timer (auto-reel after duration)
   double _lureSitTimer = 0.0;
+  
+  // Fish bite state
+  double _biteTimer = 0.0;
+  double _biteReactionTimer = 0.0;
+  WaterBodyData? _currentWaterBody;
+  final Random _random = Random();
 
   /// All water bodies for collision/spawning checks
   List<WaterBodyData> get allWaterBodies => _lurelandsWorld.allWaterBodies;
@@ -144,16 +180,18 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final player = _player;
     if (player == null) return;
 
-    // Handle player movement based on joystick input
-    player.move(joystickDirection, dt);
+    // Handle player movement based on joystick input (not during minigame)
+    if (fishingStateNotifier.value != FishingState.minigame) {
+      player.move(joystickDirection, dt);
 
-    // Sync position to server periodically (throttled in the service)
-    if (joystickDirection.length > 0.1) {
-      stdbService.updatePlayerPosition(
-        player.position.x,
-        player.position.y,
-        player.facingAngle,
-      );
+      // Sync position to server periodically (throttled in the service)
+      if (joystickDirection.length > 0.1) {
+        stdbService.updatePlayerPosition(
+          player.position.x,
+          player.position.y,
+          player.facingAngle,
+        );
+      }
     }
 
     // Update casting state notifiers
@@ -172,18 +210,188 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       if (_castAnimationTimer <= 0) {
         _castPower = 0.0;
         castPowerNotifier.value = 0.0;
+        // Transition to waiting state when cast animation completes
+        if (fishingStateNotifier.value == FishingState.casting) {
+          _startWaitingForBite();
+        }
       }
     }
 
-    // Handle lure sit timer (auto-reel after duration)
-    if (player.isCasting && _lureSitTimer > 0) {
-      _lureSitTimer -= dt;
-      if (_lureSitTimer <= 0) {
-        player.reelIn();
-        stdbService.stopCasting();
-        _lureSitTimer = 0.0;
-      }
+    // Handle fishing state machine
+    _updateFishingState(dt, player);
+  }
+
+  /// Update the fishing state machine
+  void _updateFishingState(double dt, Player player) {
+    switch (fishingStateNotifier.value) {
+      case FishingState.idle:
+      case FishingState.casting:
+        // Handled elsewhere
+        break;
+
+      case FishingState.waiting:
+        // Count down to fish bite
+        if (_biteTimer > 0) {
+          _biteTimer -= dt;
+          if (_biteTimer <= 0) {
+            _triggerBite();
+          }
+        }
+        // Auto-reel timeout
+        if (_lureSitTimer > 0) {
+          _lureSitTimer -= dt;
+          if (_lureSitTimer <= 0) {
+            _cancelFishing(player);
+          }
+        }
+        break;
+
+      case FishingState.bite:
+        // Count down reaction window
+        if (_biteReactionTimer > 0) {
+          _biteReactionTimer -= dt;
+          if (_biteReactionTimer <= 0) {
+            // Player missed the bite - fish escapes
+            _fishEscaped(player);
+          }
+        }
+        break;
+
+      case FishingState.minigame:
+        // Minigame is handled by the overlay widget
+        break;
+
+      case FishingState.caught:
+      case FishingState.escaped:
+        // Terminal states - will be reset when starting new cast
+        break;
     }
+  }
+
+  /// Start waiting for a fish to bite
+  void _startWaitingForBite() {
+    fishingStateNotifier.value = FishingState.waiting;
+    // Random bite time between min and max
+    _biteTimer = GameConstants.minBiteWait +
+        _random.nextDouble() * (GameConstants.maxBiteWait - GameConstants.minBiteWait);
+  }
+
+  /// Trigger a fish bite - shake bobber and vibrate
+  void _triggerBite() {
+    fishingStateNotifier.value = FishingState.bite;
+    _biteReactionTimer = GameConstants.biteReactionWindow;
+
+    // Select a random fish based on water type and luck
+    _selectHookedFish();
+
+    // Trigger bobber shake animation
+    final castLine = _player?.castLine;
+    if (castLine != null) {
+      castLine.startBiteAnimation();
+    }
+
+    // Haptic feedback
+    HapticFeedback.mediumImpact();
+  }
+
+  /// Select which fish the player has hooked
+  void _selectHookedFish() {
+    if (_currentWaterBody == null) return;
+
+    final waterType = _currentWaterBody!.waterType;
+    
+    // Weighted random tier selection (lower tiers more common)
+    // Weights: Tier 1 = 50%, Tier 2 = 30%, Tier 3 = 15%, Tier 4 = 5%
+    final roll = _random.nextDouble();
+    int tier;
+    if (roll < 0.50) {
+      tier = 1;
+    } else if (roll < 0.80) {
+      tier = 2;
+    } else if (roll < 0.95) {
+      tier = 3;
+    } else {
+      tier = 4;
+    }
+
+    final fishAsset = FishAssets.getFish(waterType, tier);
+    hookedFishNotifier.value = HookedFish(
+      waterType: waterType,
+      tier: tier,
+      assetPath: fishAsset.path,
+    );
+  }
+
+  /// Called when player successfully taps during bite window
+  void onBiteTapped() {
+    if (fishingStateNotifier.value != FishingState.bite) return;
+
+    // Stop bobber shake
+    final castLine = _player?.castLine;
+    if (castLine != null) {
+      castLine.stopBiteAnimation();
+    }
+
+    // Enter minigame
+    fishingStateNotifier.value = FishingState.minigame;
+  }
+
+  /// Called when player misses the bite window
+  void _fishEscaped(Player player) {
+    fishingStateNotifier.value = FishingState.escaped;
+    hookedFishNotifier.value = null;
+    
+    // Reel in automatically
+    player.reelIn();
+    stdbService.stopCasting();
+    
+    // Reset after a short delay (handled by UI showing message)
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      if (fishingStateNotifier.value == FishingState.escaped) {
+        fishingStateNotifier.value = FishingState.idle;
+      }
+    });
+  }
+
+  /// Called when fish is caught in minigame
+  void onFishCaught() {
+    fishingStateNotifier.value = FishingState.caught;
+    
+    // TODO: Add fish to inventory, notify server
+    final fish = hookedFishNotifier.value;
+    if (fish != null) {
+      debugPrint('[Game] Caught fish: ${fish.waterType.name} tier ${fish.tier}');
+    }
+    
+    // Reel in
+    _player?.reelIn();
+    stdbService.stopCasting();
+    
+    // Reset after showing catch
+    Future.delayed(const Duration(seconds: 2), () {
+      if (fishingStateNotifier.value == FishingState.caught) {
+        fishingStateNotifier.value = FishingState.idle;
+        hookedFishNotifier.value = null;
+      }
+    });
+  }
+
+  /// Called when fish escapes during minigame
+  void onFishEscapedMinigame() {
+    if (_player != null) {
+      _fishEscaped(_player!);
+    }
+  }
+
+  /// Cancel fishing and reset state
+  void _cancelFishing(Player player) {
+    player.reelIn();
+    stdbService.stopCasting();
+    fishingStateNotifier.value = FishingState.idle;
+    hookedFishNotifier.value = null;
+    _biteTimer = 0.0;
+    _biteReactionTimer = 0.0;
+    _lureSitTimer = 0.0;
   }
 
   void _updateCastingState(Player player) {
@@ -233,20 +441,26 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final player = _player;
     if (player == null) return;
 
-    // If already casting, reel in instead
-    if (player.isCasting) {
-      player.reelIn();
-      stdbService.stopCasting();
-      // Reset power and timers when reeling in
-      _castPower = 0.0;
-      castPowerNotifier.value = 0.0;
-      _castAnimationTimer = 0.0;
-      _lureSitTimer = 0.0;
+    // Handle based on current fishing state
+    final state = fishingStateNotifier.value;
+    
+    // If fish is biting, this tap enters the minigame
+    if (state == FishingState.bite) {
+      onBiteTapped();
       return;
     }
 
-    // Start charging if we can cast
-    if (canCastNotifier.value) {
+    // If already casting/waiting, reel in instead
+    if (player.isCasting || state == FishingState.waiting || state == FishingState.casting) {
+      _cancelFishing(player);
+      _castPower = 0.0;
+      castPowerNotifier.value = 0.0;
+      _castAnimationTimer = 0.0;
+      return;
+    }
+
+    // Start charging if we can cast and are idle
+    if (canCastNotifier.value && state == FishingState.idle) {
       _isCharging = true;
       _castPower = 0.0;
       castPowerNotifier.value = 0.0;
@@ -264,12 +478,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       final nearbyWater = getNearbyWaterBody();
       if (nearbyWater != null) {
         player.startCasting(nearbyWater, _castPower);
+        _currentWaterBody = nearbyWater;
 
         // Notify server about casting
         final castLine = player.castLine;
         if (castLine != null) {
           stdbService.startCasting(castLine.endPosition.x, castLine.endPosition.y);
         }
+
+        // Set fishing state to casting
+        fishingStateNotifier.value = FishingState.casting;
 
         // Start timer to hide power bar when lure lands
         _castAnimationTimer = GameConstants.castAnimationDuration;
@@ -289,9 +507,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     if (player == null) return;
 
     if (player.isCasting) {
-      player.reelIn();
-      stdbService.stopCasting();
-      _lureSitTimer = 0.0;
+      _cancelFishing(player);
     }
   }
 
@@ -336,6 +552,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     isCastingNotifier.dispose();
     debugModeNotifier.dispose();
     castPowerNotifier.dispose();
+    fishingStateNotifier.dispose();
+    hookedFishNotifier.dispose();
     super.onRemove();
   }
 }

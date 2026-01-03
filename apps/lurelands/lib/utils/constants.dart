@@ -20,7 +20,28 @@ class GameConstants {
   static const double castChargeRate = 1.0; // Power fills per second (1.0 = full in 1s)
   static const double castAnimationDuration = 0.5; // seconds
   static const double reelAnimationDuration = 0.3; // seconds
-  static const double lureSitDuration = 8.0; // seconds before auto-reel
+  static const double lureSitDuration = 15.0; // seconds before auto-reel (extended for bite)
+
+  // Fish bite settings
+  static const double minBiteWait = 2.0; // Min seconds before fish bites
+  static const double maxBiteWait = 6.0; // Max seconds before fish bites
+  static const double biteReactionWindow = 1.5; // Seconds to tap after bite
+  static const double bobberShakeIntensity = 4.0; // Pixels of shake
+
+  // Fishing minigame settings
+  static const double minigameBarGravity = 280.0; // Pixels per second fall
+  static const double minigameBarBoost = 160.0; // Pixels per tap
+  static const double minigameBarMaxSpeed = 400.0; // Max velocity
+  static const double minigameProgressFillRate = 0.15; // % per second when on fish
+  static const double minigameProgressDrainRate = 0.10; // % per second when off fish
+  static const double minigameStartProgress = 0.25; // Starting progress (25%)
+  
+  // Fish difficulty by tier (movement speed multiplier)
+  static const List<double> fishSpeedByTier = [0.6, 1.0, 1.4, 2.0];
+  // Control bar size by tier (as % of meter height)
+  static const List<double> barSizeByTier = [0.25, 0.20, 0.15, 0.12];
+  // Minigame timeout by tier (seconds) - harder fish get more time
+  static const List<double> minigameTimeoutByTier = [10.0, 14.0, 18.0, 24.0];
 
   // Pond settings
   static const double minPondRadius = 80.0;
@@ -62,6 +83,18 @@ class GameColors {
   static const Color buttonHover = Color(0xFF1A5276);
   static const Color textPrimary = Color(0xFFE8E8E8);
   static const Color textSecondary = Color(0xFFB0B0B0);
+
+  // Fishing minigame colors
+  static const Color woodFrame = Color(0xFF8B5A2B);
+  static const Color woodFrameDark = Color(0xFF5D3A1A);
+  static const Color woodFrameLight = Color(0xFFA0724B);
+  static const Color minigameWaterTop = Color(0xFF87CEEB);
+  static const Color minigameWaterBottom = Color(0xFF1E90FF);
+  static const Color catchBarGreen = Color(0xFF7CFC00);
+  static const Color catchBarGreenLight = Color(0xFF98FB98);
+  static const Color progressGreen = Color(0xFF32CD32);
+  static const Color progressOrange = Color(0xFFFF8C00);
+  static const Color progressRed = Color(0xFFFF4500);
 }
 
 /// Z-index ordering for game components

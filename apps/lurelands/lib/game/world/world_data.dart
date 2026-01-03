@@ -1,4 +1,4 @@
-import '../../models/pond_data.dart';
+import '../../models/water_body_data.dart';
 
 /// Static world data configuration
 class WorldData {

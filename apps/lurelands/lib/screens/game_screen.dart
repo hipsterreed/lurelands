@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../game/lurelands_game.dart';
 import '../services/game_settings.dart';
@@ -151,7 +152,127 @@ class _GameScreenState extends State<GameScreen> {
           _buildMobileControls(),
           // HUD overlay
           _buildHUD(),
+          // Fishing minigame overlay
+          _buildFishingMinigameOverlay(),
+          // Fishing state messages (bite alert, caught, escaped)
+          _buildFishingStateOverlay(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFishingMinigameOverlay() {
+    if (_game == null) return const SizedBox.shrink();
+
+    return ValueListenableBuilder<FishingState>(
+      valueListenable: _game!.fishingStateNotifier,
+      builder: (context, state, _) {
+        if (state != FishingState.minigame) return const SizedBox.shrink();
+
+        return ValueListenableBuilder<HookedFish?>(
+          valueListenable: _game!.hookedFishNotifier,
+          builder: (context, fish, _) {
+            if (fish == null) return const SizedBox.shrink();
+
+            return FishingMinigameOverlay(
+              fish: fish,
+              onCaught: () => _game!.onFishCaught(),
+              onEscaped: () => _game!.onFishEscapedMinigame(),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildFishingStateOverlay() {
+    if (_game == null) return const SizedBox.shrink();
+
+    return ValueListenableBuilder<FishingState>(
+      valueListenable: _game!.fishingStateNotifier,
+      builder: (context, state, _) {
+        // Show "CAUGHT!" message
+        if (state == FishingState.caught) {
+          return _buildCaughtMessage();
+        }
+
+        // Show "ESCAPED" message
+        if (state == FishingState.escaped) {
+          return _buildEscapedMessage();
+        }
+
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
+  Widget _buildCaughtMessage() {
+    return ValueListenableBuilder<HookedFish?>(
+      valueListenable: _game!.hookedFishNotifier,
+      builder: (context, fish, _) {
+        return Positioned.fill(
+          child: Container(
+            color: Colors.black54,
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (fish != null)
+                    Image.asset(
+                      fish.assetPath,
+                      width: 120,
+                      height: 120,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.catching_pokemon,
+                        size: 80,
+                        color: GameColors.progressGreen,
+                      ),
+                    ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                    decoration: BoxDecoration(
+                      color: GameColors.progressGreen.withAlpha(230),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Text(
+                      'CAUGHT!',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEscapedMessage() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+            decoration: BoxDecoration(
+              color: GameColors.progressRed.withAlpha(200),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Text(
+              'Fish Escaped!',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -487,23 +608,37 @@ class _GameScreenState extends State<GameScreen> {
       builder: (context, isLoaded, _) {
         if (!isLoaded) return const SizedBox.shrink();
 
-        return SafeArea(
-          child: Stack(
-            children: [
-              // Virtual joystick on the left
-              Positioned(
-                left: 30,
-                bottom: 30,
-                child: VirtualJoystick(
-                  onDirectionChanged: (direction) {
-                    _game!.joystickDirection = Vector2(direction.dx, direction.dy);
-                  },
-                ),
+        // Hide controls during minigame (it handles its own input)
+        return ValueListenableBuilder<FishingState>(
+          valueListenable: _game!.fishingStateNotifier,
+          builder: (context, fishingState, _) {
+            // Hide during minigame or result states
+            if (fishingState == FishingState.minigame ||
+                fishingState == FishingState.caught ||
+                fishingState == FishingState.escaped) {
+              return const SizedBox.shrink();
+            }
+
+            return SafeArea(
+              child: Stack(
+                children: [
+                  // Virtual joystick on the left (hide during bite)
+                  if (fishingState != FishingState.bite)
+                    Positioned(
+                      left: 30,
+                      bottom: 30,
+                      child: VirtualJoystick(
+                        onDirectionChanged: (direction) {
+                          _game!.joystickDirection = Vector2(direction.dx, direction.dy);
+                        },
+                      ),
+                    ),
+                  // Action buttons on the right
+                  Positioned(right: 30, bottom: 30, child: _buildActionButtons()),
+                ],
               ),
-              // Action buttons on the right
-              Positioned(right: 30, bottom: 30, child: _buildActionButtons()),
-            ],
-          ),
+            );
+          },
         );
       },
     );
@@ -512,82 +647,156 @@ class _GameScreenState extends State<GameScreen> {
   Widget _buildActionButtons() {
     if (_game == null) return const SizedBox.shrink();
 
-    return ValueListenableBuilder<bool>(
-      valueListenable: _game!.canCastNotifier,
-      builder: (context, canCast, _) {
+    return ValueListenableBuilder<FishingState>(
+      valueListenable: _game!.fishingStateNotifier,
+      builder: (context, fishingState, _) {
+        // Special pulsing button during bite
+        if (fishingState == FishingState.bite) {
+          return _buildBiteTapButton();
+        }
+
         return ValueListenableBuilder<bool>(
-          valueListenable: _game!.isCastingNotifier,
-          builder: (context, isCasting, _) {
-            final isActive = canCast || isCasting;
-            return Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Cast/Reel button
-                GestureDetector(
-                  onTapDown: (_) => _game!.onCastHoldStart(),
-                  onTapUp: (_) => _game!.onCastRelease(),
-                  onTapCancel: () => _game!.onCastRelease(),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 80,
-                    height: 80,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isActive
-                          ? GameColors.pondBlue
-                          : GameColors.menuBackground.withAlpha(128),
-                      border: Border.all(
-                        color: isActive
-                            ? GameColors.pondBlueLight
-                            : GameColors.textSecondary.withAlpha(64),
-                        width: 3,
+          valueListenable: _game!.canCastNotifier,
+          builder: (context, canCast, _) {
+            return ValueListenableBuilder<bool>(
+              valueListenable: _game!.isCastingNotifier,
+              builder: (context, isCasting, _) {
+                final isActive = canCast || isCasting;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Cast/Reel button
+                    GestureDetector(
+                      onTapDown: (_) => _game!.onCastHoldStart(),
+                      onTapUp: (_) => _game!.onCastRelease(),
+                      onTapCancel: () => _game!.onCastRelease(),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isActive
+                              ? GameColors.pondBlue
+                              : GameColors.menuBackground.withAlpha(128),
+                          border: Border.all(
+                            color: isActive
+                                ? GameColors.pondBlueLight
+                                : GameColors.textSecondary.withAlpha(64),
+                            width: 3,
+                          ),
+                          boxShadow: isActive
+                              ? [
+                                  BoxShadow(
+                                    color: GameColors.pondBlue.withAlpha(128),
+                                    blurRadius: 12,
+                                    spreadRadius: 2,
+                                  )
+                                ]
+                              : null,
+                        ),
+                        child: Center(
+                          child: Builder(
+                            builder: (context) {
+                              final poleTier = _game!.player?.equippedPoleTier ?? 1;
+                              final poleAsset = ItemAssets.getFishingPole(poleTier);
+                              final imagePath =
+                                  isCasting ? poleAsset.casted : poleAsset.normal;
+                              return Image.asset(
+                                imagePath,
+                                width: 40,
+                                height: 40,
+                                opacity: AlwaysStoppedAnimation(isActive ? 1.0 : 0.5),
+                              );
+                            },
+                          ),
+                        ),
                       ),
-                      boxShadow: isActive
-                          ? [
-                              BoxShadow(
-                                color: GameColors.pondBlue.withAlpha(128),
-                                blurRadius: 12,
-                                spreadRadius: 2,
-                              )
-                            ]
-                          : null,
                     ),
-                    child: Center(
-                      child: Builder(
-                        builder: (context) {
-                          final poleTier = _game!.player?.equippedPoleTier ?? 1;
-                          final poleAsset = ItemAssets.getFishingPole(poleTier);
-                          final imagePath =
-                              isCasting ? poleAsset.casted : poleAsset.normal;
-                          return Image.asset(
-                            imagePath,
-                            width: 40,
-                            height: 40,
-                            opacity: AlwaysStoppedAnimation(isActive ? 1.0 : 0.5),
-                          );
-                        },
+                    const SizedBox(height: 8),
+                    Text(
+                      isCasting
+                          ? 'REEL'
+                          : canCast
+                              ? 'HOLD'
+                              : '',
+                      style: TextStyle(
+                        color: GameColors.textPrimary.withAlpha(200),
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  isCasting
-                      ? 'REEL'
-                      : canCast
-                          ? 'HOLD'
-                          : '',
-                  style: TextStyle(
-                    color: GameColors.textPrimary.withAlpha(200),
-                    fontSize: 12,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildBiteTapButton() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Pulsing tap button
+        TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.9, end: 1.1),
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeInOut,
+          builder: (context, scale, child) {
+            return Transform.scale(
+              scale: scale,
+              child: child,
+            );
+          },
+          child: GestureDetector(
+            onTapDown: (_) => _game!.onCastHoldStart(),
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: GameColors.progressOrange,
+                border: Border.all(
+                  color: Colors.white,
+                  width: 4,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: GameColors.progressOrange.withAlpha(200),
+                    blurRadius: 20,
+                    spreadRadius: 4,
+                  ),
+                ],
+              ),
+              child: Center(
+                child: Icon(
+                  Icons.touch_app,
+                  color: Colors.white,
+                  size: 48,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          'TAP!',
+          style: TextStyle(
+            color: GameColors.progressOrange,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(
+                color: Colors.black,
+                blurRadius: 4,
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -736,6 +945,463 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Fishing minigame overlay - Stardew Valley style
+class FishingMinigameOverlay extends StatefulWidget {
+  final HookedFish fish;
+  final VoidCallback onCaught;
+  final VoidCallback onEscaped;
+
+  const FishingMinigameOverlay({
+    super.key,
+    required this.fish,
+    required this.onCaught,
+    required this.onEscaped,
+  });
+
+  @override
+  State<FishingMinigameOverlay> createState() => _FishingMinigameOverlayState();
+}
+
+class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
+    with SingleTickerProviderStateMixin {
+  // Minigame dimensions
+  static const double meterWidth = 60.0;
+  static const double meterHeight = 320.0;
+  static const double progressMeterWidth = 24.0;
+  static const double frameThickness = 8.0;
+
+  // Game state
+  late double _fishPosition; // 0.0 (bottom) to 1.0 (top)
+  late double _fishTarget;   // Where fish is moving to
+  late double _fishVelocity;
+  late double _barPosition;  // 0.0 (bottom) to 1.0 (top)
+  late double _barVelocity;
+  late double _progress;     // 0.0 to 1.0
+  late double _barSize;      // As fraction of meter height
+
+  // Fish movement AI
+  double _directionChangeTimer = 0.0;
+  double _fishSpeed = 1.0;
+
+  // Timeout timer
+  late double _timeRemaining;
+  late double _totalTime;
+
+  // Animation
+  late AnimationController _animController;
+  DateTime? _lastUpdate;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Initialize based on fish tier
+    final tierIndex = widget.fish.tier - 1;
+    _fishSpeed = GameConstants.fishSpeedByTier[tierIndex];
+    _barSize = GameConstants.barSizeByTier[tierIndex];
+    _totalTime = GameConstants.minigameTimeoutByTier[tierIndex];
+    _timeRemaining = _totalTime;
+
+    // Start positions
+    _fishPosition = 0.5;
+    _fishTarget = 0.5;
+    _fishVelocity = 0.0;
+    _barPosition = 0.3;
+    _barVelocity = 0.0;
+    _progress = GameConstants.minigameStartProgress;
+    _directionChangeTimer = 0.5;
+
+    // Start game loop
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(hours: 1), // Runs indefinitely
+    )..addListener(_gameLoop);
+    _animController.forward();
+    _lastUpdate = DateTime.now();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  void _gameLoop() {
+    final now = DateTime.now();
+    final dt = _lastUpdate != null
+        ? (now.difference(_lastUpdate!).inMicroseconds / 1000000.0)
+        : 0.016;
+    _lastUpdate = now;
+
+    if (dt > 0.1) return; // Skip large dt (e.g., from background)
+
+    setState(() {
+      _updateFish(dt);
+      _updateBar(dt);
+      _updateProgress(dt);
+      _updateTimeout(dt);
+    });
+
+    // Check win/lose conditions
+    if (_progress >= 1.0) {
+      widget.onCaught();
+    } else if (_progress <= 0.0 || _timeRemaining <= 0.0) {
+      widget.onEscaped();
+    }
+  }
+
+  void _updateTimeout(double dt) {
+    _timeRemaining -= dt;
+    if (_timeRemaining < 0) _timeRemaining = 0;
+  }
+
+  void _updateFish(double dt) {
+    // Fish AI - periodically pick new target
+    _directionChangeTimer -= dt;
+    if (_directionChangeTimer <= 0) {
+      // More frequent direction changes for harder fish
+      _directionChangeTimer = 0.5 + (1.0 - _fishSpeed / 2.0) * Random().nextDouble();
+      _fishTarget = Random().nextDouble();
+    }
+
+    // Move towards target with smooth acceleration
+    final targetDiff = _fishTarget - _fishPosition;
+    _fishVelocity += targetDiff * 8.0 * _fishSpeed * dt;
+    _fishVelocity *= 0.95; // Damping
+    _fishVelocity = _fishVelocity.clamp(-2.0 * _fishSpeed, 2.0 * _fishSpeed);
+    
+    _fishPosition += _fishVelocity * dt;
+    _fishPosition = _fishPosition.clamp(0.0, 1.0);
+  }
+
+  void _updateBar(double dt) {
+    // Apply gravity
+    _barVelocity -= GameConstants.minigameBarGravity * dt / meterHeight;
+    
+    // Clamp velocity
+    final maxVel = GameConstants.minigameBarMaxSpeed / meterHeight;
+    _barVelocity = _barVelocity.clamp(-maxVel, maxVel);
+    
+    // Update position
+    _barPosition += _barVelocity * dt;
+    _barPosition = _barPosition.clamp(0.0, 1.0 - _barSize);
+  }
+
+  void _updateProgress(double dt) {
+    // Check if bar overlaps fish
+    final fishCenter = _fishPosition;
+    final fishHalfSize = 0.08; // Fish hitbox size as fraction
+    final barTop = _barPosition + _barSize;
+    final barBottom = _barPosition;
+
+    final isOnFish = fishCenter >= barBottom - fishHalfSize &&
+                     fishCenter <= barTop + fishHalfSize;
+
+    if (isOnFish) {
+      _progress += GameConstants.minigameProgressFillRate * dt;
+    } else {
+      _progress -= GameConstants.minigameProgressDrainRate * dt;
+    }
+    _progress = _progress.clamp(0.0, 1.0);
+  }
+
+  void _onTap() {
+    // Boost bar upward
+    _barVelocity = GameConstants.minigameBarBoost / meterHeight;
+    HapticFeedback.lightImpact();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned.fill(
+      child: GestureDetector(
+        onTapDown: (_) => _onTap(),
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          color: Colors.black54,
+          child: Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Timer display
+                _buildTimerDisplay(),
+                const SizedBox(height: 16),
+                // Meters row
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    // Main fishing meter
+                    _buildFishingMeter(),
+                    const SizedBox(width: 12),
+                    // Progress meter
+                    _buildProgressMeter(),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimerDisplay() {
+    final timePercent = _timeRemaining / _totalTime;
+    final seconds = _timeRemaining.ceil();
+    
+    // Color changes as time runs low
+    Color timerColor;
+    if (timePercent > 0.5) {
+      timerColor = Colors.white;
+    } else if (timePercent > 0.25) {
+      timerColor = GameColors.progressOrange;
+    } else {
+      timerColor = GameColors.progressRed;
+    }
+
+    return Column(
+      children: [
+        // Time text
+        Text(
+          '${seconds}s',
+          style: TextStyle(
+            color: timerColor,
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            shadows: [
+              Shadow(color: Colors.black, blurRadius: 4),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Timer bar
+        Container(
+          width: meterWidth + progressMeterWidth + frameThickness * 3 + 12,
+          height: 8,
+          decoration: BoxDecoration(
+            color: GameColors.menuBackground,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(color: Colors.white24, width: 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 100),
+                width: (meterWidth + progressMeterWidth + frameThickness * 3 + 10) * timePercent,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      timerColor.withAlpha(200),
+                      timerColor,
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFishingMeter() {
+    return Container(
+      width: meterWidth + frameThickness * 2,
+      height: meterHeight + frameThickness * 2,
+      decoration: BoxDecoration(
+        color: GameColors.woodFrame,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: GameColors.woodFrameDark, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(100),
+            blurRadius: 10,
+            offset: const Offset(2, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(frameThickness),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  GameColors.minigameWaterTop,
+                  GameColors.minigameWaterBottom,
+                ],
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Water bubbles/decoration
+                ..._buildWaterDecorations(),
+                // Fish
+                _buildFish(),
+                // Control bar (green rectangle)
+                _buildControlBar(),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  List<Widget> _buildWaterDecorations() {
+    // Simple animated bubbles
+    return [
+      Positioned(
+        left: 8,
+        bottom: 20 + sin(_animController.value * pi * 4) * 10,
+        child: Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withAlpha(60),
+          ),
+        ),
+      ),
+      Positioned(
+        right: 12,
+        bottom: 60 + sin(_animController.value * pi * 3 + 1) * 15,
+        child: Container(
+          width: 4,
+          height: 4,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: Colors.white.withAlpha(40),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildFish() {
+    final fishY = (1.0 - _fishPosition) * (meterHeight - 40);
+    return Positioned(
+      left: (meterWidth - 32) / 2,
+      top: fishY,
+      child: Image.asset(
+        widget.fish.assetPath,
+        width: 32,
+        height: 32,
+        errorBuilder: (_, __, ___) => Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: Colors.orange,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: const Icon(Icons.catching_pokemon, size: 20, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildControlBar() {
+    final barHeight = _barSize * meterHeight;
+    final barY = (1.0 - _barPosition - _barSize) * meterHeight;
+
+    return Positioned(
+      left: 4,
+      right: 4,
+      top: barY,
+      height: barHeight,
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              GameColors.catchBarGreen.withAlpha(200),
+              GameColors.catchBarGreenLight.withAlpha(220),
+              GameColors.catchBarGreen.withAlpha(200),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(
+            color: Colors.white.withAlpha(150),
+            width: 2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: GameColors.catchBarGreen.withAlpha(100),
+              blurRadius: 6,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProgressMeter() {
+    // Color interpolation based on progress
+    Color progressColor;
+    if (_progress < 0.33) {
+      progressColor = Color.lerp(
+        GameColors.progressRed,
+        GameColors.progressOrange,
+        _progress / 0.33,
+      )!;
+    } else if (_progress < 0.66) {
+      progressColor = Color.lerp(
+        GameColors.progressOrange,
+        GameColors.progressGreen,
+        (_progress - 0.33) / 0.33,
+      )!;
+    } else {
+      progressColor = GameColors.progressGreen;
+    }
+
+    return Container(
+      width: progressMeterWidth + frameThickness,
+      height: meterHeight + frameThickness * 2,
+      decoration: BoxDecoration(
+        color: GameColors.woodFrame,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: GameColors.woodFrameDark, width: 2),
+      ),
+      child: Padding(
+        padding: EdgeInsets.all(frameThickness / 2),
+        child: Container(
+          decoration: BoxDecoration(
+            color: GameColors.menuBackground,
+            borderRadius: BorderRadius.circular(3),
+          ),
+          child: Align(
+            alignment: Alignment.bottomCenter,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 100),
+              width: progressMeterWidth - frameThickness,
+              height: _progress * (meterHeight - frameThickness),
+              decoration: BoxDecoration(
+                color: progressColor,
+                borderRadius: BorderRadius.circular(2),
+                boxShadow: [
+                  BoxShadow(
+                    color: progressColor.withAlpha(150),
+                    blurRadius: 4,
+                    spreadRadius: 0,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

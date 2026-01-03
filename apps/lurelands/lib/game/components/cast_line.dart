@@ -23,6 +23,11 @@ class CastLine extends PositionComponent {
   bool _castComplete = false;
   double _bobberBobOffset = 0.0;
   double _bobberBobTime = 0.0;
+  
+  // Bite shake animation
+  bool _isBiting = false;
+  double _biteShakeTime = 0.0;
+  double _biteShakeOffsetX = 0.0;
 
   // Lure sprite
   late ui.Image _lureImage;
@@ -64,6 +69,14 @@ class CastLine extends PositionComponent {
     if (_castComplete && !_isReeling) {
       _bobberBobTime += dt * 3;
       _bobberBobOffset = sin(_bobberBobTime) * 3;
+      
+      // Bite shake animation (rapid horizontal shake)
+      if (_isBiting) {
+        _biteShakeTime += dt * 40; // Fast shake
+        _biteShakeOffsetX = sin(_biteShakeTime) * GameConstants.bobberShakeIntensity;
+      } else {
+        _biteShakeOffsetX = 0.0;
+      }
     }
 
     // Handle reeling animation
@@ -116,6 +129,7 @@ class CastLine extends PositionComponent {
   }
 
   void _drawBobber(ui.Canvas canvas, Vector2 pos) {
+    final bobberX = pos.x + _biteShakeOffsetX;
     final bobberY = pos.y + _bobberBobOffset;
 
     // Draw lure sprite centered at position
@@ -126,7 +140,7 @@ class CastLine extends PositionComponent {
       _lureImage.height.toDouble(),
     );
     final dstRect = ui.Rect.fromCenter(
-      center: ui.Offset(pos.x, bobberY),
+      center: ui.Offset(bobberX, bobberY),
       width: _lureSize,
       height: _lureSize,
     );
@@ -153,5 +167,18 @@ class CastLine extends PositionComponent {
   /// Start reeling in the line
   void startReeling() {
     _isReeling = true;
+    _isBiting = false;
+  }
+
+  /// Start bite shake animation (fish is biting!)
+  void startBiteAnimation() {
+    _isBiting = true;
+    _biteShakeTime = 0.0;
+  }
+
+  /// Stop bite shake animation
+  void stopBiteAnimation() {
+    _isBiting = false;
+    _biteShakeOffsetX = 0.0;
   }
 }
