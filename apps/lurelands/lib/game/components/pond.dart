@@ -6,6 +6,7 @@ import 'package:flame/components.dart';
 
 import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
+import '../../utils/seeded_random.dart';
 
 /// Pond component - a circular body of water
 class Pond extends PositionComponent with CollisionCallbacks {
@@ -55,7 +56,7 @@ class Pond extends PositionComponent with CollisionCallbacks {
 
   void _drawWaterHighlights(Canvas canvas, double cx, double cy, double radius) {
     // Draw a few highlight circles
-    final random = _SeededRandom(data.id.hashCode);
+    final random = SeededRandom(data.id.hashCode);
     for (var i = 0; i < 5; i++) {
       final angle = random.nextDouble() * 2 * pi;
       final dist = random.nextDouble() * radius * 0.7;
@@ -91,17 +92,5 @@ class Pond extends PositionComponent with CollisionCallbacks {
   /// Check if a player position is within casting range
   bool isPlayerInCastingRange(Vector2 playerPos) {
     return data.isWithinCastingRange(playerPos.x, playerPos.y, GameConstants.castProximityRadius);
-  }
-}
-
-/// Simple seeded random for consistent patterns
-class _SeededRandom {
-  int _seed;
-
-  _SeededRandom(this._seed);
-
-  double nextDouble() {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return _seed / 0x7fffffff;
   }
 }

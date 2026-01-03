@@ -5,7 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
 import '../game/lurelands_game.dart';
-import '../services/player_id_service.dart';
+import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 
@@ -83,8 +83,11 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _createGame() async {
-    // Get persistent player ID (loads from local storage or creates new)
-    final playerId = await PlayerIdService.instance.getPlayerId();
+    final settings = GameSettings.instance;
+    
+    // Get player data from centralized settings
+    final playerId = await settings.getPlayerId();
+    final playerColor = await settings.getPlayerColor();
 
     // Use player name passed from main menu (will be saved to DB when joining)
     final playerName = widget.playerName;
@@ -96,7 +99,7 @@ class _GameScreenState extends State<GameScreen> {
         stdbService: _stdbService,
         playerId: playerId,
         playerName: playerName,
-        playerColor: 0xFFE74C3C,
+        playerColor: playerColor,
       );
     });
   }
@@ -673,10 +676,12 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               final newName = _nameController.text.trim();
               if (newName.isNotEmpty && _game != null) {
-                // Update name in database immediately
+                // Save to local settings
+                await GameSettings.instance.setPlayerName(newName);
+                // Update name in database
                 _stdbService.updatePlayerName(newName);
                 debugPrint('[GameScreen] Updated player name to: "$newName"');
               }

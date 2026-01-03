@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/player_id_service.dart';
+import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import 'game_screen.dart';
@@ -55,50 +55,46 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       _isLoadingPlayerData = true;
     });
 
-    // Check for existing player ID
-    _playerId = await PlayerIdService.instance.getPlayerId();
-    print('[MainMenu] Got player ID: $_playerId');
+    final settings = GameSettings.instance;
     
-    // Connect to database to fetch player data
+    // Get player ID and name from settings
+    _playerId = await settings.getPlayerId();
+    _playerName = await settings.getPlayerName();
+    debugPrint('[MainMenu] Loaded from settings - ID: $_playerId, Name: $_playerName');
+    
+    // Connect to database to fetch/sync player data
     _stdbService = BridgeSpacetimeDBService();
     const bridgeUrl = 'wss://api.lurelands.com/ws';
     
     final connected = await _stdbService!.connect(bridgeUrl);
-    print('[MainMenu] Connected to bridge: $connected');
+    debugPrint('[MainMenu] Connected to bridge: $connected');
     
     if (connected && _playerId != null) {
-      // Try to fetch existing player data
-      print('[MainMenu] Fetching player data for: $_playerId');
+      // Try to fetch existing player data from server
+      debugPrint('[MainMenu] Fetching player data for: $_playerId');
       final playerData = await _stdbService!.fetchPlayerData(_playerId!);
       
       if (playerData != null) {
-        // Player exists in database, use their name
-        setState(() {
-          _playerName = playerData.name;
-          _isLoadingPlayerData = false;
-        });
-        print('[MainMenu] Loaded existing player: ${playerData.name}');
+        // Player exists in database, sync their name to local settings
+        _playerName = playerData.name;
+        await settings.setPlayerName(playerData.name);
+        debugPrint('[MainMenu] Synced player from server: ${playerData.name}');
       } else {
-        // Player ID exists but not in database, create new player with Fisher + random
-        final randomSuffix = DateTime.now().millisecondsSinceEpoch % 10000;
-        setState(() {
-          _playerName = 'Fisher$randomSuffix';
-          _isLoadingPlayerData = false;
-        });
-        print('[MainMenu] Player ID exists but not in DB, using: $_playerName');
+        // Player not in database yet, use local name
+        debugPrint('[MainMenu] Player not in DB yet, using local name: $_playerName');
       }
     } else {
-      // No connection or no player ID, create new player with Fisher + random
-      final randomSuffix = DateTime.now().millisecondsSinceEpoch % 10000;
-      setState(() {
-        _playerName = 'Fisher$randomSuffix';
-        _isLoadingPlayerData = false;
-      });
-      print('[MainMenu] Creating new player: $_playerName (connected: $connected, playerId: $_playerId)');
+      debugPrint('[MainMenu] Offline mode, using local settings: $_playerName');
     }
     
     // Disconnect after fetching
     await _stdbService?.disconnect();
+    
+    if (mounted) {
+      setState(() {
+        _isLoadingPlayerData = false;
+      });
+    }
   }
 
   @override
@@ -413,13 +409,16 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           ElevatedButton(
             onPressed: () async {
               final newName = _nameController.text.trim();
-              print('[MainMenu] Settings save - newName: "$newName"');
-              if (newName.isNotEmpty && _playerId != null) {
+              debugPrint('[MainMenu] Settings save - newName: "$newName"');
+              if (newName.isNotEmpty) {
                 setState(() {
                   _playerName = newName;
                 });
                 
-                // Update name in database immediately
+                // Save to local settings
+                await GameSettings.instance.setPlayerName(newName);
+                
+                // Also update in database if connected
                 if (_stdbService == null || !_stdbService!.isConnected) {
                   _stdbService = BridgeSpacetimeDBService();
                   const bridgeUrl = 'wss://api.lurelands.com/ws';
@@ -428,10 +427,8 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 
                 if (_stdbService!.isConnected) {
                   _stdbService!.updatePlayerName(newName);
-                  print('[MainMenu] Settings save - name updated in database: "$newName"');
+                  debugPrint('[MainMenu] Settings save - name synced to server: "$newName"');
                 }
-              } else {
-                print('[MainMenu] Settings save - name is empty or no player ID, not updating');
               }
               Navigator.of(context).pop();
             },

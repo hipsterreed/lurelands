@@ -3,14 +3,14 @@ import 'package:flutter/services.dart';
 
 import 'screens/main_menu_screen.dart';
 import 'screens/game_screen.dart';
-import 'services/player_id_service.dart';
+import 'services/game_settings.dart';
 import 'utils/constants.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize player ID (load or create)
-  await PlayerIdService.instance.getPlayerId();
+  // Initialize game settings (loads player ID, name, preferences)
+  await GameSettings.instance.init();
 
   // Set preferred orientations for mobile (landscape only for this game)
   SystemChrome.setPreferredOrientations([

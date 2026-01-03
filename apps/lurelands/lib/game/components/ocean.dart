@@ -6,6 +6,7 @@ import 'package:flutter/painting.dart' show Alignment, LinearGradient;
 
 import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
+import '../../utils/seeded_random.dart';
 
 /// Ocean component - a large rectangular body of water on the edge of the map
 class Ocean extends PositionComponent with CollisionCallbacks {
@@ -70,7 +71,7 @@ class Ocean extends PositionComponent with CollisionCallbacks {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3;
 
-    final random = _SeededRandom(data.id.hashCode);
+    final random = SeededRandom(data.id.hashCode);
     
     // Draw horizontal wave lines
     for (var i = 0; i < 8; i++) {
@@ -93,7 +94,7 @@ class Ocean extends PositionComponent with CollisionCallbacks {
   void _drawFoam(Canvas canvas) {
     final foamPaint = Paint()..color = const Color(0xFFFFFFFF).withAlpha(120);
     
-    final random = _SeededRandom(data.id.hashCode * 2);
+    final random = SeededRandom(data.id.hashCode * 2);
     
     // Draw foam dots along the right edge (shore side)
     for (var i = 0; i < 30; i++) {
@@ -114,18 +115,6 @@ class Ocean extends PositionComponent with CollisionCallbacks {
   /// Check if a player position is within casting range
   bool isPlayerInCastingRange(Vector2 playerPos) {
     return data.isWithinCastingRange(playerPos.x, playerPos.y, GameConstants.castProximityRadius);
-  }
-}
-
-/// Simple seeded random for consistent patterns
-class _SeededRandom {
-  int _seed;
-
-  _SeededRandom(this._seed);
-
-  double nextDouble() {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return _seed / 0x7fffffff;
   }
 }
 

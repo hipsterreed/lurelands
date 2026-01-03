@@ -1,20 +1,17 @@
-import 'dart:math';
 import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
+import 'package:flame/extensions.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/water_body_data.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
-import 'components/ocean.dart';
 import 'components/player.dart';
-import 'components/pond.dart';
-import 'components/river.dart';
-import 'components/sunflower.dart';
 import 'components/tree.dart';
+import 'world/lurelands_world.dart';
 
 /// Main game class for Lurelands
 class LurelandsGame extends FlameGame with HasCollisionDetection {
@@ -38,16 +35,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   });
 
   Player? _player;
-  final List<Pond> _pondComponents = [];
-  final List<River> _riverComponents = [];
-  Ocean? _oceanComponent;
-  final List<Tree> _treeComponents = [];
+  late LurelandsWorld _lurelandsWorld;
 
   // Public getter for player (used by other components)
   Player? get player => _player;
 
   // Public getter for trees (used by player for collision checking)
-  List<Tree> get trees => _treeComponents;
+  List<Tree> get trees => _lurelandsWorld.treeComponents;
 
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
@@ -67,17 +61,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Lure sit timer (auto-reel after duration)
   double _lureSitTimer = 0.0;
 
-  // Water body data from server (or fallback)
-  List<PondData> _ponds = [];
-  List<RiverData> _rivers = [];
-  OceanData? _ocean;
-
   /// All water bodies for collision/spawning checks
-  List<WaterBodyData> get allWaterBodies => [
-        ..._ponds,
-        ..._rivers,
-        if (_ocean != null) _ocean!,
-      ];
+  List<WaterBodyData> get allWaterBodies => _lurelandsWorld.allWaterBodies;
 
   @override
   Color backgroundColor() => GameColors.grassGreen;
@@ -86,54 +71,24 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Get world state from server
-    final worldState = stdbService.worldState;
+    // Preload all game assets to prevent frame drops during gameplay
+    await images.loadAll([
+      // Character sprites
+      'characters/base_walk_strip8.png',
+      'characters/base_idle_strip9.png',
+      // Plant sprites
+      'plants/tree_01_strip4.png',
+      'plants/tree_02_strip4.png',
+      'plants/sunflower.png',
+    ]);
 
-    // Use server data if available, otherwise use fallback
-    _ponds = worldState.ponds.isNotEmpty
-        ? worldState.ponds
-        : const [
-            PondData(id: 'pond_1', x: 600, y: 600, radius: 100),
-            PondData(id: 'pond_2', x: 1400, y: 1200, radius: 80),
-          ];
+    // Get world state from server and build WorldState
+    final serverWorldState = stdbService.worldState;
+    final worldState = _buildWorldState(serverWorldState);
 
-    _rivers = worldState.rivers.isNotEmpty
-        ? worldState.rivers
-        : const [
-            RiverData(id: 'river_1', x: 1000, y: 400, width: 80, length: 600, rotation: 0.3),
-          ];
-
-    _ocean = worldState.ocean ??
-        const OceanData(id: 'ocean_1', x: 0, y: 0, width: 250, height: 2000);
-
-    // Add ground
-    await world.add(Ground());
-
-    // Add ocean (on left side)
-    if (_ocean != null) {
-      _oceanComponent = Ocean(data: _ocean!);
-      await world.add(_oceanComponent!);
-    }
-
-    // Add rivers
-    for (final riverData in _rivers) {
-      final river = River(data: riverData);
-      _riverComponents.add(river);
-      await world.add(river);
-    }
-
-    // Add ponds
-    for (final pondData in _ponds) {
-      final pond = Pond(data: pondData);
-      _pondComponents.add(pond);
-      await world.add(pond);
-    }
-
-    // Add random sunflowers around the map
-    await _spawnSunflowers();
-
-    // Add random trees around the map
-    await _spawnTrees();
+    // Create and set the custom world
+    _lurelandsWorld = LurelandsWorld(worldState: worldState);
+    world = _lurelandsWorld;
 
     // Join the world and get spawn position
     final spawnPosition = await stdbService.joinWorld(playerId, playerName, playerColor);
@@ -150,12 +105,36 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     );
     await world.add(_player!);
 
-    // Set up camera to follow player
+    // Set up camera to follow player with smooth tracking
     camera.viewfinder.anchor = Anchor.center;
-    camera.follow(_player!);
+    camera.follow(_player!, maxSpeed: 300);
+
+    // Set camera bounds to prevent viewing outside the world
+    camera.setBounds(
+      Rect.fromLTWH(0, 0, GameConstants.worldWidth, GameConstants.worldHeight).toFlameRectangle(),
+    );
 
     // Mark game as loaded
     isLoadedNotifier.value = true;
+  }
+
+  /// Build WorldState from server data with fallbacks
+  WorldState _buildWorldState(WorldState serverWorldState) {
+    final ponds = serverWorldState.ponds.isNotEmpty
+        ? serverWorldState.ponds
+        : fallbackWorldState.ponds;
+
+    final rivers = serverWorldState.rivers.isNotEmpty
+        ? serverWorldState.rivers
+        : fallbackWorldState.rivers;
+
+    final ocean = serverWorldState.ocean ?? fallbackWorldState.ocean;
+
+    return WorldState(
+      ponds: ponds,
+      rivers: rivers,
+      ocean: ocean,
+    );
   }
 
   @override
@@ -316,52 +295,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// Check if a point is inside any water body
-  bool _isInsideWater(double x, double y) {
-    for (final waterBody in allWaterBodies) {
-      if (waterBody.containsPoint(x, y)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  /// Spawn sunflowers randomly around the map
-  Future<void> _spawnSunflowers() async {
-    final random = Random(123); // Seeded for consistent placement
-    const count = 30;
-
-    for (var i = 0; i < count; i++) {
-      // Start after ocean area
-      final x = 300 + random.nextDouble() * (GameConstants.worldWidth - 400);
-      final y = 100 + random.nextDouble() * (GameConstants.worldHeight - 200);
-
-      // Don't place sunflowers inside any water body
-      if (!_isInsideWater(x, y)) {
-        await world.add(Sunflower(position: Vector2(x, y)));
-      }
-    }
-  }
-
-  /// Spawn trees randomly around the map
-  Future<void> _spawnTrees() async {
-    final random = Random(456); // Different seed for variety
-    const count = 20;
-
-    for (var i = 0; i < count; i++) {
-      // Start after ocean area
-      final x = 350 + random.nextDouble() * (GameConstants.worldWidth - 450);
-      final y = 150 + random.nextDouble() * (GameConstants.worldHeight - 300);
-
-      // Don't place trees inside any water body
-      if (!_isInsideWater(x, y)) {
-        final tree = Tree.random(Vector2(x, y), random);
-        _treeComponents.add(tree);
-        await world.add(tree);
-      }
-    }
-  }
-
   /// Toggle debug mode for player, ponds, and trees
   void toggleDebugMode() {
     debugModeNotifier.value = !debugModeNotifier.value;
@@ -376,7 +309,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       }
     }
 
-    for (final pond in _pondComponents) {
+    for (final pond in _lurelandsWorld.pondComponents) {
       for (final child in pond.children) {
         if (child is ShapeHitbox) {
           child.debugMode = enabled;
@@ -384,7 +317,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       }
     }
 
-    for (final tree in _treeComponents) {
+    for (final tree in _lurelandsWorld.treeComponents) {
       for (final child in tree.children) {
         if (child is ShapeHitbox) {
           child.debugMode = enabled;
@@ -404,41 +337,5 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     debugModeNotifier.dispose();
     castPowerNotifier.dispose();
     super.onRemove();
-  }
-}
-
-/// Ground component - fills the world with grass
-class Ground extends PositionComponent {
-  Ground()
-      : super(
-            position: Vector2.zero(),
-            size: Vector2(GameConstants.worldWidth, GameConstants.worldHeight),
-            priority: 0);
-
-  // Checker tile size
-  static const double tileSize = 48.0;
-
-  @override
-  void render(Canvas canvas) {
-    final lightPaint = Paint()..color = GameColors.grassGreen;
-    // Slightly darker shade of the base green
-    final darkPaint = Paint()..color = const Color(0xFF437320);
-
-    // Draw checkered pattern
-    final tilesX = (size.x / tileSize).ceil();
-    final tilesY = (size.y / tileSize).ceil();
-
-    for (var row = 0; row < tilesY; row++) {
-      for (var col = 0; col < tilesX; col++) {
-        final isLight = (row + col) % 2 == 0;
-        final rect = Rect.fromLTWH(
-          col * tileSize,
-          row * tileSize,
-          tileSize,
-          tileSize,
-        );
-        canvas.drawRect(rect, isLight ? lightPaint : darkPaint);
-      }
-    }
   }
 }

@@ -2,8 +2,9 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
-import '../../models/pond_data.dart';
+import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
+import '../../utils/seeded_random.dart';
 import '../components/pond.dart';
 
 /// The game world containing the ground and ponds
@@ -49,7 +50,7 @@ class Ground extends PositionComponent {
     final darkPaint = Paint()..color = GameColors.grassGreenDark;
 
     // Draw random grass patches for visual interest
-    final random = _SeededRandom(42);
+    final random = SeededRandom(42);
     for (var i = 0; i < 200; i++) {
       final x = random.nextDouble() * size.x;
       final y = random.nextDouble() * size.y;
@@ -63,18 +64,4 @@ class Ground extends PositionComponent {
       );
     }
   }
-}
-
-/// Simple seeded random for consistent patterns
-class _SeededRandom {
-  int _seed;
-
-  _SeededRandom(this._seed);
-
-  double nextDouble() {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return _seed / 0x7fffffff;
-  }
-
-  bool nextBool() => nextDouble() > 0.5;
 }

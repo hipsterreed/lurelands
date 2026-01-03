@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 
 import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
+import '../../utils/seeded_random.dart';
 
 /// River component - an elongated body of water that flows across the map
 class River extends PositionComponent with CollisionCallbacks {
@@ -76,7 +77,7 @@ class River extends PositionComponent with CollisionCallbacks {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
-    final random = _SeededRandom(data.id.hashCode);
+    final random = SeededRandom(data.id.hashCode);
 
     // Draw flowing lines along the river
     for (var i = 0; i < 6; i++) {
@@ -99,7 +100,7 @@ class River extends PositionComponent with CollisionCallbacks {
       ..color = GameColors.pondBlueLight.withAlpha(40)
       ..style = PaintingStyle.fill;
 
-    final random = _SeededRandom(data.id.hashCode * 3);
+    final random = SeededRandom(data.id.hashCode * 3);
 
     // Draw small ripple circles
     for (var i = 0; i < 10; i++) {
@@ -120,18 +121,6 @@ class River extends PositionComponent with CollisionCallbacks {
   /// Check if a player position is within casting range
   bool isPlayerInCastingRange(Vector2 playerPos) {
     return data.isWithinCastingRange(playerPos.x, playerPos.y, GameConstants.castProximityRadius);
-  }
-}
-
-/// Simple seeded random for consistent patterns
-class _SeededRandom {
-  int _seed;
-
-  _SeededRandom(this._seed);
-
-  double nextDouble() {
-    _seed = (_seed * 1103515245 + 12345) & 0x7fffffff;
-    return _seed / 0x7fffffff;
   }
 }
 
