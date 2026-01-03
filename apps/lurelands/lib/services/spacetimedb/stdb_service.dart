@@ -426,6 +426,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       castTargetY: (json['castTargetY'] as num?)?.toDouble(),
       color: json['color'] as int? ?? 0xFFE74C3C,
       isOnline: json['isOnline'] as bool? ?? true,
+      gold: json['gold'] as int? ?? 0,
     );
   }
 

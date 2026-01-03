@@ -39,6 +39,9 @@ pub struct Player {
     /// Whether the player is currently online and in the world
     pub is_online: bool,
     
+    /// Player's gold currency
+    pub gold: u32,
+    
     /// Timestamp of last update
     pub last_updated: Timestamp,
 }
@@ -217,11 +220,12 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
         cast_target_y: None,
         color,
         is_online: true,
+        gold: 0,
         last_updated: ctx.timestamp,
     };
     
     ctx.db.player().insert(player);
-    log::info!("Player {} joined the world at ({}, {})", player_id, spawn_x, spawn_y);
+    log::info!("Player {} joined the world at ({}, {}) with 0g", player_id, spawn_x, spawn_y);
 }
 
 /// Called when a player explicitly leaves the game world (e.g., logout)
@@ -418,11 +422,24 @@ pub fn update_player_name(ctx: &ReducerContext, player_id: String, name: String)
             cast_target_y: None,
             color: 0xFFE74C3C, // Default red color
             is_online: false, // Created via name update, not yet in world
+            gold: 0,
             last_updated: ctx.timestamp,
         };
         
         ctx.db.player().insert(player);
         log::info!("Player {} created with name: {} at ({}, {})", player_id, name, spawn_x, spawn_y);
+    }
+}
+
+/// Add gold to a player's balance
+#[spacetimedb::reducer]
+pub fn add_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        player.gold += amount;
+        let new_gold = player.gold;
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
+        log::info!("Player {} earned {}g (total: {}g)", player_id, amount, new_gold);
     }
 }
 

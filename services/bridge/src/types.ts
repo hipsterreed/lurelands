@@ -55,6 +55,7 @@ export interface Player {
   castTargetY: number | null;
   color: number;
   isOnline: boolean;
+  gold: number;
 }
 
 export interface FishCatch {

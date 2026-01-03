@@ -320,6 +320,7 @@ export class StdbClient {
       castTargetY: p.castTargetY ?? null,
       color: p.color ?? 0xFFE74C3C,
       isOnline: p.isOnline ?? true,
+      gold: p.gold ?? 0,
     };
   }
 

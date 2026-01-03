@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../game/lurelands_game.dart';
+import '../models/player_state.dart';
 import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
@@ -29,6 +30,7 @@ class _GameScreenState extends State<GameScreen> {
   late SpacetimeDBService _stdbService;
   StreamSubscription<StdbConnectionState>? _connectionSubscription;
   StreamSubscription<List<InventoryEntry>>? _inventorySubscription;
+  StreamSubscription<List<PlayerState>>? _playerSubscription;
   final TextEditingController _nameController = TextEditingController();
 
   // Connection state (unused but kept for potential future use)
@@ -40,6 +42,7 @@ class _GameScreenState extends State<GameScreen> {
   // Inventory state
   bool _showInventory = false;
   List<InventoryEntry> _inventoryItems = [];
+  int _playerGold = 0;
 
   @override
   void initState() {
@@ -109,6 +112,19 @@ class _GameScreenState extends State<GameScreen> {
       }
     });
     
+    // Subscribe to player updates to track gold
+    _playerSubscription = _stdbService.playerUpdates.listen((players) {
+      if (mounted) {
+        // Find local player and update gold
+        final localPlayer = players.where((p) => p.id == playerId).firstOrNull;
+        if (localPlayer != null && localPlayer.gold != _playerGold) {
+          setState(() {
+            _playerGold = localPlayer.gold;
+          });
+        }
+      }
+    });
+    
     // Initialize inventory from current state
     _inventoryItems = _stdbService.inventory;
 
@@ -136,6 +152,7 @@ class _GameScreenState extends State<GameScreen> {
   void dispose() {
     _connectionSubscription?.cancel();
     _inventorySubscription?.cancel();
+    _playerSubscription?.cancel();
     _stdbService.dispose();
     _nameController.dispose();
     super.dispose();
@@ -179,6 +196,7 @@ class _GameScreenState extends State<GameScreen> {
           if (_showInventory)
             InventoryPanel(
               items: _inventoryItems,
+              playerGold: _playerGold,
               onClose: () => setState(() => _showInventory = false),
             ),
         ],

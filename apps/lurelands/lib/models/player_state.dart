@@ -13,6 +13,7 @@ class PlayerState {
   final int equippedPoleTier; // Fishing pole tier (1-4)
   final int equippedLureTier; // Lure tier (1-4)
   final bool isOnline; // Whether the player is currently online and in the world
+  final int gold; // Player's gold currency
 
   const PlayerState({
     required this.id,
@@ -27,6 +28,7 @@ class PlayerState {
     this.equippedPoleTier = 1, // Default to tier 1
     this.equippedLureTier = 1, // Default to tier 1
     this.isOnline = true, // Default to online
+    this.gold = 0, // Default to 0 gold
   });
 
   PlayerState copyWith({
@@ -42,6 +44,7 @@ class PlayerState {
     int? equippedPoleTier,
     int? equippedLureTier,
     bool? isOnline,
+    int? gold,
   }) {
     return PlayerState(
       id: id ?? this.id,
@@ -56,6 +59,7 @@ class PlayerState {
       equippedPoleTier: equippedPoleTier ?? this.equippedPoleTier,
       equippedLureTier: equippedLureTier ?? this.equippedLureTier,
       isOnline: isOnline ?? this.isOnline,
+      gold: gold ?? this.gold,
     );
   }
 
@@ -72,6 +76,7 @@ class PlayerState {
         'equippedPoleTier': equippedPoleTier,
         'equippedLureTier': equippedLureTier,
         'isOnline': isOnline,
+        'gold': gold,
       };
 
   factory PlayerState.fromJson(Map<String, dynamic> json) => PlayerState(
@@ -87,5 +92,6 @@ class PlayerState {
         equippedPoleTier: json['equippedPoleTier'] as int? ?? 1,
         equippedLureTier: json['equippedLureTier'] as int? ?? 1,
         isOnline: json['isOnline'] as bool? ?? true,
+        gold: json['gold'] as int? ?? 0,
       );
 }
