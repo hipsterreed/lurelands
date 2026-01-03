@@ -27,26 +27,26 @@ class PlayerNameLabel extends PositionComponent {
     // Main text paint
     _textPaint = TextPaint(
       style: const TextStyle(
-        fontSize: 14,
+        fontSize: 7,
         fontWeight: FontWeight.w600,
         color: GameColors.textPrimary,
-        letterSpacing: 0.5,
+        letterSpacing: 0.25,
       ),
     );
 
     // Shadow paint for better visibility
     _shadowPaint = TextPaint(
       style: TextStyle(
-        fontSize: 14,
+        fontSize: 7,
         fontWeight: FontWeight.w600,
         color: GameColors.menuBackground.withAlpha(180),
-        letterSpacing: 0.5,
+        letterSpacing: 0.25,
       ),
     );
 
     // Set size based on text
     final metrics = _textPaint.getLineMetrics(playerName);
-    size = Vector2(metrics.width + 16, metrics.height + 8);
+    size = Vector2(metrics.width + 8, metrics.height + 4);
   }
 
   @override
@@ -54,7 +54,7 @@ class PlayerNameLabel extends PositionComponent {
     // Draw background pill
     final bgRect = ui.RRect.fromRectAndRadius(
       ui.Rect.fromLTWH(-size.x / 2, -size.y, size.x, size.y),
-      const ui.Radius.circular(10),
+      const ui.Radius.circular(5),
     );
 
     final bgPaint = ui.Paint()
@@ -65,21 +65,21 @@ class PlayerNameLabel extends PositionComponent {
     final borderPaint = ui.Paint()
       ..color = GameColors.pondBlue.withAlpha(100)
       ..style = ui.PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 0.75;
     canvas.drawRRect(bgRect, borderPaint);
 
     // Draw text shadow (offset)
     _shadowPaint.render(
       canvas,
       playerName,
-      Vector2(-size.x / 2 + 8 + 1, -size.y + 4 + 1),
+      Vector2(-size.x / 2 + 4 + 0.5, -size.y + 2 + 0.5),
     );
 
     // Draw text
     _textPaint.render(
       canvas,
       playerName,
-      Vector2(-size.x / 2 + 8, -size.y + 4),
+      Vector2(-size.x / 2 + 4, -size.y + 2),
     );
   }
 }
