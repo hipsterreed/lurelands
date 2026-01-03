@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import '../models/water_body_data.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
+import 'components/caught_fish_animation.dart';
 import 'components/player.dart';
 import 'components/tree.dart';
 import 'world/lurelands_world.dart';
@@ -143,7 +144,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Set up camera to follow player with smooth tracking
     camera.viewfinder.anchor = Anchor.center;
-    camera.follow(_player!, maxSpeed: 300);
+    camera.follow(_player!, maxSpeed: 800);
 
     // Set camera bounds to prevent viewing outside the world
     camera.setBounds(
@@ -355,10 +356,51 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   /// Called when fish is caught in minigame
   void onFishCaught() {
-    fishingStateNotifier.value = FishingState.caught;
-    
-    // Add fish to inventory via server
     final fish = hookedFishNotifier.value;
+    final player = _player;
+    final castLine = player?.castLine;
+    
+    if (fish != null && player != null && castLine != null) {
+      // Get the bobber position (where the fish is caught)
+      final bobberPosition = castLine.endPosition.clone();
+      
+      // Calculate target position: above the player's name label
+      // Player name label is at Vector2(size.x / 2 + 20, 60) relative to player
+      // In world coordinates, this is player.position + offset accounting for anchor
+      final targetPosition = Vector2(
+        player.position.x,
+        player.position.y - 60, // Above the player's head/name
+      );
+      
+      // Create the caught fish animation
+      final fishAnimation = CaughtFishAnimation(
+        startPosition: bobberPosition,
+        targetPosition: targetPosition,
+        fishAssetPath: fish.assetPath,
+        onComplete: () {
+          // Animation complete - now show the "CAUGHT!" UI
+          _completeFishCatch(fish);
+        },
+      );
+      
+      // Add animation to world
+      world.add(fishAnimation);
+      
+      // Reel in the line immediately (fish is flying to player)
+      player.reelIn();
+      stdbService.stopCasting();
+      
+      // Set state to caught (but UI won't show full overlay until animation completes)
+      fishingStateNotifier.value = FishingState.caught;
+    } else {
+      // Fallback if something is missing
+      _completeFishCatch(fish);
+    }
+  }
+  
+  /// Complete the fish catch after animation
+  void _completeFishCatch(HookedFish? fish) {
+    // Add fish to inventory via server
     if (fish != null) {
       final itemId = GameItems.getFishId(fish.waterType, fish.tier);
       // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
@@ -369,9 +411,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       stdbService.catchFish(itemId, rarity, waterBodyId);
     }
     
-    // Reel in
-    _player?.reelIn();
-    stdbService.stopCasting();
+    // Reel in if not already
+    if (_player?.isCasting == true) {
+      _player?.reelIn();
+      stdbService.stopCasting();
+    }
     
     // Reset after showing catch
     Future.delayed(const Duration(seconds: 2), () {

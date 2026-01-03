@@ -234,64 +234,12 @@ class _GameScreenState extends State<GameScreen> {
     return ValueListenableBuilder<FishingState>(
       valueListenable: _game!.fishingStateNotifier,
       builder: (context, state, _) {
-        // Show "CAUGHT!" message
-        if (state == FishingState.caught) {
-          return _buildCaughtMessage();
-        }
-
-        // Show "ESCAPED" message
+        // Show "ESCAPED" message only - caught state just shows the fish animation
         if (state == FishingState.escaped) {
           return _buildEscapedMessage();
         }
 
         return const SizedBox.shrink();
-      },
-    );
-  }
-
-  Widget _buildCaughtMessage() {
-    return ValueListenableBuilder<HookedFish?>(
-      valueListenable: _game!.hookedFishNotifier,
-      builder: (context, fish, _) {
-        return Positioned.fill(
-          child: Container(
-            color: Colors.black54,
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (fish != null)
-                    Image.asset(
-                      fish.assetPath,
-                      width: 120,
-                      height: 120,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.catching_pokemon,
-                        size: 80,
-                        color: GameColors.progressGreen,
-                      ),
-                    ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    decoration: BoxDecoration(
-                      color: GameColors.progressGreen.withAlpha(230),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: const Text(
-                      'CAUGHT!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
       },
     );
   }
