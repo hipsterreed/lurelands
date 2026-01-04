@@ -380,52 +380,52 @@ class _InventoryPanelState extends State<InventoryPanel> {
   }
 
   Widget _buildCharacterSection() {
-    return Column(
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Player name at top
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Text(
-            widget.playerName,
-            style: TextStyle(
-              color: _BackpackColors.textGold,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-              shadows: [
-                Shadow(
-                  color: Colors.black.withAlpha(150),
-                  offset: const Offset(1, 1),
-                  blurRadius: 2,
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Equipment + Stats row
+        // Left: Player name + Equipment
         Expanded(
-          child: Row(
+          child: Column(
             children: [
-              // Left: Equipment slots + Character
+              // Player name above equipment
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(
+                  widget.playerName,
+                  style: TextStyle(
+                    color: _BackpackColors.textGold,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                    shadows: [
+                      Shadow(
+                        color: Colors.black.withAlpha(150),
+                        offset: const Offset(1, 1),
+                        blurRadius: 2,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Equipment area
               Expanded(
                 child: Center(child: _buildEquipmentArea()),
               ),
-              // Vertical divider
-              Container(
-                width: 2,
-                height: double.infinity,
-                margin: const EdgeInsets.symmetric(vertical: 4),
-                decoration: BoxDecoration(
-                  color: _BackpackColors.divider,
-                  borderRadius: BorderRadius.circular(1),
-                ),
-              ),
-              // Right: Stats panel
-              Expanded(
-                child: _buildPlayerInfo(),
-              ),
             ],
           ),
+        ),
+        // Vertical divider
+        Container(
+          width: 2,
+          margin: const EdgeInsets.symmetric(vertical: 4),
+          decoration: BoxDecoration(
+            color: _BackpackColors.divider,
+            borderRadius: BorderRadius.circular(1),
+          ),
+        ),
+        // Right: Stats panel
+        Expanded(
+          child: _buildPlayerInfo(),
         ),
       ],
     );
@@ -544,126 +544,115 @@ class _InventoryPanelState extends State<InventoryPanel> {
     final poleItem = widget.equippedPoleId != null 
         ? GameItems.get(widget.equippedPoleId!) 
         : null;
+    final statColor = _getStatColor(poleTier);
     
-    return SingleChildScrollView(
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Player name
-          Text(
-            widget.playerName,
-            style: TextStyle(
-              color: _BackpackColors.textGold,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              shadows: [
-                Shadow(
-                  color: Colors.black.withAlpha(150),
-                  offset: const Offset(1, 1),
-                  blurRadius: 2,
+          // Gold display at top-right
+          Align(
+            alignment: Alignment.topRight,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: _BackpackColors.slotBg,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: _BackpackColors.textGold.withAlpha(80),
+                  width: 2,
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Gold display
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: _BackpackColors.slotBg,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: _BackpackColors.textGold.withAlpha(80),
-                width: 2,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.monetization_on,
+                    color: _BackpackColors.textGold,
+                    size: 12,
+                  ),
+                  const SizedBox(width: 3),
+                  Text(
+                    '${_formatGold(widget.playerGold)}g',
+                    style: TextStyle(
+                      color: _BackpackColors.textGold,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.monetization_on,
-                  color: _BackpackColors.textGold,
-                  size: 14,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${_formatGold(widget.playerGold)}g',
-                  style: TextStyle(
-                    color: _BackpackColors.textGold,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 6),
-          // Divider
-          Container(
-            height: 1,
-            width: 80,
-            color: _BackpackColors.divider,
-          ),
-          const SizedBox(height: 6),
-          // Equipment Stats Header
-          Text(
-            'FISHING STATS',
-            style: TextStyle(
-              color: _BackpackColors.textMuted,
-              fontSize: 9,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 1,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Pole name
-          Text(
-            poleItem?.name ?? 'No Pole',
-            style: TextStyle(
-              color: poleItem != null ? _BackpackColors.textLight : _BackpackColors.textMuted,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 4),
-          // Stats grid
-          _buildStatRow(
-            Icons.straighten,
-            'Cast',
-            '${_getCastDistance(poleTier).toInt()}px',
-            _getStatColor(poleTier),
           ),
           const SizedBox(height: 2),
-          _buildStatRow(
-            Icons.speed,
-            'Control',
-            '+${((_getGravityMultiplier(poleTier) - 1) * 100).toInt()}%',
-            _getStatColor(poleTier),
-          ),
-          const SizedBox(height: 2),
-          _buildStatRow(
-            Icons.expand,
-            'Bar Bonus',
-            '+${(_getBarBonus(poleTier) * 100).toInt()}%',
-            _getStatColor(poleTier),
-          ),
-          const SizedBox(height: 6),
-          // Item count
+          // Pole name with tier indicator
           Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.inventory_2,
-                color: _BackpackColors.textMuted,
-                size: 12,
+                Icons.phishing,
+                size: 10,
+                color: statColor,
               ),
-              const SizedBox(width: 4),
-              Text(
-                '${widget.items.fold<int>(0, (sum, e) => sum + e.quantity)} items',
-                style: TextStyle(
-                  color: _BackpackColors.textMuted,
-                  fontSize: 10,
+              const SizedBox(width: 3),
+              Flexible(
+                child: Text(
+                  poleItem?.name ?? 'No Pole',
+                  style: TextStyle(
+                    color: poleItem != null ? statColor : _BackpackColors.textMuted,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Stats grid - 2 columns
+          // Row 1: Cast + Control
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatTile(
+                  Icons.straighten,
+                  'Cast',
+                  '${_getCastDistance(poleTier).toInt()}',
+                  statColor,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: _buildStatTile(
+                  Icons.speed,
+                  'Ctrl',
+                  '+${((_getGravityMultiplier(poleTier) - 1) * 100).toInt()}%',
+                  statColor,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          // Row 2: Bar Bonus + Items
+          Row(
+            children: [
+              Expanded(
+                child: _buildStatTile(
+                  Icons.expand,
+                  'Bar+',
+                  '+${(_getBarBonus(poleTier) * 100).toInt()}%',
+                  statColor,
+                ),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: _buildStatTile(
+                  Icons.inventory_2,
+                  'Items',
+                  '${widget.items.fold<int>(0, (sum, e) => sum + e.quantity)}',
+                  _BackpackColors.textMuted,
                 ),
               ),
             ],
@@ -673,28 +662,45 @@ class _InventoryPanelState extends State<InventoryPanel> {
     );
   }
 
-  Widget _buildStatRow(IconData icon, String label, String value, Color valueColor) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 10, color: _BackpackColors.textMuted),
-        const SizedBox(width: 3),
-        Text(
-          '$label: ',
-          style: TextStyle(
-            color: _BackpackColors.textMuted,
-            fontSize: 10,
-          ),
+  Widget _buildStatTile(IconData icon, String label, String value, Color valueColor) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+      decoration: BoxDecoration(
+        color: _BackpackColors.slotEmpty,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: _BackpackColors.slotBorder.withAlpha(150),
+          width: 1,
         ),
-        Text(
-          value,
-          style: TextStyle(
-            color: valueColor,
-            fontSize: 10,
-            fontWeight: FontWeight.bold,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 8, color: _BackpackColors.textMuted),
+              const SizedBox(width: 2),
+              Text(
+                label,
+                style: TextStyle(
+                  color: _BackpackColors.textMuted,
+                  fontSize: 7,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-        ),
-      ],
+          Text(
+            value,
+            style: TextStyle(
+              color: valueColor,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

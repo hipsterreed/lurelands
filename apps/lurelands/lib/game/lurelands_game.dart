@@ -232,7 +232,14 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         castPowerNotifier.value = 0.0;
         // Transition to waiting state when cast animation completes
         if (fishingStateNotifier.value == FishingState.casting) {
-          _startWaitingForBite();
+          // Check if bobber landed in water
+          final castLine = player.castLine;
+          if (castLine != null && _isBobberInWater(castLine.endPosition)) {
+            _startWaitingForBite();
+          } else {
+            // Bobber didn't land in water - auto reel
+            _cancelFishing(player);
+          }
         }
       }
     }
@@ -483,6 +490,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     // Check all water bodies
     for (final waterBody in allWaterBodies) {
       if (waterBody.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Check if a position is inside any water body
+  bool _isBobberInWater(Vector2 position) {
+    for (final waterBody in allWaterBodies) {
+      if (waterBody.containsPoint(position.x, position.y)) {
         return true;
       }
     }

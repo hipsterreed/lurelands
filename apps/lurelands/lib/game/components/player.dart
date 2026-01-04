@@ -212,17 +212,14 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   /// Start casting into a water body
   /// [power] is a value from 0.0 to 1.0 representing the charge level
   /// Cast distance is based on equipped pole's max distance and power level
+  /// Casts in the direction the player is currently facing
   void startCasting(WaterBodyData waterBody, double power) {
     if (_isCasting) return;
 
     _isCasting = true;
 
-    // Calculate cast target - towards the water body center from player
-    final directionToWater = Vector2(waterBody.x - position.x, waterBody.y - position.y);
-    directionToWater.normalize();
-
-    // Update facing angle towards water
-    _facingAngle = atan2(directionToWater.y, directionToWater.x);
+    // Cast in the direction the player is facing
+    final castDirection = Vector2(cos(_facingAngle), sin(_facingAngle));
 
     // Get the equipped pole's max cast distance
     final poleAsset = ItemAssets.getFishingPole(_equippedPoleTier);
@@ -233,8 +230,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     final castDistance = GameConstants.minCastDistance + 
         (maxDistance - GameConstants.minCastDistance) * power;
 
-    final targetX = position.x + directionToWater.x * castDistance;
-    final targetY = position.y + directionToWater.y * castDistance;
+    final targetX = position.x + castDirection.x * castDistance;
+    final targetY = position.y + castDirection.y * castDistance;
 
     // Create cast line
     _castLine = CastLine(startPosition: position.clone(), endPosition: Vector2(targetX, targetY));
