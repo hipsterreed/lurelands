@@ -654,8 +654,8 @@ export class StdbClient {
       'fish_river_1': 12, 'fish_river_2': 30, 'fish_river_3': 60, 'fish_river_4': 180,
       'fish_ocean_1': 15, 'fish_ocean_2': 40, 'fish_ocean_3': 80, 'fish_ocean_4': 250,
       'fish_night_1': 20, 'fish_night_2': 45, 'fish_night_3': 90, 'fish_night_4': 300,
-      // Poles
-      'pole_1': 50, 'pole_2': 200, 'pole_3': 500, 'pole_4': 1500,
+      // Poles (pole_1 is free/worthless)
+      'pole_1': 0, 'pole_2': 200, 'pole_3': 500, 'pole_4': 1500,
       // Lures
       'lure_1': 10, 'lure_2': 30, 'lure_3': 80, 'lure_4': 250,
     };

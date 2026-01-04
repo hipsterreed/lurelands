@@ -739,12 +739,20 @@ class _GameScreenState extends State<GameScreen> {
           return _buildBiteTapButton();
         }
 
+        // Check if player has a pole equipped
+        final hasPoleEquipped = _equippedPoleId != null;
+
         return ValueListenableBuilder<bool>(
           valueListenable: _game!.canCastNotifier,
           builder: (context, canCast, _) {
             return ValueListenableBuilder<bool>(
               valueListenable: _game!.isCastingNotifier,
               builder: (context, isCasting, _) {
+                // If no pole equipped, show disabled state
+                if (!hasPoleEquipped) {
+                  return _buildNoPoleButton();
+                }
+
                 final isActive = canCast || isCasting;
                 return Column(
                   mainAxisSize: MainAxisSize.min,
@@ -822,6 +830,142 @@ class _GameScreenState extends State<GameScreen> {
           },
         );
       },
+    );
+  }
+
+  /// Build the cast button when no fishing pole is equipped
+  Widget _buildNoPoleButton() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: _showNoPoleMessage,
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: GameColors.menuBackground.withAlpha(128),
+              border: Border.all(
+                color: GameColors.textSecondary.withAlpha(80),
+                width: 3,
+              ),
+            ),
+            child: Center(
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // Faded pole icon
+                  Icon(
+                    Icons.phishing,
+                    size: 36,
+                    color: GameColors.textSecondary.withAlpha(100),
+                  ),
+                  // Red X overlay
+                  Icon(
+                    Icons.close,
+                    size: 48,
+                    color: GameColors.progressRed.withAlpha(180),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'NO POLE',
+          style: TextStyle(
+            color: GameColors.progressRed.withAlpha(180),
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Show a message when the player tries to fish without a pole
+  void _showNoPoleMessage() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: GameColors.menuBackground,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: GameColors.progressRed.withAlpha(120),
+            width: 2,
+          ),
+        ),
+        title: Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: GameColors.progressOrange, size: 28),
+            const SizedBox(width: 12),
+            Text(
+              'No Fishing Pole!',
+              style: TextStyle(
+                color: GameColors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'You need a fishing pole equipped to fish.',
+              style: TextStyle(
+                color: GameColors.textSecondary,
+                fontSize: 14,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: GameColors.menuAccent,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.lightbulb_outline,
+                    color: GameColors.pondBlue,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      "If you lost yours, you can get a free one from the shop!",
+                      style: TextStyle(
+                        color: GameColors.textPrimary,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: GameColors.pondBlue,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Got it!'),
+          ),
+        ],
+      ),
     );
   }
 

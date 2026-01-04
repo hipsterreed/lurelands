@@ -45,8 +45,8 @@ const List<ShopItem> _merchantItems = [
   ShopItem(
     itemId: 'pole_1',
     name: 'Wooden Rod',
-    description: 'A basic fishing rod for beginners.',
-    price: 50,
+    description: 'A basic fishing rod for beginners. Free!',
+    price: 0,
     assetPath: 'assets/items/fishing_pole_1.png',
   ),
   ShopItem(
