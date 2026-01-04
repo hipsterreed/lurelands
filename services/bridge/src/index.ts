@@ -515,6 +515,7 @@ const eventsPageHtml = `<!DOCTYPE html>
   
   <script>
     let events = [];
+    let players = {}; // Map of playerId -> playerName
     let currentFilter = 'all';
     
     function formatTime(timestamp) {
@@ -554,11 +555,16 @@ const eventsPageHtml = `<!DOCTYPE html>
       return parts.join(' ');
     }
     
-    function shortenPlayerId(id) {
-      if (id.length > 12) {
-        return id.substring(0, 8) + '...';
+    function getPlayerName(playerId) {
+      // Return player name if we have it, otherwise show shortened ID
+      if (players[playerId]) {
+        return players[playerId];
       }
-      return id;
+      // Fallback to shortened ID
+      if (playerId.length > 12) {
+        return playerId.substring(0, 8) + '...';
+      }
+      return playerId;
     }
     
     function filterEvents(events, filter) {
@@ -589,7 +595,7 @@ const eventsPageHtml = `<!DOCTYPE html>
           <div class="event-type">
             <span class="event-type-badge type-\${event.eventType}">\${formatEventType(event.eventType)}</span>
           </div>
-          <div class="event-player" title="\${event.playerId}">\${shortenPlayerId(event.playerId)}</div>
+          <div class="event-player" title="\${event.playerId}">\${getPlayerName(event.playerId)}</div>
           <div class="event-details">\${getEventDetails(event)}</div>
         </div>
       \`).join('');
@@ -602,15 +608,20 @@ const eventsPageHtml = `<!DOCTYPE html>
       document.getElementById('stat-bought').textContent = events.filter(e => e.eventType === 'item_bought').length;
     }
     
-    async function fetchEvents() {
+    async function fetchData() {
       try {
-        const response = await fetch('/api/events?limit=100');
-        events = await response.json();
+        // Fetch events and players in parallel
+        const [eventsRes, playersRes] = await Promise.all([
+          fetch('/api/events?limit=100'),
+          fetch('/api/players')
+        ]);
+        events = await eventsRes.json();
+        players = await playersRes.json();
         document.getElementById('status-text').textContent = 'Connected • Auto-refresh';
         renderEvents();
         updateStats();
       } catch (error) {
-        console.error('Failed to fetch events:', error);
+        console.error('Failed to fetch data:', error);
         document.getElementById('status-text').textContent = 'Connection error';
       }
     }
@@ -626,10 +637,10 @@ const eventsPageHtml = `<!DOCTYPE html>
     });
     
     // Initial fetch
-    fetchEvents();
+    fetchData();
     
     // Poll for updates every 3 seconds
-    setInterval(fetchEvents, 3000);
+    setInterval(fetchData, 3000);
   </script>
 </body>
 </html>`;
@@ -653,6 +664,16 @@ const app = new Elysia()
   .get('/api/events', ({ query }) => {
     const limit = parseInt(query.limit as string) || 50;
     return stdb.getGameEvents(limit);
+  })
+
+  // Players API endpoint (for name lookup)
+  .get('/api/players', () => {
+    const players = stdb.getPlayers();
+    const playerMap: Record<string, string> = {};
+    for (const p of players) {
+      playerMap[p.id] = p.name;
+    }
+    return playerMap;
   })
 
   // Events viewer page
