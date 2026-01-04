@@ -79,6 +79,53 @@ export interface InventoryItem {
 }
 
 // =============================================================================
+// Session & Event Tracking Types
+// =============================================================================
+
+export interface PlayerSession {
+  id: number;
+  playerId: string;
+  startedAt: number;  // Unix timestamp (microseconds)
+  endedAt: number | null;  // Unix timestamp (microseconds)
+  durationSeconds: number;
+  isActive: boolean;
+}
+
+export interface PlayerStats {
+  playerId: string;
+  totalPlaytimeSeconds: number;
+  totalSessions: number;
+  totalFishCaught: number;
+  totalGoldEarned: number;
+  totalGoldSpent: number;
+  firstSeenAt: number;  // Unix timestamp (microseconds)
+  lastSeenAt: number;   // Unix timestamp (microseconds)
+}
+
+export type GameEventType = 
+  | 'fish_caught'
+  | 'item_bought'
+  | 'item_sold'
+  | 'session_started'
+  | 'session_ended'
+  | 'pole_equipped'
+  | 'pole_unequipped';
+
+export interface GameEvent {
+  id: number;
+  playerId: string;
+  sessionId: number | null;
+  eventType: GameEventType;
+  itemId: string | null;
+  quantity: number | null;
+  goldAmount: number | null;
+  rarity: number | null;
+  waterBodyId: string | null;
+  metadata: string | null;  // JSON string for extensibility
+  createdAt: number;  // Unix timestamp (microseconds)
+}
+
+// =============================================================================
 // Client → Bridge Messages
 // =============================================================================
 

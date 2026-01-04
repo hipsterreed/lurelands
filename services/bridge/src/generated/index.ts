@@ -37,14 +37,24 @@ import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
 import CatchFishReducer from "./catch_fish_reducer";
 export { CatchFishReducer };
+import EndSessionReducer from "./end_session_reducer";
+export { EndSessionReducer };
 import EquipPoleReducer from "./equip_pole_reducer";
 export { EquipPoleReducer };
 import GetPlayerInventoryReducer from "./get_player_inventory_reducer";
 export { GetPlayerInventoryReducer };
+import GetPlayerStatsReducer from "./get_player_stats_reducer";
+export { GetPlayerStatsReducer };
 import JoinWorldReducer from "./join_world_reducer";
 export { JoinWorldReducer };
 import LeaveWorldReducer from "./leave_world_reducer";
 export { LeaveWorldReducer };
+import LogGameEventReducer from "./log_game_event_reducer";
+export { LogGameEventReducer };
+import LogItemBoughtReducer from "./log_item_bought_reducer";
+export { LogItemBoughtReducer };
+import LogItemSoldReducer from "./log_item_sold_reducer";
+export { LogItemSoldReducer };
 import ReleaseFishReducer from "./release_fish_reducer";
 export { ReleaseFishReducer };
 import RemoveFromInventoryReducer from "./remove_from_inventory_reducer";
@@ -55,6 +65,8 @@ import SpendGoldReducer from "./spend_gold_reducer";
 export { SpendGoldReducer };
 import StartCastingReducer from "./start_casting_reducer";
 export { StartCastingReducer };
+import StartSessionReducer from "./start_session_reducer";
+export { StartSessionReducer };
 import StopCastingReducer from "./stop_casting_reducer";
 export { StopCastingReducer };
 import UnequipPoleReducer from "./unequip_pole_reducer";
@@ -69,12 +81,18 @@ export { UpdatePositionReducer };
 // Import and reexport all table handle types
 import FishCatchRow from "./fish_catch_table";
 export { FishCatchRow };
+import GameEventRow from "./game_event_table";
+export { GameEventRow };
 import InventoryRow from "./inventory_table";
 export { InventoryRow };
 import OceanRow from "./ocean_table";
 export { OceanRow };
 import PlayerRow from "./player_table";
 export { PlayerRow };
+import PlayerSessionRow from "./player_session_table";
+export { PlayerSessionRow };
+import PlayerStatsRow from "./player_stats_table";
+export { PlayerStatsRow };
 import PondRow from "./pond_table";
 export { PondRow };
 import RiverRow from "./river_table";
@@ -85,12 +103,18 @@ export { SpawnPointRow };
 // Import and reexport all types
 import FishCatch from "./fish_catch_type";
 export { FishCatch };
+import GameEvent from "./game_event_type";
+export { GameEvent };
 import Inventory from "./inventory_type";
 export { Inventory };
 import Ocean from "./ocean_type";
 export { Ocean };
 import Player from "./player_type";
 export { Player };
+import PlayerSession from "./player_session_type";
+export { PlayerSession };
+import PlayerStats from "./player_stats_type";
+export { PlayerStats };
 import Pond from "./pond_type";
 export { Pond };
 import River from "./river_type";
@@ -111,6 +135,17 @@ const tablesSchema = __schema(
       { name: 'fish_catch_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, FishCatchRow),
+  __table({
+    name: 'game_event',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'game_event_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, GameEventRow),
   __table({
     name: 'inventory',
     indexes: [
@@ -144,6 +179,28 @@ const tablesSchema = __schema(
       { name: 'player_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PlayerRow),
+  __table({
+    name: 'player_session',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_session_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, PlayerSessionRow),
+  __table({
+    name: 'player_stats',
+    indexes: [
+      { name: 'player_id', algorithm: 'btree', columns: [
+        'playerId',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_stats_player_id_key', constraint: 'unique', columns: ['playerId'] },
+    ],
+  }, PlayerStatsRow),
   __table({
     name: 'pond',
     indexes: [
@@ -184,15 +241,21 @@ const reducersSchema = __reducers(
   __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
+  __reducerSchema("end_session", EndSessionReducer),
   __reducerSchema("equip_pole", EquipPoleReducer),
   __reducerSchema("get_player_inventory", GetPlayerInventoryReducer),
+  __reducerSchema("get_player_stats", GetPlayerStatsReducer),
   __reducerSchema("join_world", JoinWorldReducer),
   __reducerSchema("leave_world", LeaveWorldReducer),
+  __reducerSchema("log_game_event", LogGameEventReducer),
+  __reducerSchema("log_item_bought", LogItemBoughtReducer),
+  __reducerSchema("log_item_sold", LogItemSoldReducer),
   __reducerSchema("release_fish", ReleaseFishReducer),
   __reducerSchema("remove_from_inventory", RemoveFromInventoryReducer),
   __reducerSchema("set_gold", SetGoldReducer),
   __reducerSchema("spend_gold", SpendGoldReducer),
   __reducerSchema("start_casting", StartCastingReducer),
+  __reducerSchema("start_session", StartSessionReducer),
   __reducerSchema("stop_casting", StopCastingReducer),
   __reducerSchema("unequip_pole", UnequipPoleReducer),
   __reducerSchema("update_player_name", UpdatePlayerNameReducer),

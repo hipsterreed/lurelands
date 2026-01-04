@@ -545,6 +545,18 @@ export class StdbClient {
         quantity,
       });
       
+      // Log the sell event to SpacetimeDB
+      // Note: This reducer is added in the new schema - regenerate types after deploying
+      if ('logItemSold' in this.conn.reducers) {
+        (this.conn.reducers as any).logItemSold({
+          playerId,
+          itemId,
+          rarity,
+          quantity,
+          goldAmount: totalGold,
+        });
+      }
+      
       // Notify inventory update
       if (this.onInventoryUpdate) {
         this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
@@ -610,6 +622,17 @@ export class StdbClient {
         playerId,
         amount: price,
       });
+      
+      // Log the buy event to SpacetimeDB
+      // Note: This reducer is added in the new schema - regenerate types after deploying
+      if ('logItemBought' in this.conn.reducers) {
+        (this.conn.reducers as any).logItemBought({
+          playerId,
+          itemId,
+          quantity: 1,
+          goldAmount: price,
+        });
+      }
       
       // Notify inventory update
       if (this.onInventoryUpdate) {

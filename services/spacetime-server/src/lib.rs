@@ -183,6 +183,128 @@ pub struct Ocean {
 }
 
 // =============================================================================
+// SESSION & EVENT TRACKING
+// =============================================================================
+
+/// Player session - tracks individual play sessions
+#[spacetimedb::table(name = player_session, public)]
+pub struct PlayerSession {
+    /// Unique session identifier
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    
+    /// Player who started this session
+    pub player_id: String,
+    
+    /// When the session started
+    pub started_at: Timestamp,
+    
+    /// When the session ended (None if still active)
+    pub ended_at: Option<Timestamp>,
+    
+    /// Duration in seconds (calculated when session ends)
+    pub duration_seconds: u64,
+    
+    /// Whether this session is still active
+    pub is_active: bool,
+}
+
+/// Player stats - aggregated statistics per player
+#[spacetimedb::table(name = player_stats, public)]
+pub struct PlayerStats {
+    /// Player identifier (matches Player.id)
+    #[primary_key]
+    pub player_id: String,
+    
+    /// Total playtime in seconds across all sessions
+    pub total_playtime_seconds: u64,
+    
+    /// Total number of sessions
+    pub total_sessions: u32,
+    
+    /// Total fish caught (all time)
+    pub total_fish_caught: u32,
+    
+    /// Total gold earned (all time)
+    pub total_gold_earned: u64,
+    
+    /// Total gold spent (all time)
+    pub total_gold_spent: u64,
+    
+    /// When this player was first seen
+    pub first_seen_at: Timestamp,
+    
+    /// When this player was last seen
+    pub last_seen_at: Timestamp,
+}
+
+/// Event types for game event logging
+#[derive(Clone, Debug, PartialEq)]
+pub enum GameEventType {
+    FishCaught,
+    ItemBought,
+    ItemSold,
+    SessionStarted,
+    SessionEnded,
+    PoleEquipped,
+    PoleUnequipped,
+}
+
+impl std::fmt::Display for GameEventType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GameEventType::FishCaught => write!(f, "fish_caught"),
+            GameEventType::ItemBought => write!(f, "item_bought"),
+            GameEventType::ItemSold => write!(f, "item_sold"),
+            GameEventType::SessionStarted => write!(f, "session_started"),
+            GameEventType::SessionEnded => write!(f, "session_ended"),
+            GameEventType::PoleEquipped => write!(f, "pole_equipped"),
+            GameEventType::PoleUnequipped => write!(f, "pole_unequipped"),
+        }
+    }
+}
+
+/// Game event log - tracks all significant player actions for analytics
+#[spacetimedb::table(name = game_event, public)]
+pub struct GameEvent {
+    /// Unique event identifier
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    
+    /// Player who triggered this event
+    pub player_id: String,
+    
+    /// Session ID when event occurred (if applicable)
+    pub session_id: Option<u64>,
+    
+    /// Type of event (fish_caught, item_bought, item_sold, etc.)
+    pub event_type: String,
+    
+    /// Item involved in the event (fish_id, pole_id, etc.)
+    pub item_id: Option<String>,
+    
+    /// Quantity of items (for bulk transactions)
+    pub quantity: Option<u32>,
+    
+    /// Gold amount (price for buys/sells, 0 for other events)
+    pub gold_amount: Option<u32>,
+    
+    /// Rarity tier (1-3 for fish, 0 for non-fish items)
+    pub rarity: Option<u8>,
+    
+    /// Water body where event occurred (for fishing events)
+    pub water_body_id: Option<String>,
+    
+    /// Additional metadata as JSON string (for extensibility)
+    pub metadata: Option<String>,
+    
+    /// When the event occurred
+    pub created_at: Timestamp,
+}
+
+// =============================================================================
 // REDUCERS - Actions that clients can call to modify state
 // =============================================================================
 
@@ -196,6 +318,9 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
         player.is_online = true;
         player.last_updated = ctx.timestamp;
         ctx.db.player().id().update(player);
+        
+        // Start a new session for reconnecting player
+        start_session(ctx, player_id);
         return;
     }
     
@@ -233,6 +358,9 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
     
     ctx.db.player().insert(player);
     log::info!("Player {} joined the world at ({}, {}) with 0g", player_id, spawn_x, spawn_y);
+    
+    // Start a session for new player
+    start_session(ctx, player_id);
 }
 
 /// Called when a player explicitly leaves the game world (e.g., logout)
@@ -244,6 +372,9 @@ pub fn leave_world(ctx: &ReducerContext, player_id: String) {
         player.last_updated = ctx.timestamp;
         ctx.db.player().id().update(player);
         log::info!("Player {} left the world (marked as offline)", player_id);
+        
+        // End the current session
+        end_session(ctx, player_id);
     }
 }
 
@@ -296,7 +427,7 @@ pub fn catch_fish(
     rarity: u8,
     water_body_id: String,
 ) {
-    // Log the catch event
+    // Log the catch event to FishCatch table (legacy)
     let catch = FishCatch {
         id: 0, // auto-incremented
         fish_id: item_id.clone(),
@@ -304,7 +435,7 @@ pub fn catch_fish(
         fish_type: fish_type.clone(),
         size,
         rarity: format!("{}star", rarity),
-        water_body_id,
+        water_body_id: water_body_id.clone(),
         released: false,
         caught_at: ctx.timestamp,
     };
@@ -329,6 +460,25 @@ pub fn catch_fish(
             quantity: 1,
         };
         ctx.db.inventory().insert(inv);
+    }
+    
+    // Log the event to GameEvent table
+    log_event_internal(
+        ctx,
+        player_id.clone(),
+        "fish_caught".to_string(),
+        Some(item_id),
+        Some(1),
+        None,
+        Some(rarity),
+        Some(water_body_id),
+        Some(format!("{{\"fish_type\":\"{}\",\"size\":{}}}", fish_type, size)),
+    );
+    
+    // Update player stats
+    if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id) {
+        stats.total_fish_caught += 1;
+        ctx.db.player_stats().player_id().update(stats);
     }
 }
 
@@ -488,6 +638,12 @@ pub fn add_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
         player.last_updated = ctx.timestamp;
         ctx.db.player().id().update(player);
         log::info!("Player {} earned {}g (total: {}g)", player_id, amount, new_gold);
+        
+        // Update player stats
+        if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id) {
+            stats.total_gold_earned += amount as u64;
+            ctx.db.player_stats().player_id().update(stats);
+        }
     }
 }
 
@@ -501,6 +657,12 @@ pub fn spend_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
             player.last_updated = ctx.timestamp;
             ctx.db.player().id().update(player);
             log::info!("Player {} spent {}g (remaining: {}g)", player_id, amount, new_gold);
+            
+            // Update player stats
+            if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id) {
+                stats.total_gold_spent += amount as u64;
+                ctx.db.player_stats().player_id().update(stats);
+            }
         } else {
             log::warn!("Player {} tried to spend {}g but only has {}g", player_id, amount, player.gold);
         }
@@ -538,6 +700,15 @@ pub fn equip_pole(ctx: &ReducerContext, player_id: String, pole_item_id: String)
         player.last_updated = ctx.timestamp;
         ctx.db.player().id().update(player);
         log::info!("Player {} equipped pole: {}", player_id, pole_item_id);
+        
+        // Log the equip event
+        log_event_internal(
+            ctx,
+            player_id,
+            "pole_equipped".to_string(),
+            Some(pole_item_id),
+            None, None, None, None, None,
+        );
     }
 }
 
@@ -548,11 +719,260 @@ pub fn unequip_pole(ctx: &ReducerContext, player_id: String) {
     if let Some(mut player) = ctx.db.player().id().find(&player_id) {
         if let Some(pole_id) = &player.equipped_pole_id {
             log::info!("Player {} unequipped pole: {}", player_id, pole_id);
+            
+            // Log the unequip event
+            log_event_internal(
+                ctx,
+                player_id.clone(),
+                "pole_unequipped".to_string(),
+                Some(pole_id.clone()),
+                None, None, None, None, None,
+            );
         }
         player.equipped_pole_id = None;
         player.last_updated = ctx.timestamp;
         ctx.db.player().id().update(player);
     }
+}
+
+// =============================================================================
+// SESSION & EVENT TRACKING REDUCERS
+// =============================================================================
+
+/// Internal helper to get the current active session ID for a player
+fn get_active_session_id(ctx: &ReducerContext, player_id: &str) -> Option<u64> {
+    ctx.db.player_session().iter()
+        .find(|s| s.player_id == player_id && s.is_active)
+        .map(|s| s.id)
+}
+
+/// Internal helper to log an event
+fn log_event_internal(
+    ctx: &ReducerContext,
+    player_id: String,
+    event_type: String,
+    item_id: Option<String>,
+    quantity: Option<u32>,
+    gold_amount: Option<u32>,
+    rarity: Option<u8>,
+    water_body_id: Option<String>,
+    metadata: Option<String>,
+) {
+    let session_id = get_active_session_id(ctx, &player_id);
+    
+    let event = GameEvent {
+        id: 0, // auto-incremented
+        player_id: player_id.clone(),
+        session_id,
+        event_type: event_type.clone(),
+        item_id,
+        quantity,
+        gold_amount,
+        rarity,
+        water_body_id,
+        metadata,
+        created_at: ctx.timestamp,
+    };
+    
+    ctx.db.game_event().insert(event);
+    log::debug!("Event logged: {} for player {}", event_type, player_id);
+}
+
+/// Start a new session for a player
+/// Called when a player joins the world
+#[spacetimedb::reducer]
+pub fn start_session(ctx: &ReducerContext, player_id: String) {
+    // End any existing active sessions for this player (shouldn't happen normally)
+    let active_sessions: Vec<PlayerSession> = ctx.db.player_session().iter()
+        .filter(|s| s.player_id == player_id && s.is_active)
+        .collect();
+    
+    for mut session in active_sessions {
+        // Calculate duration
+        let duration = (ctx.timestamp.to_micros_since_unix_epoch() - session.started_at.to_micros_since_unix_epoch()) / 1_000_000;
+        session.ended_at = Some(ctx.timestamp);
+        session.duration_seconds = duration as u64;
+        session.is_active = false;
+        ctx.db.player_session().id().update(session);
+        log::warn!("Closed orphaned session for player {}", player_id);
+    }
+    
+    // Create new session
+    let session = PlayerSession {
+        id: 0, // auto-incremented
+        player_id: player_id.clone(),
+        started_at: ctx.timestamp,
+        ended_at: None,
+        duration_seconds: 0,
+        is_active: true,
+    };
+    
+    ctx.db.player_session().insert(session);
+    
+    // Update or create player stats
+    if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id) {
+        stats.total_sessions += 1;
+        stats.last_seen_at = ctx.timestamp;
+        ctx.db.player_stats().player_id().update(stats);
+    } else {
+        let stats = PlayerStats {
+            player_id: player_id.clone(),
+            total_playtime_seconds: 0,
+            total_sessions: 1,
+            total_fish_caught: 0,
+            total_gold_earned: 0,
+            total_gold_spent: 0,
+            first_seen_at: ctx.timestamp,
+            last_seen_at: ctx.timestamp,
+        };
+        ctx.db.player_stats().insert(stats);
+    }
+    
+    // Log session started event
+    log_event_internal(
+        ctx,
+        player_id.clone(),
+        "session_started".to_string(),
+        None, None, None, None, None, None,
+    );
+    
+    log::info!("Session started for player {}", player_id);
+}
+
+/// End the current session for a player
+/// Called when a player leaves the world or disconnects
+#[spacetimedb::reducer]
+pub fn end_session(ctx: &ReducerContext, player_id: String) {
+    // Find active session
+    let active_session = ctx.db.player_session().iter()
+        .find(|s| s.player_id == player_id && s.is_active);
+    
+    if let Some(mut session) = active_session {
+        // Calculate duration in seconds
+        let duration = (ctx.timestamp.to_micros_since_unix_epoch() - session.started_at.to_micros_since_unix_epoch()) / 1_000_000;
+        session.ended_at = Some(ctx.timestamp);
+        session.duration_seconds = duration as u64;
+        session.is_active = false;
+        
+        let session_duration = session.duration_seconds;
+        ctx.db.player_session().id().update(session);
+        
+        // Update player stats with playtime
+        if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id) {
+            stats.total_playtime_seconds += session_duration;
+            stats.last_seen_at = ctx.timestamp;
+            ctx.db.player_stats().player_id().update(stats);
+        }
+        
+        // Log session ended event with duration metadata
+        log_event_internal(
+            ctx,
+            player_id.clone(),
+            "session_ended".to_string(),
+            None, None, None, None, None,
+            Some(format!("{{\"duration_seconds\":{}}}", session_duration)),
+        );
+        
+        log::info!("Session ended for player {} (duration: {}s)", player_id, session_duration);
+    }
+}
+
+/// Log a generic game event (public reducer for external calls)
+#[spacetimedb::reducer]
+pub fn log_game_event(
+    ctx: &ReducerContext,
+    player_id: String,
+    event_type: String,
+    item_id: Option<String>,
+    quantity: Option<u32>,
+    gold_amount: Option<u32>,
+    rarity: Option<u8>,
+    water_body_id: Option<String>,
+    metadata: Option<String>,
+) {
+    log_event_internal(
+        ctx,
+        player_id,
+        event_type,
+        item_id,
+        quantity,
+        gold_amount,
+        rarity,
+        water_body_id,
+        metadata,
+    );
+}
+
+/// Get player stats (for querying)
+#[spacetimedb::reducer]
+pub fn get_player_stats(ctx: &ReducerContext, player_id: String) {
+    // This is just for logging/debugging - clients use subscriptions
+    if let Some(stats) = ctx.db.player_stats().player_id().find(&player_id) {
+        log::info!(
+            "Player {} stats: sessions={}, playtime={}s, fish={}, gold_earned={}, gold_spent={}",
+            player_id,
+            stats.total_sessions,
+            stats.total_playtime_seconds,
+            stats.total_fish_caught,
+            stats.total_gold_earned,
+            stats.total_gold_spent
+        );
+    } else {
+        log::info!("No stats found for player {}", player_id);
+    }
+}
+
+/// Log item sold event (called from bridge when selling items)
+#[spacetimedb::reducer]
+pub fn log_item_sold(
+    ctx: &ReducerContext,
+    player_id: String,
+    item_id: String,
+    rarity: u8,
+    quantity: u32,
+    gold_amount: u32,
+) {
+    log_event_internal(
+        ctx,
+        player_id.clone(),
+        "item_sold".to_string(),
+        Some(item_id.clone()),
+        Some(quantity),
+        Some(gold_amount),
+        Some(rarity),
+        None,
+        None,
+    );
+    log::info!(
+        "Player {} sold {}x {} (rarity {}) for {}g",
+        player_id, quantity, item_id, rarity, gold_amount
+    );
+}
+
+/// Log item bought event (called from bridge when buying items)
+#[spacetimedb::reducer]
+pub fn log_item_bought(
+    ctx: &ReducerContext,
+    player_id: String,
+    item_id: String,
+    quantity: u32,
+    gold_amount: u32,
+) {
+    log_event_internal(
+        ctx,
+        player_id.clone(),
+        "item_bought".to_string(),
+        Some(item_id.clone()),
+        Some(quantity),
+        Some(gold_amount),
+        Some(0), // Non-fish items have rarity 0
+        None,
+        None,
+    );
+    log::info!(
+        "Player {} bought {}x {} for {}g",
+        player_id, quantity, item_id, gold_amount
+    );
 }
 
 // =============================================================================
