@@ -197,7 +197,17 @@ class _GameScreenState extends State<GameScreen> {
             InventoryPanel(
               items: _inventoryItems,
               playerGold: _playerGold,
+              playerName: widget.playerName,
+              debugEnabled: _game?.debugModeNotifier.value ?? false,
               onClose: () => setState(() => _showInventory = false),
+              onToggleDebug: () {
+                _game?.toggleDebugMode();
+                setState(() {}); // Refresh to show debug state
+              },
+              onUpdatePlayerName: (newName) async {
+                await GameSettings.instance.setPlayerName(newName);
+                _stdbService.updatePlayerName(newName);
+              },
             ),
         ],
       ),
@@ -560,10 +570,10 @@ class _GameScreenState extends State<GameScreen> {
               ),
             ),
           ),
-          // Inventory button (top right, before debug)
+          // Inventory/Backpack button (top right)
           Positioned(
             top: 16,
-            right: 72,
+            right: 16,
             child: GestureDetector(
               onTap: () => setState(() => _showInventory = true),
               child: Container(
@@ -603,32 +613,6 @@ class _GameScreenState extends State<GameScreen> {
                   ],
                 ),
               ),
-            ),
-          ),
-          // Debug button (top right)
-          Positioned(
-            top: 16,
-            right: 16,
-            child: ValueListenableBuilder<bool>(
-              valueListenable: _game!.debugModeNotifier,
-              builder: (context, debugEnabled, _) {
-                return IconButton(
-                  onPressed: () => _game!.toggleDebugMode(),
-                  icon: Icon(
-                    Icons.bug_report,
-                    color: debugEnabled
-                        ? Colors.yellow
-                        : GameColors.textPrimary.withAlpha(204),
-                    size: 28,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: debugEnabled
-                        ? GameColors.pondBlue.withAlpha(200)
-                        : GameColors.menuBackground.withAlpha(179),
-                    padding: const EdgeInsets.all(12),
-                  ),
-                );
-              },
             ),
           ),
         ],

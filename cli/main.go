@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"os"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -50,7 +52,128 @@ var (
 			BorderBottom(true).
 			Padding(0, 1).
 			MarginBottom(1)
+
+	spinnerStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00CED1"))
 )
+
+// Message types for spinner
+type commandFinishedMsg struct {
+	err    error
+	output string
+}
+
+// Spinner model for loading state
+type spinnerModel struct {
+	spinner  spinner.Model
+	title    string
+	quitting bool
+	done     bool
+	err      error
+	output   string
+}
+
+func newSpinnerModel(title string) spinnerModel {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = spinnerStyle
+	return spinnerModel{
+		spinner: s,
+		title:   title,
+	}
+}
+
+func (m spinnerModel) Init() tea.Cmd {
+	return m.spinner.Tick
+}
+
+func (m spinnerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+		}
+
+	case commandFinishedMsg:
+		m.done = true
+		m.err = msg.err
+		m.output = msg.output
+		return m, tea.Quit
+
+	case spinner.TickMsg:
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+
+	return m, nil
+}
+
+func (m spinnerModel) View() string {
+	if m.quitting {
+		return ""
+	}
+
+	if m.done {
+		return ""
+	}
+
+	return fmt.Sprintf("\n  %s %s\n", m.spinner.View(), m.title)
+}
+
+// Run command with spinner
+func runCommandWithSpinner(title, cmd string, args []string, workDir string) error {
+	// Create spinner model
+	sm := newSpinnerModel(title)
+
+	// Create the command
+	c := exec.Command(cmd, args...)
+	c.Dir = workDir
+
+	// Capture output
+	var stdout, stderr bytes.Buffer
+	c.Stdout = &stdout
+	c.Stderr = &stderr
+
+	// Start command
+	if err := c.Start(); err != nil {
+		return err
+	}
+
+	// Run spinner in a goroutine with command execution
+	p := tea.NewProgram(sm)
+
+	go func() {
+		err := c.Wait()
+		output := stdout.String()
+		if stderr.Len() > 0 {
+			output += stderr.String()
+		}
+		p.Send(commandFinishedMsg{err: err, output: output})
+	}()
+
+	finalModel, err := p.Run()
+	if err != nil {
+		return err
+	}
+
+	fm := finalModel.(spinnerModel)
+
+	// Print captured output
+	if fm.output != "" {
+		fmt.Print(fm.output)
+	}
+
+	if fm.quitting {
+		// User cancelled
+		c.Process.Kill()
+		return fmt.Errorf("cancelled by user")
+	}
+
+	return fm.err
+}
 
 // Command item for the list
 type item struct {
@@ -322,12 +445,23 @@ func main() {
 	if fm, ok := finalModel.(model); ok && fm.executing {
 		i, ok := fm.list.SelectedItem().(item)
 		if ok && i.command != "" {
-			fmt.Printf("\n%s Running: %s %s\n\n",
+			fmt.Printf("\n%s Running: %s %s\n",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Render("▸"),
 				i.command,
 				strings.Join(i.args, " "))
 
-			err := runCommand(i.command, i.args, i.workDir)
+			var err error
+			// Use spinner for build commands
+			if i.title == "Build" || i.title == "Generate Types" || strings.Contains(i.title, "Deploy") {
+				err = runCommandWithSpinner(
+					fmt.Sprintf("Building %s...", i.category),
+					i.command, i.args, i.workDir,
+				)
+			} else {
+				fmt.Println()
+				err = runCommand(i.command, i.args, i.workDir)
+			}
+
 			if err != nil {
 				fmt.Printf("\n%s\n", errorStyle.Render(fmt.Sprintf("✗ Error: %v", err)))
 				os.Exit(1)
@@ -373,11 +507,23 @@ func handleDirectCommand(args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("\n%s %s\n\n",
+	fmt.Printf("\n%s %s\n",
 		lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Render("▸"),
 		cmd.desc)
 
-	err := runCommand(cmd.cmd, cmd.args, cmd.workDir)
+	var err error
+	// Use spinner for build/deploy commands
+	cmdName := args[0]
+	if cmdName == "bridge:build" || cmdName == "bridge:generate" || strings.HasPrefix(cmdName, "deploy") {
+		err = runCommandWithSpinner(
+			fmt.Sprintf("Running %s...", cmd.desc),
+			cmd.cmd, cmd.args, cmd.workDir,
+		)
+	} else {
+		fmt.Println()
+		err = runCommand(cmd.cmd, cmd.args, cmd.workDir)
+	}
+
 	if err != nil {
 		fmt.Printf("\n%s\n", errorStyle.Render(fmt.Sprintf("✗ Error: %v", err)))
 		os.Exit(1)
