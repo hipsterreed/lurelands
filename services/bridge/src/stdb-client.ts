@@ -276,7 +276,8 @@ export class StdbClient {
       stdbLogger.debug({ playerId: inv.playerId, itemId: inv.itemId }, 'Inventory item deleted');
       const playerInv = this.inventory.get(inv.playerId);
       if (playerInv) {
-        playerInv.delete(`${inv.itemId}:${inv.rarity}`);
+        // Use the database row ID as key (same as cacheInventoryItem)
+        playerInv.delete(String(inv.id));
       }
       this.emitInventoryUpdate(inv.playerId);
     });
@@ -289,7 +290,8 @@ export class StdbClient {
     if (!this.inventory.has(playerId)) {
       this.inventory.set(playerId, new Map());
     }
-    const key = `${inv.itemId}:${inv.rarity}`;
+    // Use the database row ID as key since items may not stack (e.g., poles)
+    const key = String(inv.id);
     this.inventory.get(playerId)!.set(key, {
       id: Number(inv.id),
       playerId: inv.playerId,
@@ -592,21 +594,46 @@ export class StdbClient {
         this.inventory.set(playerId, playerInv);
       }
       
+      // Determine if this item can stack
+      const isPole = itemId.startsWith('pole_');
+      const isFish = itemId.startsWith('fish_');
+      const maxStackSize = isPole ? 1 : (isFish ? 5 : Infinity);
+      
       // Add item to local inventory (rarity 0 for non-fish items like poles)
-      const stackKey = `${itemId}:0`;
-      const existingItem = playerInv.get(stackKey);
-      if (existingItem) {
-        existingItem.quantity += 1;
-        playerInv.set(stackKey, existingItem);
-      } else {
+      // For non-stackable items (poles), always create a new entry
+      if (maxStackSize === 1) {
+        // Poles don't stack - create a new entry with temporary ID
+        const tempId = Date.now();
         const newItem: import('./types').InventoryItem = {
-          id: Date.now(), // Temporary ID
+          id: tempId,
           playerId,
           itemId,
           rarity: 0,
           quantity: 1,
         };
-        playerInv.set(stackKey, newItem);
+        playerInv.set(String(tempId), newItem);
+      } else {
+        // For stackable items, try to find an existing stack with space
+        let foundStack = false;
+        for (const [key, item] of playerInv) {
+          if (item.itemId === itemId && item.rarity === 0 && item.quantity < maxStackSize) {
+            item.quantity += 1;
+            playerInv.set(key, item);
+            foundStack = true;
+            break;
+          }
+        }
+        if (!foundStack) {
+          const tempId = Date.now();
+          const newItem: import('./types').InventoryItem = {
+            id: tempId,
+            playerId,
+            itemId,
+            rarity: 0,
+            quantity: 1,
+          };
+          playerInv.set(String(tempId), newItem);
+        }
       }
       
       // Persist to SpacetimeDB - add item to inventory
