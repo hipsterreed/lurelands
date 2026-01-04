@@ -177,6 +177,17 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       break;
     }
 
+    case 'buy_item': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId, itemId: message.itemId, price: message.price }, 'Player buying item');
+        await stdb.buyItem(session.playerId, message.itemId, message.price);
+        // Send updated inventory
+        const items = stdb.getPlayerInventory(session.playerId);
+        send(ws, { type: 'inventory', items });
+      }
+      break;
+    }
+
     default:
       wsLogger.warn({ type: (message as any).type }, 'Unknown message type');
   }

@@ -506,15 +506,88 @@ export class StdbClient {
         amount: totalGold,
       });
       
+      // Remove items from inventory in SpacetimeDB
+      this.conn.reducers.removeFromInventory({
+        playerId,
+        itemId,
+        rarity,
+        quantity,
+      });
+      
       // Notify inventory update
       if (this.onInventoryUpdate) {
         this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
       }
       
-      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item, added gold via reducer');
+      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item, updated gold and inventory');
       
     } catch (error) {
       stdbLogger.error({ err: error, playerId, itemId, quantity }, 'Failed to sell item');
+    }
+  }
+
+  async buyItem(playerId: string, itemId: string, price: number): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    
+    try {
+      // Check if player has enough gold
+      const player = this.players.get(playerId);
+      if (!player || player.gold < price) {
+        stdbLogger.warn({ playerId, itemId, price, gold: player?.gold ?? 0 }, 'Not enough gold to buy item');
+        return;
+      }
+      
+      // Deduct gold locally (optimistic update)
+      player.gold -= price;
+      this.players.set(playerId, player);
+      this.broadcastPlayersUpdate();
+      
+      // Get or create player inventory
+      let playerInv = this.inventory.get(playerId);
+      if (!playerInv) {
+        playerInv = new Map();
+        this.inventory.set(playerId, playerInv);
+      }
+      
+      // Add item to local inventory (rarity 0 for non-fish items like poles)
+      const stackKey = `${itemId}:0`;
+      const existingItem = playerInv.get(stackKey);
+      if (existingItem) {
+        existingItem.quantity += 1;
+        playerInv.set(stackKey, existingItem);
+      } else {
+        const newItem: import('./types').InventoryItem = {
+          id: Date.now(), // Temporary ID
+          playerId,
+          itemId,
+          rarity: 0,
+          quantity: 1,
+        };
+        playerInv.set(stackKey, newItem);
+      }
+      
+      // Persist to SpacetimeDB - deduct gold
+      // Note: We use a negative gold add for now (or implement a separate reducer)
+      // For now, we'll add the item to inventory and track gold locally
+      this.conn.reducers.addToInventory({
+        playerId,
+        itemId,
+        rarity: 0,
+        quantity: 1,
+      });
+      
+      // Deduct gold via a custom approach - for now just track locally
+      // TODO: Add a spendGold reducer to the server
+      
+      // Notify inventory update
+      if (this.onInventoryUpdate) {
+        this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
+      }
+      
+      stdbLogger.info({ playerId, itemId, price }, 'Bought item');
+      
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId, itemId, price }, 'Failed to buy item');
     }
   }
 

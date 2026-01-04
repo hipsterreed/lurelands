@@ -159,6 +159,9 @@ abstract class SpacetimeDBService {
   /// Sell an item from inventory
   void sellItem(String itemId, int rarity, int quantity);
 
+  /// Buy an item from the shop
+  void buyItem(String itemId, int price);
+
   /// Dispose resources
   void dispose();
 }
@@ -663,6 +666,21 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       'itemId': itemId,
       'rarity': rarity,
       'quantity': quantity,
+    });
+  }
+
+  @override
+  void buyItem(String itemId, int price) {
+    if (_playerId == null || !isConnected) {
+      debugPrint('[Bridge] Cannot buy item - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Buying item: $itemId for ${price}g');
+    _sendMessage({
+      'type': 'buy_item',
+      'itemId': itemId,
+      'price': price,
     });
   }
 

@@ -239,6 +239,7 @@ class _GameScreenState extends State<GameScreen> {
               shopName: _nearbyShop!.name,
               onClose: () => setState(() => _showShop = false),
               onSellItem: _onSellItem,
+              onBuyItem: _onBuyItem,
             ),
           // Shop interaction button (when near shop)
           if (_nearbyShop != null && !_showShop && !_showInventory)
@@ -1071,6 +1072,24 @@ class _GameScreenState extends State<GameScreen> {
     // Optimistically update local gold
     setState(() {
       _playerGold += totalGold;
+    });
+  }
+
+  /// Handle buying an item from the shop
+  void _onBuyItem(String itemId, int price) {
+    if (_playerGold < price) {
+      debugPrint('[GameScreen] Not enough gold to buy $itemId');
+      return;
+    }
+
+    debugPrint('[GameScreen] Buying $itemId for ${price}g');
+    
+    // Call the buy item method on the service
+    _stdbService.buyItem(itemId, price);
+    
+    // Optimistically update local gold
+    setState(() {
+      _playerGold -= price;
     });
   }
 }

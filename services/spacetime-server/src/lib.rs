@@ -484,6 +484,22 @@ pub fn add_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
     }
 }
 
+/// Spend gold from a player's balance (for purchases)
+#[spacetimedb::reducer]
+pub fn spend_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        if player.gold >= amount {
+            player.gold -= amount;
+            let new_gold = player.gold;
+            player.last_updated = ctx.timestamp;
+            ctx.db.player().id().update(player);
+            log::info!("Player {} spent {}g (remaining: {}g)", player_id, amount, new_gold);
+        } else {
+            log::warn!("Player {} tried to spend {}g but only has {}g", player_id, amount, player.gold);
+        }
+    }
+}
+
 // =============================================================================
 // INITIALIZATION
 // =============================================================================

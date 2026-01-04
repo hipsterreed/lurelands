@@ -17,9 +17,60 @@ class _ShopColors {
   static const Color textMuted = Color(0xFF8B7355);
   static const Color sellButton = Color(0xFF4CAF50);
   static const Color sellButtonHover = Color(0xFF66BB6A);
+  static const Color buyButton = Color(0xFF2196F3);
+  static const Color buyButtonHover = Color(0xFF42A5F5);
   static const Color divider = Color(0xFF5D4433);
   static const Color star = Color(0xFFFFD700);
 }
+
+/// Represents an item for sale in the shop
+class ShopItem {
+  final String itemId;
+  final String name;
+  final String description;
+  final int price;
+  final String assetPath;
+
+  const ShopItem({
+    required this.itemId,
+    required this.name,
+    required this.description,
+    required this.price,
+    required this.assetPath,
+  });
+}
+
+/// Merchant inventory - fishing poles for sale
+const List<ShopItem> _merchantItems = [
+  ShopItem(
+    itemId: 'pole_1',
+    name: 'Wooden Rod',
+    description: 'A basic fishing rod for beginners.',
+    price: 50,
+    assetPath: 'assets/items/fishing_pole_1.png',
+  ),
+  ShopItem(
+    itemId: 'pole_2',
+    name: 'Steel Rod',
+    description: 'A sturdy rod with better casting distance.',
+    price: 200,
+    assetPath: 'assets/items/fishing_pole_2.png',
+  ),
+  ShopItem(
+    itemId: 'pole_3',
+    name: 'Carbon Fiber Rod',
+    description: 'A lightweight rod for serious anglers.',
+    price: 500,
+    assetPath: 'assets/items/fishing_pole_3.png',
+  ),
+  ShopItem(
+    itemId: 'pole_4',
+    name: 'Legendary Rod',
+    description: 'The ultimate fishing rod, crafted by masters.',
+    price: 1500,
+    assetPath: 'assets/items/fishing_pole_4.png',
+  ),
+];
 
 /// Shop panel widget for buying/selling items
 class ShopPanel extends StatefulWidget {
@@ -28,6 +79,7 @@ class ShopPanel extends StatefulWidget {
   final String shopName;
   final VoidCallback onClose;
   final void Function(InventoryEntry item, int quantity) onSellItem;
+  final void Function(String itemId, int price) onBuyItem;
 
   const ShopPanel({
     super.key,
@@ -36,6 +88,7 @@ class ShopPanel extends StatefulWidget {
     required this.shopName,
     required this.onClose,
     required this.onSellItem,
+    required this.onBuyItem,
   });
 
   @override
@@ -43,7 +96,9 @@ class ShopPanel extends StatefulWidget {
 }
 
 class _ShopPanelState extends State<ShopPanel> {
-  InventoryEntry? _selectedItem;
+  // Selection state - either a player item or a shop item
+  InventoryEntry? _selectedPlayerItem;
+  ShopItem? _selectedShopItem;
   int _sellQuantity = 1;
 
   @override
@@ -289,14 +344,15 @@ class _ShopPanelState extends State<ShopPanel> {
             spacing: 6,
             runSpacing: 6,
             children: widget.playerItems.map((item) {
-              final isSelected = _selectedItem?.stackKey == item.stackKey;
+              final isSelected = _selectedPlayerItem?.stackKey == item.stackKey;
               return GestureDetector(
                 onTap: () {
                   setState(() {
+                    _selectedShopItem = null; // Deselect shop item
                     if (isSelected) {
-                      _selectedItem = null;
+                      _selectedPlayerItem = null;
                     } else {
-                      _selectedItem = item;
+                      _selectedPlayerItem = item;
                       _sellQuantity = 1;
                     }
                   });
@@ -321,58 +377,88 @@ class _ShopPanelState extends State<ShopPanel> {
         // Section header
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Text(
-            'MERCHANT',
-            style: TextStyle(
-              color: _ShopColors.textGold,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
-            ),
+          child: Row(
+            children: [
+              Text(
+                'FOR SALE',
+                style: TextStyle(
+                  color: _ShopColors.textGold,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.phishing,
+                color: _ShopColors.textGold.withAlpha(150),
+                size: 16,
+              ),
+            ],
           ),
         ),
-        // Empty merchant inventory placeholder
+        // Merchant items grid
         Expanded(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.shopping_cart_outlined,
-                  color: _ShopColors.textMuted.withAlpha(100),
-                  size: 64,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Coming Soon',
-                  style: TextStyle(
-                    color: _ShopColors.textMuted,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Merchant inventory\nwill be available later',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: _ShopColors.textMuted.withAlpha(150),
-                    fontSize: 12,
-                  ),
-                ),
-              ],
-            ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: _buildMerchantGrid(),
           ),
         ),
       ],
     );
   }
 
+  Widget _buildMerchantGrid() {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        const columns = 2;
+        final slotWidth = (constraints.maxWidth - 8) / columns;
+        final clampedWidth = slotWidth.clamp(100.0, 180.0);
+
+        return SingleChildScrollView(
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _merchantItems.map((item) {
+              final isSelected = _selectedShopItem?.itemId == item.itemId;
+              final canAfford = widget.playerGold >= item.price;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedPlayerItem = null; // Deselect player item
+                    if (isSelected) {
+                      _selectedShopItem = null;
+                    } else {
+                      _selectedShopItem = item;
+                    }
+                  });
+                },
+                child: _MerchantSlot(
+                  item: item,
+                  width: clampedWidth,
+                  isSelected: isSelected,
+                  canAfford: canAfford,
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildActionBar() {
-    final itemDef = _selectedItem != null ? GameItems.get(_selectedItem!.itemId) : null;
-    final sellPrice = itemDef?.getSellPrice(_selectedItem?.rarity ?? 1) ?? 0;
-    final totalPrice = sellPrice * _sellQuantity;
-    final maxQuantity = _selectedItem?.quantity ?? 1;
+    // Determine if we're in sell mode or buy mode
+    final isSellMode = _selectedPlayerItem != null;
+    final isBuyMode = _selectedShopItem != null;
+    
+    // Sell mode calculations
+    final itemDef = _selectedPlayerItem != null ? GameItems.get(_selectedPlayerItem!.itemId) : null;
+    final sellPrice = itemDef?.getSellPrice(_selectedPlayerItem?.rarity ?? 1) ?? 0;
+    final totalSellPrice = sellPrice * _sellQuantity;
+    final maxQuantity = _selectedPlayerItem?.quantity ?? 1;
+    
+    // Buy mode - handled in _buildBuyActionBar
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -382,7 +468,9 @@ class _ShopPanelState extends State<ShopPanel> {
           top: BorderSide(color: _ShopColors.divider, width: 2),
         ),
       ),
-      child: _selectedItem != null
+      child: isBuyMode
+          ? _buildBuyActionBar()
+          : isSellMode
           ? Row(
               children: [
                 // Selected item preview
@@ -418,7 +506,7 @@ class _ShopPanelState extends State<ShopPanel> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        itemDef?.name ?? _selectedItem!.itemId,
+                        itemDef?.name ?? _selectedPlayerItem!.itemId,
                         style: TextStyle(
                           color: _ShopColors.textLight,
                           fontSize: 14,
@@ -435,12 +523,12 @@ class _ShopPanelState extends State<ShopPanel> {
                               fontSize: 12,
                             ),
                           ),
-                          if (_selectedItem!.rarity > 0) ...[
+                          if (_selectedPlayerItem!.rarity > 0) ...[
                             const SizedBox(width: 8),
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: List.generate(
-                                _selectedItem!.rarity,
+                                _selectedPlayerItem!.rarity,
                                 (i) => Icon(
                                   Icons.star,
                                   size: 10,
@@ -501,10 +589,10 @@ class _ShopPanelState extends State<ShopPanel> {
                 // Sell button
                 GestureDetector(
                   onTap: () {
-                    if (_selectedItem != null) {
-                      widget.onSellItem(_selectedItem!, _sellQuantity);
+                    if (_selectedPlayerItem != null) {
+                      widget.onSellItem(_selectedPlayerItem!, _sellQuantity);
                       setState(() {
-                        _selectedItem = null;
+                        _selectedPlayerItem = null;
                         _sellQuantity = 1;
                       });
                     }
@@ -545,7 +633,7 @@ class _ShopPanelState extends State<ShopPanel> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${totalPrice}g',
+                          '${totalSellPrice}g',
                           style: TextStyle(
                             color: _ShopColors.textGold,
                             fontSize: 14,
@@ -560,13 +648,129 @@ class _ShopPanelState extends State<ShopPanel> {
             )
           : Center(
               child: Text(
-                'Select an item to sell',
+                'Select an item to buy or sell',
                 style: TextStyle(
                   color: _ShopColors.textMuted,
                   fontSize: 14,
                 ),
               ),
             ),
+    );
+  }
+
+  Widget _buildBuyActionBar() {
+    final item = _selectedShopItem!;
+    final canAfford = widget.playerGold >= item.price;
+
+    return Row(
+      children: [
+        // Selected item preview
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _ShopColors.slotBg,
+            borderRadius: BorderRadius.circular(6),
+            border: Border.all(color: _ShopColors.buyButton, width: 2),
+          ),
+          child: Image.asset(
+            item.assetPath,
+            width: 32,
+            height: 32,
+            errorBuilder: (_, __, ___) => Icon(
+              Icons.phishing,
+              color: _ShopColors.textLight,
+              size: 28,
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        // Item name and description
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                item.name,
+                style: TextStyle(
+                  color: _ShopColors.textLight,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                item.description,
+                style: TextStyle(
+                  color: _ShopColors.textMuted,
+                  fontSize: 11,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+        // Buy button
+        GestureDetector(
+          onTap: canAfford
+              ? () {
+                  widget.onBuyItem(item.itemId, item.price);
+                  setState(() {
+                    _selectedShopItem = null;
+                  });
+                }
+              : null,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              color: canAfford ? _ShopColors.buyButton : _ShopColors.slotBg,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: canAfford ? _ShopColors.buyButtonHover : _ShopColors.slotBorder,
+                width: 2,
+              ),
+              boxShadow: canAfford
+                  ? [
+                      BoxShadow(
+                        color: _ShopColors.buyButton.withAlpha(100),
+                        blurRadius: 8,
+                        spreadRadius: 0,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'BUY',
+                  style: TextStyle(
+                    color: canAfford ? Colors.white : _ShopColors.textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.monetization_on,
+                  color: canAfford ? _ShopColors.textGold : _ShopColors.textMuted,
+                  size: 18,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${item.price}g',
+                  style: TextStyle(
+                    color: canAfford ? _ShopColors.textGold : _ShopColors.textMuted,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -732,6 +936,126 @@ class _InventorySlot extends StatelessWidget {
       icon = Icons.inventory_2;
     }
     return Icon(icon, color: _ShopColors.textLight, size: 24);
+  }
+}
+
+/// Merchant item slot for items for sale
+class _MerchantSlot extends StatelessWidget {
+  final ShopItem item;
+  final double width;
+  final bool isSelected;
+  final bool canAfford;
+
+  const _MerchantSlot({
+    required this.item,
+    required this.width,
+    this.isSelected = false,
+    this.canAfford = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isSelected ? _ShopColors.slotHover : _ShopColors.slotBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isSelected
+              ? _ShopColors.buyButton
+              : canAfford
+                  ? _ShopColors.slotBorder
+                  : _ShopColors.slotBorder.withAlpha(100),
+          width: isSelected ? 3 : 2,
+        ),
+        boxShadow: isSelected
+            ? [
+                BoxShadow(
+                  color: _ShopColors.buyButton.withAlpha(60),
+                  blurRadius: 8,
+                  spreadRadius: 0,
+                ),
+              ]
+            : null,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Item image and name row
+          Row(
+            children: [
+              // Item image
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: _ShopColors.panelBg,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Opacity(
+                  opacity: canAfford ? 1.0 : 0.5,
+                  child: Image.asset(
+                    item.assetPath,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Icon(
+                      Icons.phishing,
+                      color: _ShopColors.textLight,
+                      size: 32,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Name and price
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.name,
+                      style: TextStyle(
+                        color: canAfford
+                            ? _ShopColors.textLight
+                            : _ShopColors.textMuted,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.monetization_on,
+                          color: canAfford
+                              ? _ShopColors.textGold
+                              : _ShopColors.textMuted,
+                          size: 14,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          '${item.price}g',
+                          style: TextStyle(
+                            color: canAfford
+                                ? _ShopColors.textGold
+                                : _ShopColors.textMuted,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

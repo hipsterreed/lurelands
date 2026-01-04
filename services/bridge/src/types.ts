@@ -91,7 +91,8 @@ export type ClientMessage =
   | { type: 'fetch_player'; playerId: string }
   | { type: 'catch_fish'; itemId: string; rarity: number; waterBodyId: string }
   | { type: 'get_inventory' }
-  | { type: 'sell_item'; itemId: string; rarity: number; quantity: number };
+  | { type: 'sell_item'; itemId: string; rarity: number; quantity: number }
+  | { type: 'buy_item'; itemId: string; price: number };
 
 // =============================================================================
 // Bridge → Client Messages
