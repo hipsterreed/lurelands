@@ -1585,10 +1585,10 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
               children: [
                 // Water bubbles/decoration
                 ..._buildWaterDecorations(),
-                // Fish
-                _buildFish(),
                 // Control bar (green rectangle)
                 _buildControlBar(),
+                // Fish (on top so it's visible over the bar)
+                _buildFish(),
               ],
             ),
           ),
