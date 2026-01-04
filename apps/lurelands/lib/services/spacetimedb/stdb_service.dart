@@ -36,6 +36,177 @@ class InventoryEntry {
   String get stackKey => '$itemId:$rarity';
 }
 
+/// Represents a quest definition from the server
+class Quest {
+  final String id;
+  final String title;
+  final String description;
+  final String questType; // 'story' or 'daily'
+  final String? storyline;
+  final int? storyOrder;
+  final String? prerequisiteQuestId;
+  final String requirements; // JSON string
+  final String rewards; // JSON string
+
+  const Quest({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.questType,
+    this.storyline,
+    this.storyOrder,
+    this.prerequisiteQuestId,
+    required this.requirements,
+    required this.rewards,
+  });
+
+  factory Quest.fromJson(Map<String, dynamic> json) => Quest(
+        id: json['id'] as String,
+        title: json['title'] as String,
+        description: json['description'] as String,
+        questType: json['questType'] as String,
+        storyline: json['storyline'] as String?,
+        storyOrder: json['storyOrder'] as int?,
+        prerequisiteQuestId: json['prerequisiteQuestId'] as String?,
+        requirements: json['requirements'] as String,
+        rewards: json['rewards'] as String,
+      );
+
+  /// Parse requirements JSON to get required fish counts
+  Map<String, int> get requiredFish {
+    try {
+      final req = jsonDecode(requirements) as Map<String, dynamic>;
+      final fish = req['fish'] as Map<String, dynamic>?;
+      if (fish == null) return {};
+      return fish.map((k, v) => MapEntry(k, v as int));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Get total fish requirement if specified
+  int? get totalFishRequired {
+    try {
+      final req = jsonDecode(requirements) as Map<String, dynamic>;
+      return req['total_fish'] as int?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Get minimum rarity requirement if specified
+  int? get minRarityRequired {
+    try {
+      final req = jsonDecode(requirements) as Map<String, dynamic>;
+      return req['min_rarity'] as int?;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Parse rewards JSON to get gold amount
+  int get goldReward {
+    try {
+      final rew = jsonDecode(rewards) as Map<String, dynamic>;
+      return rew['gold'] as int? ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  /// Parse rewards JSON to get item rewards
+  List<({String itemId, int quantity})> get itemRewards {
+    try {
+      final rew = jsonDecode(rewards) as Map<String, dynamic>;
+      final items = rew['items'] as List?;
+      if (items == null) return [];
+      return items.map((item) {
+        final m = item as Map<String, dynamic>;
+        return (
+          itemId: m['item_id'] as String,
+          quantity: m['quantity'] as int? ?? 1,
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  bool get isStoryQuest => questType == 'story';
+  bool get isDailyQuest => questType == 'daily';
+}
+
+/// Represents a player's progress on a quest
+class PlayerQuest {
+  final int id;
+  final String playerId;
+  final String questId;
+  final String status; // 'available', 'active', 'completed'
+  final String progress; // JSON string
+  final int? acceptedAt; // Unix timestamp (microseconds)
+  final int? completedAt; // Unix timestamp (microseconds)
+
+  const PlayerQuest({
+    required this.id,
+    required this.playerId,
+    required this.questId,
+    required this.status,
+    required this.progress,
+    this.acceptedAt,
+    this.completedAt,
+  });
+
+  factory PlayerQuest.fromJson(Map<String, dynamic> json) => PlayerQuest(
+        id: json['id'] as int,
+        playerId: json['playerId'] as String,
+        questId: json['questId'] as String,
+        status: json['status'] as String,
+        progress: json['progress'] as String,
+        acceptedAt: json['acceptedAt'] as int?,
+        completedAt: json['completedAt'] as int?,
+      );
+
+  bool get isActive => status == 'active';
+  bool get isCompleted => status == 'completed';
+
+  /// Parse progress JSON to get fish counts
+  Map<String, int> get fishProgress {
+    try {
+      final prog = jsonDecode(progress) as Map<String, dynamic>;
+      return prog.map((k, v) => MapEntry(k, v as int));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  /// Get total fish caught
+  int get totalFishCaught => fishProgress['total'] ?? 0;
+
+  /// Get max rarity caught
+  int get maxRarityCaught => fishProgress['max_rarity'] ?? 0;
+
+  /// Check if quest requirements are met
+  bool areRequirementsMet(Quest quest) {
+    // Check specific fish requirements
+    for (final entry in quest.requiredFish.entries) {
+      final caught = fishProgress[entry.key] ?? 0;
+      if (caught < entry.value) return false;
+    }
+
+    // Check total fish requirement
+    if (quest.totalFishRequired != null && totalFishCaught < quest.totalFishRequired!) {
+      return false;
+    }
+
+    // Check min rarity requirement
+    if (quest.minRarityRequired != null && maxRarityCaught < quest.minRarityRequired!) {
+      return false;
+    }
+
+    return true;
+  }
+}
+
 /// Connection state for SpacetimeDB
 enum StdbConnectionState {
   disconnected,
@@ -171,6 +342,26 @@ abstract class SpacetimeDBService {
   /// Set player's gold to a specific amount (debug function)
   void setGold(int amount);
 
+  // Quest methods
+  
+  /// Stream of quest updates
+  Stream<({List<Quest> quests, List<PlayerQuest> playerQuests})> get questUpdates;
+
+  /// Current list of all quests
+  List<Quest> get quests;
+
+  /// Current list of player's quest progress
+  List<PlayerQuest> get playerQuests;
+
+  /// Accept a quest
+  void acceptQuest(String questId);
+
+  /// Complete a quest
+  void completeQuest(String questId);
+
+  /// Request quest refresh
+  void requestQuests();
+
   /// Dispose resources
   void dispose();
 }
@@ -191,12 +382,15 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   final Map<String, PlayerState> _players = {};
   WorldState _worldState = const WorldState();
   List<InventoryEntry> _inventory = [];
+  List<Quest> _quests = [];
+  List<PlayerQuest> _playerQuests = [];
 
   // Stream controllers
   final _playerUpdatesController = StreamController<List<PlayerState>>.broadcast();
   final _connectionStateController = StreamController<StdbConnectionState>.broadcast();
   final _worldStateController = StreamController<WorldState>.broadcast();
   final _inventoryController = StreamController<List<InventoryEntry>>.broadcast();
+  final _questController = StreamController<({List<Quest> quests, List<PlayerQuest> playerQuests})>.broadcast();
 
   // Throttle position updates to avoid flooding
   DateTime? _lastPositionUpdate;
@@ -225,6 +419,15 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
   @override
   List<InventoryEntry> get inventory => _inventory;
+
+  @override
+  Stream<({List<Quest> quests, List<PlayerQuest> playerQuests})> get questUpdates => _questController.stream;
+
+  @override
+  List<Quest> get quests => _quests;
+
+  @override
+  List<PlayerQuest> get playerQuests => _playerQuests;
 
   void _setState(StdbConnectionState newState) {
     if (_state != newState) {
@@ -453,6 +656,39 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
         final errorMessage = data['message'] as String?;
         if (errorMessage != null) {
           print('[Bridge] Error: $errorMessage');
+        }
+        break;
+
+      case 'quests':
+        final questsData = data['quests'] as List?;
+        final playerQuestsData = data['playerQuests'] as List?;
+        if (questsData != null) {
+          _quests = questsData
+              .map((e) => Quest.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        if (playerQuestsData != null) {
+          _playerQuests = playerQuestsData
+              .map((e) => PlayerQuest.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        _questController.add((quests: _quests, playerQuests: _playerQuests));
+        debugPrint('[Bridge] Quests updated: ${_quests.length} quests, ${_playerQuests.length} player quests');
+        break;
+
+      case 'quest_updated':
+        final pqData = data['playerQuest'] as Map<String, dynamic>?;
+        if (pqData != null) {
+          final updatedPq = PlayerQuest.fromJson(pqData);
+          // Update or add the player quest
+          final index = _playerQuests.indexWhere((pq) => pq.questId == updatedPq.questId);
+          if (index >= 0) {
+            _playerQuests[index] = updatedPq;
+          } else {
+            _playerQuests.add(updatedPq);
+          }
+          _questController.add((quests: _quests, playerQuests: _playerQuests));
+          debugPrint('[Bridge] Player quest updated: ${updatedPq.questId} -> ${updatedPq.status}');
         }
         break;
     }
@@ -843,6 +1079,75 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   }
 
   @override
+  void acceptQuest(String questId) {
+    if (_playerId == null || !isConnected) {
+      debugPrint('[Bridge] Cannot accept quest - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Accepting quest: $questId');
+    _sendMessage({
+      'type': 'accept_quest',
+      'questId': questId,
+    });
+
+    // Optimistic update
+    final quest = _quests.where((q) => q.id == questId).firstOrNull;
+    if (quest != null) {
+      _playerQuests.add(PlayerQuest(
+        id: DateTime.now().millisecondsSinceEpoch,
+        playerId: _playerId!,
+        questId: questId,
+        status: 'active',
+        progress: '{}',
+        acceptedAt: DateTime.now().microsecondsSinceEpoch,
+        completedAt: null,
+      ));
+      _questController.add((quests: _quests, playerQuests: _playerQuests));
+    }
+  }
+
+  @override
+  void completeQuest(String questId) {
+    if (_playerId == null || !isConnected) {
+      debugPrint('[Bridge] Cannot complete quest - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Completing quest: $questId');
+    _sendMessage({
+      'type': 'complete_quest',
+      'questId': questId,
+    });
+
+    // Optimistic update
+    final index = _playerQuests.indexWhere((pq) => pq.questId == questId);
+    if (index >= 0) {
+      final pq = _playerQuests[index];
+      _playerQuests[index] = PlayerQuest(
+        id: pq.id,
+        playerId: pq.playerId,
+        questId: pq.questId,
+        status: 'completed',
+        progress: pq.progress,
+        acceptedAt: pq.acceptedAt,
+        completedAt: DateTime.now().microsecondsSinceEpoch,
+      );
+      _questController.add((quests: _quests, playerQuests: _playerQuests));
+    }
+  }
+
+  @override
+  void requestQuests() {
+    if (!isConnected) {
+      debugPrint('[Bridge] Cannot request quests - not connected');
+      return;
+    }
+
+    _sendMessage({'type': 'get_quests'});
+  }
+
+  @override
   void dispose() {
     _reconnectTimer?.cancel();
     disconnect();
@@ -850,6 +1155,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _connectionStateController.close();
     _worldStateController.close();
     _inventoryController.close();
+    _questController.close();
   }
 }
 

@@ -53,6 +53,14 @@ stdb.setCallbacks({
       }
     }
   },
+  onQuestUpdate: (playerId, quests, playerQuests) => {
+    // Send quest update only to the player who owns it
+    for (const [wsId, session] of clients) {
+      if (session.playerId === playerId) {
+        send(session.ws, { type: 'quests', quests, playerQuests });
+      }
+    }
+  },
 });
 
 // =============================================================================
@@ -102,6 +110,10 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
         // Send player's inventory
         const inventory = stdb.getPlayerInventory(message.playerId);
         send(ws, { type: 'inventory', items: inventory });
+        // Send player's quests
+        const quests = stdb.getQuests();
+        const playerQuests = stdb.getPlayerQuests(message.playerId);
+        send(ws, { type: 'quests', quests, playerQuests });
       } else {
         send(ws, { type: 'error', message: 'Failed to join world' });
       }
@@ -211,6 +223,42 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       if (session.playerId) {
         wsLogger.info({ playerId: session.playerId, amount: message.amount }, 'Setting player gold (debug)');
         await stdb.setGold(session.playerId, message.amount);
+      }
+      break;
+    }
+
+    // Quest handlers
+    case 'get_quests': {
+      if (session.playerId) {
+        const quests = stdb.getQuests();
+        const playerQuests = stdb.getPlayerQuests(session.playerId);
+        send(ws, { type: 'quests', quests, playerQuests });
+      }
+      break;
+    }
+
+    case 'accept_quest': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId, questId: message.questId }, 'Player accepting quest');
+        await stdb.acceptQuest(session.playerId, message.questId);
+        // Send updated quests
+        const quests = stdb.getQuests();
+        const playerQuests = stdb.getPlayerQuests(session.playerId);
+        send(ws, { type: 'quests', quests, playerQuests });
+      }
+      break;
+    }
+
+    case 'complete_quest': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId, questId: message.questId }, 'Player completing quest');
+        await stdb.completeQuest(session.playerId, message.questId);
+        // Send updated quests and inventory (rewards may have been granted)
+        const quests = stdb.getQuests();
+        const playerQuests = stdb.getPlayerQuests(session.playerId);
+        send(ws, { type: 'quests', quests, playerQuests });
+        const items = stdb.getPlayerInventory(session.playerId);
+        send(ws, { type: 'inventory', items });
       }
       break;
     }

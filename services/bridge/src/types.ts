@@ -109,7 +109,34 @@ export type GameEventType =
   | 'session_started'
   | 'session_ended'
   | 'pole_equipped'
-  | 'pole_unequipped';
+  | 'pole_unequipped'
+  | 'quest_completed';
+
+// =============================================================================
+// Quest Types
+// =============================================================================
+
+export interface Quest {
+  id: string;
+  title: string;
+  description: string;
+  questType: 'story' | 'daily';
+  storyline: string | null;
+  storyOrder: number | null;
+  prerequisiteQuestId: string | null;
+  requirements: string;  // JSON string
+  rewards: string;       // JSON string
+}
+
+export interface PlayerQuest {
+  id: number;
+  playerId: string;
+  questId: string;
+  status: 'available' | 'active' | 'completed';
+  progress: string;  // JSON string
+  acceptedAt: number | null;   // Unix timestamp (microseconds)
+  completedAt: number | null;  // Unix timestamp (microseconds)
+}
 
 export interface GameEvent {
   id: number;
@@ -143,7 +170,11 @@ export type ClientMessage =
   | { type: 'buy_item'; itemId: string; price: number }
   | { type: 'equip_pole'; poleItemId: string }
   | { type: 'unequip_pole' }
-  | { type: 'set_gold'; amount: number };
+  | { type: 'set_gold'; amount: number }
+  // Quest messages
+  | { type: 'get_quests' }
+  | { type: 'accept_quest'; questId: string }
+  | { type: 'complete_quest'; questId: string };
 
 // =============================================================================
 // Bridge → Client Messages
@@ -161,5 +192,8 @@ export type ServerMessage =
   | { type: 'player_data'; player: Player | null }
   | { type: 'inventory'; items: InventoryItem[] }
   | { type: 'inventory_updated'; item: InventoryItem }
-  | { type: 'error'; message: string };
+  | { type: 'error'; message: string }
+  // Quest messages
+  | { type: 'quests'; quests: Quest[]; playerQuests: PlayerQuest[] }
+  | { type: 'quest_updated'; playerQuest: PlayerQuest };
 

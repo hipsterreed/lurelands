@@ -22,7 +22,7 @@ class _BackpackColors {
 }
 
 /// Main tabs for the backpack
-enum BackpackTab { inventory, skills, settings, debug }
+enum BackpackTab { inventory, quests, skills, settings, debug }
 
 /// Equipment slot types
 enum EquipmentSlot { pole, ring, shoes, hat, chest, pants }
@@ -41,6 +41,11 @@ class InventoryPanel extends StatefulWidget {
   final VoidCallback? onUnequipPole; // Called when player unequips a pole
   final VoidCallback? onResetGold; // Called when player resets gold to 0 (debug)
   final VoidCallback? onResetPosition; // Called when player resets position (debug)
+  // Quest-related props
+  final List<Quest> quests;
+  final List<PlayerQuest> playerQuests;
+  final void Function(String questId)? onAcceptQuest;
+  final void Function(String questId)? onCompleteQuest;
 
   const InventoryPanel({
     super.key,
@@ -56,6 +61,10 @@ class InventoryPanel extends StatefulWidget {
     this.onUnequipPole,
     this.onResetGold,
     this.onResetPosition,
+    this.quests = const [],
+    this.playerQuests = const [],
+    this.onAcceptQuest,
+    this.onCompleteQuest,
   });
 
   @override
@@ -213,6 +222,8 @@ class _InventoryPanelState extends State<InventoryPanel> {
         children: [
           _buildMainTab(BackpackTab.inventory, Icons.backpack),
           const SizedBox(width: 8),
+          _buildMainTab(BackpackTab.quests, Icons.assignment),
+          const SizedBox(width: 8),
           _buildMainTab(BackpackTab.skills, Icons.auto_awesome),
           const SizedBox(width: 8),
           _buildMainTab(BackpackTab.settings, Icons.settings),
@@ -293,6 +304,8 @@ class _InventoryPanelState extends State<InventoryPanel> {
     switch (_currentTab) {
       case BackpackTab.inventory:
         return _buildInventoryTab();
+      case BackpackTab.quests:
+        return _buildQuestsTab();
       case BackpackTab.skills:
         return _buildSkillsTab();
       case BackpackTab.settings:
@@ -743,6 +756,343 @@ class _InventoryPanelState extends State<InventoryPanel> {
       return '${(gold / 1000).toStringAsFixed(1)}K';
     }
     return gold.toString();
+  }
+
+  // ============== QUESTS TAB ==============
+
+  Widget _buildQuestsTab() {
+    // Separate quests by status
+    final activeQuests = <Quest>[];
+    final availableQuests = <Quest>[];
+    final completedQuests = <Quest>[];
+
+    for (final quest in widget.quests) {
+      final pq = widget.playerQuests.where((p) => p.questId == quest.id).firstOrNull;
+      
+      if (pq != null && pq.isActive) {
+        activeQuests.add(quest);
+      } else if (pq != null && pq.isCompleted) {
+        completedQuests.add(quest);
+      } else if (pq == null) {
+        // Check prerequisites
+        if (quest.prerequisiteQuestId != null) {
+          final prereqDone = widget.playerQuests.any(
+            (p) => p.questId == quest.prerequisiteQuestId && p.isCompleted,
+          );
+          if (prereqDone) {
+            availableQuests.add(quest);
+          }
+        } else {
+          availableQuests.add(quest);
+        }
+      }
+    }
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Active quests section
+          if (activeQuests.isNotEmpty) ...[
+            _buildQuestSectionHeader('ACTIVE QUESTS', activeQuests.length),
+            const SizedBox(height: 8),
+            ...activeQuests.map((q) => _buildQuestCard(q, isActive: true)),
+            const SizedBox(height: 16),
+          ],
+          
+          // Available quests section
+          if (availableQuests.isNotEmpty) ...[
+            _buildQuestSectionHeader('AVAILABLE QUESTS', availableQuests.length),
+            const SizedBox(height: 8),
+            ...availableQuests.map((q) => _buildQuestCard(q, isAvailable: true)),
+            const SizedBox(height: 16),
+          ],
+          
+          // Completed quests section
+          if (completedQuests.isNotEmpty) ...[
+            _buildQuestSectionHeader('COMPLETED', completedQuests.length),
+            const SizedBox(height: 8),
+            ...completedQuests.map((q) => _buildQuestCard(q, isCompleted: true)),
+          ],
+
+          // Empty state
+          if (activeQuests.isEmpty && availableQuests.isEmpty && completedQuests.isEmpty)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 40),
+                  Icon(
+                    Icons.assignment_outlined,
+                    color: _BackpackColors.textMuted.withAlpha(100),
+                    size: 64,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'No quests yet',
+                    style: TextStyle(
+                      color: _BackpackColors.textMuted,
+                      fontSize: 16,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Visit a quest board to accept quests',
+                    style: TextStyle(
+                      color: _BackpackColors.textMuted.withAlpha(150),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestSectionHeader(String title, int count) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: _BackpackColors.textMuted,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: _BackpackColors.slotBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: TextStyle(
+              color: _BackpackColors.textLight,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuestCard(Quest quest, {bool isActive = false, bool isAvailable = false, bool isCompleted = false}) {
+    final pq = widget.playerQuests.where((p) => p.questId == quest.id).firstOrNull;
+    final canComplete = isActive && pq != null && pq.areRequirementsMet(quest);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isActive 
+            ? (canComplete ? const Color(0xFF2D4A2D) : _BackpackColors.slotBg)
+            : (isCompleted ? _BackpackColors.slotBg.withAlpha(150) : _BackpackColors.slotBg),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isActive 
+              ? (canComplete ? const Color(0xFF4CAF50) : _BackpackColors.slotHighlight)
+              : (isCompleted ? _BackpackColors.slotBorder.withAlpha(100) : _BackpackColors.slotBorder),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header row
+          Row(
+            children: [
+              Icon(
+                quest.isStoryQuest ? Icons.auto_stories : Icons.today,
+                color: isCompleted 
+                    ? _BackpackColors.textMuted 
+                    : (quest.isStoryQuest ? _BackpackColors.textGold : _BackpackColors.textMuted),
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  quest.title,
+                  style: TextStyle(
+                    color: isCompleted ? _BackpackColors.textMuted : _BackpackColors.textLight,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: isCompleted ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ),
+              if (isCompleted)
+                Icon(Icons.check_circle, color: const Color(0xFF4CAF50), size: 18),
+            ],
+          ),
+          if (quest.storyline != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              quest.storyline!.replaceAll('_', ' ').toUpperCase(),
+              style: TextStyle(
+                color: _BackpackColors.textMuted.withAlpha(180),
+                fontSize: 9,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
+          const SizedBox(height: 6),
+          Text(
+            quest.description,
+            style: TextStyle(
+              color: isCompleted 
+                  ? _BackpackColors.textMuted.withAlpha(150) 
+                  : _BackpackColors.textMuted,
+              fontSize: 11,
+            ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+          
+          // Progress for active quests
+          if (isActive && pq != null) ...[
+            const SizedBox(height: 8),
+            _buildQuestProgress(quest, pq),
+          ],
+          
+          // Rewards preview
+          if (!isCompleted) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                if (quest.goldReward > 0) ...[
+                  Icon(Icons.monetization_on, color: _BackpackColors.textGold, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${quest.goldReward}',
+                    style: TextStyle(color: _BackpackColors.textGold, fontSize: 11),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                for (final item in quest.itemRewards) ...[
+                  Icon(Icons.card_giftcard, color: _BackpackColors.textLight, size: 14),
+                  const SizedBox(width: 4),
+                  Text(
+                    GameItems.get(item.itemId)?.name ?? item.itemId,
+                    style: TextStyle(color: _BackpackColors.textLight, fontSize: 11),
+                  ),
+                ],
+              ],
+            ),
+          ],
+          
+          // Action buttons
+          if (isAvailable && widget.onAcceptQuest != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => widget.onAcceptQuest!(quest.id),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: _BackpackColors.slotHighlight,
+                  foregroundColor: _BackpackColors.textGold,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                    side: BorderSide(color: _BackpackColors.textGold, width: 1),
+                  ),
+                ),
+                child: const Text('ACCEPT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+          if (canComplete && widget.onCompleteQuest != null) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => widget.onCompleteQuest!(quest.id),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF4CAF50),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                ),
+                child: const Text('COMPLETE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuestProgress(Quest quest, PlayerQuest pq) {
+    final widgets = <Widget>[];
+
+    // Specific fish requirements
+    for (final entry in quest.requiredFish.entries) {
+      final progress = pq.fishProgress[entry.key] ?? 0;
+      final met = progress >= entry.value;
+      final itemName = GameItems.get(entry.key)?.name ?? entry.key;
+      widgets.add(_buildProgressRow(itemName, progress, entry.value, met));
+    }
+
+    // Total fish requirement
+    if (quest.totalFishRequired != null) {
+      final progress = pq.totalFishCaught;
+      final met = progress >= quest.totalFishRequired!;
+      widgets.add(_buildProgressRow('Total Fish', progress, quest.totalFishRequired!, met));
+    }
+
+    // Min rarity requirement
+    if (quest.minRarityRequired != null) {
+      final progress = pq.maxRarityCaught;
+      final met = progress >= quest.minRarityRequired!;
+      widgets.add(_buildProgressRow(
+        '${quest.minRarityRequired}-star Fish', 
+        met ? 1 : 0, 
+        1, 
+        met,
+      ));
+    }
+
+    return Column(children: widgets);
+  }
+
+  Widget _buildProgressRow(String label, int current, int required, bool met) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          Icon(
+            met ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: met ? const Color(0xFF4CAF50) : _BackpackColors.textMuted,
+            size: 12,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(
+                color: _BackpackColors.textLight,
+                fontSize: 10,
+              ),
+            ),
+          ),
+          Text(
+            '$current/$required',
+            style: TextStyle(
+              color: met ? const Color(0xFF4CAF50) : _BackpackColors.textMuted,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ============== SKILLS TAB ==============

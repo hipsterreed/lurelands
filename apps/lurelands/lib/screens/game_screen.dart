@@ -11,7 +11,9 @@ import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
+import '../widgets/quest_panel.dart';
 import '../widgets/shop_panel.dart';
+import '../game/components/quest_sign.dart';
 import '../game/components/shop.dart';
 
 /// Bridge server URL (Bun/Elysia bridge to SpacetimeDB)
@@ -51,6 +53,14 @@ class _GameScreenState extends State<GameScreen> {
   // Shop state
   bool _showShop = false;
   Shop? _nearbyShop;
+  
+  // Quest state
+  bool _showQuestPanel = false;
+  QuestSign? _nearbyQuestSign;
+  List<Quest> _quests = [];
+  List<PlayerQuest> _playerQuests = [];
+  VoidCallback? _questSignNotifierListener;
+  StreamSubscription<({List<Quest> quests, List<PlayerQuest> playerQuests})>? _questSubscription;
 
   @override
   void initState() {
@@ -168,6 +178,30 @@ class _GameScreenState extends State<GameScreen> {
     };
     game.nearbyShopNotifier.addListener(_shopNotifierListener!);
     
+    // Listen to nearby quest sign changes
+    _questSignNotifierListener = () {
+      if (mounted) {
+        setState(() {
+          _nearbyQuestSign = game.nearbyQuestSignNotifier.value;
+        });
+      }
+    };
+    game.nearbyQuestSignNotifier.addListener(_questSignNotifierListener!);
+    
+    // Subscribe to quest updates
+    _questSubscription = _stdbService.questUpdates.listen((data) {
+      if (mounted) {
+        setState(() {
+          _quests = data.quests;
+          _playerQuests = data.playerQuests;
+        });
+      }
+    });
+    
+    // Initialize with current quest data
+    _quests = _stdbService.quests;
+    _playerQuests = _stdbService.playerQuests;
+    
     setState(() {
       _isConnecting = false;
       _game = game;
@@ -188,8 +222,12 @@ class _GameScreenState extends State<GameScreen> {
     _connectionSubscription?.cancel();
     _inventorySubscription?.cancel();
     _playerSubscription?.cancel();
+    _questSubscription?.cancel();
     if (_shopNotifierListener != null && _game != null) {
       _game!.nearbyShopNotifier.removeListener(_shopNotifierListener!);
+    }
+    if (_questSignNotifierListener != null && _game != null) {
+      _game!.nearbyQuestSignNotifier.removeListener(_questSignNotifierListener!);
     }
     _stdbService.dispose();
     _nameController.dispose();
@@ -263,6 +301,10 @@ class _GameScreenState extends State<GameScreen> {
                 _game?.resetPlayerPosition();
                 setState(() => _showInventory = false);
               },
+              quests: _quests,
+              playerQuests: _playerQuests,
+              onAcceptQuest: _onAcceptQuest,
+              onCompleteQuest: _onCompleteQuest,
             ),
           // Shop panel overlay
           if (_showShop && _nearbyShop != null)
@@ -275,8 +317,20 @@ class _GameScreenState extends State<GameScreen> {
               onBuyItem: _onBuyItem,
             ),
           // Shop interaction button (when near shop)
-          if (_nearbyShop != null && !_showShop && !_showInventory)
+          if (_nearbyShop != null && !_showShop && !_showInventory && !_showQuestPanel)
             _buildShopButton(),
+          // Quest panel overlay
+          if (_showQuestPanel && _nearbyQuestSign != null)
+            QuestPanel(
+              quests: _quests,
+              playerQuests: _playerQuests,
+              onClose: () => setState(() => _showQuestPanel = false),
+              onAcceptQuest: _onAcceptQuest,
+              onCompleteQuest: _onCompleteQuest,
+            ),
+          // Quest sign interaction button (when near quest sign)
+          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop)
+            _buildQuestSignButton(),
         ],
       ),
     );
@@ -1236,6 +1290,68 @@ class _GameScreenState extends State<GameScreen> {
         ),
       ),
     );
+  }
+
+  /// Build the quest sign interaction button (appears when near a quest sign)
+  Widget _buildQuestSignButton() {
+    return Positioned(
+      bottom: 160,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: GestureDetector(
+          onTap: () => setState(() => _showQuestPanel = true),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: GameColors.menuBackground.withAlpha(230),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFFFD700),
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFD700).withAlpha(100),
+                  blurRadius: 12,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.assignment,
+                  color: const Color(0xFFFFD700),
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'VIEW QUESTS',
+                  style: TextStyle(
+                    color: GameColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Handle accepting a quest
+  void _onAcceptQuest(String questId) {
+    _stdbService.acceptQuest(questId);
+  }
+
+  /// Handle completing a quest
+  void _onCompleteQuest(String questId) {
+    _stdbService.completeQuest(questId);
   }
 
   /// Handle selling an item

@@ -183,6 +183,77 @@ pub struct Ocean {
 }
 
 // =============================================================================
+// QUEST SYSTEM
+// =============================================================================
+
+/// Quest definition table - stores all available quests
+#[derive(Clone)]
+#[spacetimedb::table(name = quest, public)]
+pub struct Quest {
+    /// Unique quest identifier (e.g., "guild_1", "ocean_1", "daily_haul")
+    #[primary_key]
+    pub id: String,
+    
+    /// Display title of the quest
+    pub title: String,
+    
+    /// Flavor text / description
+    pub description: String,
+    
+    /// Quest type: "story" or "daily"
+    pub quest_type: String,
+    
+    /// Storyline group (e.g., "fishermans_guild", "ocean_mysteries")
+    /// None for daily quests which have no storyline
+    pub storyline: Option<String>,
+    
+    /// Order within the storyline (1, 2, 3...)
+    /// None for daily quests
+    pub story_order: Option<u32>,
+    
+    /// Quest ID that must be completed before this one is available
+    /// None if this is the first quest in a storyline or a daily
+    pub prerequisite_quest_id: Option<String>,
+    
+    /// Requirements as JSON string
+    /// Format: {"fish": {"fish_pond_1": 2, "fish_river_1": 3}, "min_rarity": 1}
+    pub requirements: String,
+    
+    /// Rewards as JSON string  
+    /// Format: {"gold": 100, "items": [{"item_id": "pole_2", "quantity": 1}]}
+    pub rewards: String,
+}
+
+/// Player quest progress table - tracks each player's quest state
+#[derive(Clone)]
+#[spacetimedb::table(name = player_quest, public)]
+pub struct PlayerQuest {
+    /// Unique row identifier
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+    
+    /// Player who owns this quest progress
+    pub player_id: String,
+    
+    /// Reference to Quest.id
+    pub quest_id: String,
+    
+    /// Quest status: "available", "active", "completed"
+    pub status: String,
+    
+    /// Progress as JSON string tracking items collected
+    /// Format: {"fish_pond_1": 2, "fish_river_1": 1}
+    pub progress: String,
+    
+    /// When the quest was accepted (None if not yet accepted)
+    pub accepted_at: Option<Timestamp>,
+    
+    /// When the quest was completed (None if not yet completed)
+    pub completed_at: Option<Timestamp>,
+}
+
+// =============================================================================
 // SESSION & EVENT TRACKING
 // =============================================================================
 
@@ -503,7 +574,7 @@ pub fn catch_fish(
         ctx,
         player_id.clone(),
         "fish_caught".to_string(),
-        Some(item_id),
+        Some(item_id.clone()),
         Some(1),
         None,
         Some(rarity),
@@ -516,6 +587,9 @@ pub fn catch_fish(
         stats.total_fish_caught += 1;
         ctx.db.player_stats().player_id().update(stats);
     }
+    
+    // Update quest progress for any active quests
+    update_quest_progress_for_fish(ctx, &player_id, &item_id, rarity);
 }
 
 /// Called when a player releases a caught fish
@@ -787,6 +861,419 @@ pub fn unequip_pole(ctx: &ReducerContext, player_id: String) {
         player.last_updated = ctx.timestamp;
         ctx.db.player().id().update(player);
     }
+}
+
+// =============================================================================
+// QUEST REDUCERS
+// =============================================================================
+
+/// Accept a quest - creates a PlayerQuest entry with "active" status
+#[spacetimedb::reducer]
+pub fn accept_quest(ctx: &ReducerContext, player_id: String, quest_id: String) {
+    // Verify the quest exists
+    let quest = match ctx.db.quest().id().find(&quest_id) {
+        Some(q) => q,
+        None => {
+            log::warn!("Player {} tried to accept non-existent quest: {}", player_id, quest_id);
+            return;
+        }
+    };
+    
+    // Check if player already has this quest active or completed
+    let existing = ctx.db.player_quest().iter().find(|pq| {
+        pq.player_id == player_id && pq.quest_id == quest_id
+    });
+    
+    if let Some(pq) = existing {
+        if pq.status == "active" {
+            log::warn!("Player {} already has quest {} active", player_id, quest_id);
+            return;
+        }
+        if pq.status == "completed" && quest.quest_type == "story" {
+            log::warn!("Player {} already completed story quest {}", player_id, quest_id);
+            return;
+        }
+        // For daily quests, allow re-accepting if completed - delete old entry
+        if pq.status == "completed" && quest.quest_type == "daily" {
+            ctx.db.player_quest().id().delete(&pq.id);
+            log::info!("Player {} re-accepting daily quest {}", player_id, quest_id);
+        }
+    }
+    
+    // Check prerequisites for story quests
+    if let Some(prereq_id) = &quest.prerequisite_quest_id {
+        let prereq_completed = ctx.db.player_quest().iter().any(|pq| {
+            pq.player_id == player_id && pq.quest_id == *prereq_id && pq.status == "completed"
+        });
+        
+        if !prereq_completed {
+            log::warn!(
+                "Player {} cannot accept quest {} - prerequisite {} not completed",
+                player_id, quest_id, prereq_id
+            );
+            return;
+        }
+    }
+    
+    // Create the player quest entry
+    let player_quest = PlayerQuest {
+        id: 0, // auto-incremented
+        player_id: player_id.clone(),
+        quest_id: quest_id.clone(),
+        status: "active".to_string(),
+        progress: "{}".to_string(), // Empty JSON object
+        accepted_at: Some(ctx.timestamp),
+        completed_at: None,
+    };
+    
+    ctx.db.player_quest().insert(player_quest);
+    log::info!("Player {} accepted quest: {} ({})", player_id, quest.title, quest_id);
+}
+
+/// Complete a quest - validates requirements are met and grants rewards
+#[spacetimedb::reducer]
+pub fn complete_quest(ctx: &ReducerContext, player_id: String, quest_id: String) {
+    // Find the player's quest progress
+    let player_quest = match ctx.db.player_quest().iter().find(|pq| {
+        pq.player_id == player_id && pq.quest_id == quest_id && pq.status == "active"
+    }) {
+        Some(pq) => pq,
+        None => {
+            log::warn!("Player {} has no active quest: {}", player_id, quest_id);
+            return;
+        }
+    };
+    
+    // Get quest definition
+    let quest = match ctx.db.quest().id().find(&quest_id) {
+        Some(q) => q,
+        None => {
+            log::error!("Quest {} not found but player had it active", quest_id);
+            return;
+        }
+    };
+    
+    // Validate requirements are met
+    if !validate_quest_requirements(&quest.requirements, &player_quest.progress) {
+        log::warn!(
+            "Player {} tried to complete quest {} but requirements not met. Requirements: {}, Progress: {}",
+            player_id, quest_id, quest.requirements, player_quest.progress
+        );
+        return;
+    }
+    
+    // Mark quest as completed
+    let mut updated_quest = player_quest.clone();
+    updated_quest.status = "completed".to_string();
+    updated_quest.completed_at = Some(ctx.timestamp);
+    ctx.db.player_quest().id().update(updated_quest);
+    
+    // Grant rewards
+    grant_quest_rewards(ctx, &player_id, &quest.rewards);
+    
+    log::info!("Player {} completed quest: {} ({})", player_id, quest.title, quest_id);
+    
+    // Log the event
+    log_event_internal(
+        ctx,
+        player_id,
+        "quest_completed".to_string(),
+        Some(quest_id),
+        None, None, None, None,
+        Some(format!("{{\"rewards\":{}}}", quest.rewards)),
+    );
+}
+
+/// Internal: Validate that quest requirements are met based on progress
+fn validate_quest_requirements(requirements_json: &str, progress_json: &str) -> bool {
+    // Parse requirements - expected format: {"fish": {"fish_pond_1": 2}, "min_rarity": 1, "total_fish": 5}
+    // Parse progress - expected format: {"fish_pond_1": 2, "fish_river_1": 1, "total": 3, "max_rarity": 2}
+    
+    // Simple JSON parsing without external crate
+    // Requirements can have:
+    // - "fish": {"item_id": count} - specific fish counts
+    // - "total_fish": N - total fish of any type
+    // - "min_rarity": N - at least one fish with this rarity or higher
+    
+    // For now, use a simple approach: check if all required fish counts are met
+    // This is a simplified implementation - a real one would use serde_json
+    
+    // Extract fish requirements
+    if requirements_json.contains("\"fish\"") {
+        // Parse the fish requirements
+        if let Some(fish_start) = requirements_json.find("\"fish\"") {
+            if let Some(obj_start) = requirements_json[fish_start..].find('{') {
+                let remaining = &requirements_json[fish_start + obj_start..];
+                if let Some(obj_end) = remaining.find('}') {
+                    let fish_obj = &remaining[1..obj_end]; // Content inside {}
+                    
+                    // Parse each fish requirement
+                    for part in fish_obj.split(',') {
+                        let part = part.trim();
+                        if part.is_empty() {
+                            continue;
+                        }
+                        
+                        // Parse "fish_id": count
+                        if let Some(colon_pos) = part.find(':') {
+                            let fish_id = part[..colon_pos].trim().trim_matches('"');
+                            let required_count: u32 = part[colon_pos + 1..].trim().parse().unwrap_or(0);
+                            
+                            // Check progress for this fish
+                            let progress_count = get_progress_count(progress_json, fish_id);
+                            if progress_count < required_count {
+                                return false;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Check total_fish requirement
+    if let Some(total_req) = extract_json_number(requirements_json, "total_fish") {
+        let total_progress = get_progress_count(progress_json, "total");
+        if total_progress < total_req {
+            return false;
+        }
+    }
+    
+    // Check min_rarity requirement
+    if let Some(min_rarity) = extract_json_number(requirements_json, "min_rarity") {
+        let max_caught_rarity = get_progress_count(progress_json, "max_rarity");
+        if max_caught_rarity < min_rarity {
+            return false;
+        }
+    }
+    
+    true
+}
+
+/// Helper: Extract a number value from JSON by key
+fn extract_json_number(json: &str, key: &str) -> Option<u32> {
+    let search_key = format!("\"{}\"", key);
+    if let Some(key_pos) = json.find(&search_key) {
+        let after_key = &json[key_pos + search_key.len()..];
+        if let Some(colon_pos) = after_key.find(':') {
+            let after_colon = after_key[colon_pos + 1..].trim_start();
+            // Find the end of the number (next non-digit character)
+            let num_end = after_colon.find(|c: char| !c.is_ascii_digit()).unwrap_or(after_colon.len());
+            if num_end > 0 {
+                return after_colon[..num_end].parse().ok();
+            }
+        }
+    }
+    None
+}
+
+/// Helper: Get a progress count from the progress JSON
+fn get_progress_count(progress_json: &str, key: &str) -> u32 {
+    extract_json_number(progress_json, key).unwrap_or(0)
+}
+
+/// Internal: Grant rewards to a player based on rewards JSON
+fn grant_quest_rewards(ctx: &ReducerContext, player_id: &str, rewards_json: &str) {
+    // Parse rewards - expected format: {"gold": 100, "items": [{"item_id": "pole_2", "quantity": 1}]}
+    
+    // Grant gold
+    if let Some(gold_amount) = extract_json_number(rewards_json, "gold") {
+        if let Some(mut player) = ctx.db.player().id().find(&player_id.to_string()) {
+            player.gold += gold_amount;
+            player.last_updated = ctx.timestamp;
+            ctx.db.player().id().update(player);
+            log::info!("Granted {} gold to player {} from quest", gold_amount, player_id);
+        }
+    }
+    
+    // Grant items - look for items array
+    if rewards_json.contains("\"items\"") {
+        // Find items array
+        if let Some(items_start) = rewards_json.find("\"items\"") {
+            if let Some(arr_start) = rewards_json[items_start..].find('[') {
+                let remaining = &rewards_json[items_start + arr_start..];
+                if let Some(arr_end) = remaining.find(']') {
+                    let items_content = &remaining[1..arr_end];
+                    
+                    // Parse each item object
+                    // Simple approach: find each {...} block
+                    let mut depth = 0;
+                    let mut item_start = None;
+                    
+                    for (i, c) in items_content.chars().enumerate() {
+                        match c {
+                            '{' => {
+                                if depth == 0 {
+                                    item_start = Some(i);
+                                }
+                                depth += 1;
+                            }
+                            '}' => {
+                                depth -= 1;
+                                if depth == 0 {
+                                    if let Some(start) = item_start {
+                                        let item_obj = &items_content[start..=i];
+                                        // Parse item_id and quantity
+                                        if let (Some(item_id), quantity) = parse_item_reward(item_obj) {
+                                            // Add to inventory
+                                            let max_stack = get_max_stack_size(&item_id);
+                                            let inv = Inventory {
+                                                id: 0,
+                                                player_id: player_id.to_string(),
+                                                item_id: item_id.clone(),
+                                                rarity: 0, // Non-fish items have rarity 0
+                                                quantity: quantity.min(max_stack),
+                                            };
+                                            ctx.db.inventory().insert(inv);
+                                            log::info!(
+                                                "Granted item {} x{} to player {} from quest",
+                                                item_id, quantity, player_id
+                                            );
+                                        }
+                                    }
+                                    item_start = None;
+                                }
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Helper: Parse item reward from JSON object
+fn parse_item_reward(item_json: &str) -> (Option<String>, u32) {
+    let mut item_id = None;
+    let mut quantity = 1u32;
+    
+    // Extract item_id
+    if let Some(id_start) = item_json.find("\"item_id\"") {
+        let after_key = &item_json[id_start + 9..];
+        if let Some(colon_pos) = after_key.find(':') {
+            let after_colon = after_key[colon_pos + 1..].trim_start();
+            if after_colon.starts_with('"') {
+                if let Some(end_quote) = after_colon[1..].find('"') {
+                    item_id = Some(after_colon[1..end_quote + 1].to_string());
+                }
+            }
+        }
+    }
+    
+    // Extract quantity
+    if let Some(qty) = extract_json_number(item_json, "quantity") {
+        quantity = qty;
+    }
+    
+    (item_id, quantity)
+}
+
+/// Internal: Update quest progress when a fish is caught
+fn update_quest_progress_for_fish(ctx: &ReducerContext, player_id: &str, item_id: &str, rarity: u8) {
+    // Find all active quests for this player
+    let active_quests: Vec<PlayerQuest> = ctx.db.player_quest().iter()
+        .filter(|pq| pq.player_id == player_id && pq.status == "active")
+        .collect();
+    
+    for mut player_quest in active_quests {
+        // Update progress JSON
+        let mut progress = player_quest.progress.clone();
+        
+        // Increment the specific fish count
+        let fish_count = get_progress_count(&progress, item_id);
+        progress = set_progress_count(&progress, item_id, fish_count + 1);
+        
+        // Increment total count
+        let total_count = get_progress_count(&progress, "total");
+        progress = set_progress_count(&progress, "total", total_count + 1);
+        
+        // Update max_rarity if this fish has higher rarity
+        let max_rarity = get_progress_count(&progress, "max_rarity");
+        if rarity as u32 > max_rarity {
+            progress = set_progress_count(&progress, "max_rarity", rarity as u32);
+        }
+        
+        player_quest.progress = progress;
+        ctx.db.player_quest().id().update(player_quest.clone());
+        
+        log::debug!(
+            "Updated quest {} progress for player {}: {}",
+            player_quest.quest_id, player_id, player_quest.progress
+        );
+    }
+}
+
+/// Helper: Set a count value in progress JSON
+fn set_progress_count(progress_json: &str, key: &str, value: u32) -> String {
+    let search_key = format!("\"{}\"", key);
+    
+    if progress_json.contains(&search_key) {
+        // Update existing key
+        if let Some(key_pos) = progress_json.find(&search_key) {
+            let before = &progress_json[..key_pos];
+            let after_key = &progress_json[key_pos + search_key.len()..];
+            
+            if let Some(colon_pos) = after_key.find(':') {
+                let after_colon = &after_key[colon_pos + 1..];
+                // Find end of number
+                let trimmed = after_colon.trim_start();
+                let num_end = trimmed.find(|c: char| !c.is_ascii_digit()).unwrap_or(trimmed.len());
+                let whitespace_len = after_colon.len() - trimmed.len();
+                
+                let rest = &after_colon[whitespace_len + num_end..];
+                return format!("{}{}:{}{}", before, search_key, value, rest);
+            }
+        }
+    }
+    
+    // Add new key
+    if progress_json == "{}" {
+        format!("{{\"{}\":{}}}", key, value)
+    } else if progress_json.ends_with('}') {
+        format!("{},\"{}\":{}}}", &progress_json[..progress_json.len()-1], key, value)
+    } else {
+        progress_json.to_string()
+    }
+}
+
+/// Get all quests available to a player (for quest board display)
+#[spacetimedb::reducer]
+pub fn get_available_quests(ctx: &ReducerContext, player_id: String) {
+    // This is for logging - clients use subscriptions
+    let all_quests: Vec<Quest> = ctx.db.quest().iter().collect();
+    let player_quests: Vec<PlayerQuest> = ctx.db.player_quest().iter()
+        .filter(|pq| pq.player_id == player_id)
+        .collect();
+    
+    let mut available_count = 0;
+    let mut active_count = 0;
+    let mut completed_count = 0;
+    
+    for quest in &all_quests {
+        let player_quest = player_quests.iter().find(|pq| pq.quest_id == quest.id);
+        
+        match player_quest {
+            Some(pq) if pq.status == "active" => active_count += 1,
+            Some(pq) if pq.status == "completed" => completed_count += 1,
+            _ => {
+                // Check if prerequisites are met
+                let prereq_met = match &quest.prerequisite_quest_id {
+                    Some(prereq_id) => player_quests.iter()
+                        .any(|pq| pq.quest_id == *prereq_id && pq.status == "completed"),
+                    None => true,
+                };
+                if prereq_met {
+                    available_count += 1;
+                }
+            }
+        }
+    }
+    
+    log::info!(
+        "Player {} quests: {} available, {} active, {} completed",
+        player_id, available_count, active_count, completed_count
+    );
 }
 
 // =============================================================================
@@ -1088,6 +1575,103 @@ pub fn init(ctx: &ReducerContext) {
     };
     ctx.db.ocean().insert(ocean);
     log::info!("Initialized ocean");
+    
+    // ==========================================================================
+    // QUEST INITIALIZATION
+    // ==========================================================================
+    
+    // Fisherman's Guild Storyline
+    let guild_quests = vec![
+        Quest {
+            id: "guild_1".to_string(),
+            title: "Guild Initiation".to_string(),
+            description: "Prove your worth to the Fisherman's Guild by catching any 2 fish.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("fishermans_guild".to_string()),
+            story_order: Some(1),
+            prerequisite_quest_id: None,
+            requirements: r#"{"total_fish": 2}"#.to_string(),
+            rewards: r#"{"gold": 50}"#.to_string(),
+        },
+        Quest {
+            id: "guild_2".to_string(),
+            title: "Freshwater Mastery".to_string(),
+            description: "Master the art of freshwater fishing. Catch 3 pond fish and 2 river fish.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("fishermans_guild".to_string()),
+            story_order: Some(2),
+            prerequisite_quest_id: Some("guild_1".to_string()),
+            requirements: r#"{"fish": {"fish_pond_1": 1, "fish_pond_2": 1, "fish_pond_3": 1, "fish_river_1": 1, "fish_river_2": 1}}"#.to_string(),
+            rewards: r#"{"gold": 100, "items": [{"item_id": "pole_2", "quantity": 1}]}"#.to_string(),
+        },
+        Quest {
+            id: "guild_3".to_string(),
+            title: "Guild Champion".to_string(),
+            description: "Become a true champion! Catch a rare 3-star fish of any type.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("fishermans_guild".to_string()),
+            story_order: Some(3),
+            prerequisite_quest_id: Some("guild_2".to_string()),
+            requirements: r#"{"min_rarity": 3}"#.to_string(),
+            rewards: r#"{"gold": 300, "items": [{"item_id": "pole_3", "quantity": 1}]}"#.to_string(),
+        },
+    ];
+    
+    for quest in &guild_quests {
+        ctx.db.quest().insert(quest.clone());
+    }
+    log::info!("Initialized {} Fisherman's Guild quests", guild_quests.len());
+    
+    // Ocean Mysteries Storyline
+    let ocean_quests = vec![
+        Quest {
+            id: "ocean_1".to_string(),
+            title: "Coastal Curiosity".to_string(),
+            description: "The ocean holds many secrets. Start by catching 3 ocean fish.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("ocean_mysteries".to_string()),
+            story_order: Some(1),
+            prerequisite_quest_id: None,
+            requirements: r#"{"fish": {"fish_ocean_1": 1, "fish_ocean_2": 1, "fish_ocean_3": 1}}"#.to_string(),
+            rewards: r#"{"gold": 75}"#.to_string(),
+        },
+        Quest {
+            id: "ocean_2".to_string(),
+            title: "Deep Waters".to_string(),
+            description: "Venture deeper into the ocean's mysteries. Catch 5 ocean fish including at least one 2-star.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("ocean_mysteries".to_string()),
+            story_order: Some(2),
+            prerequisite_quest_id: Some("ocean_1".to_string()),
+            requirements: r#"{"total_fish": 5, "min_rarity": 2}"#.to_string(),
+            rewards: r#"{"gold": 200, "items": [{"item_id": "lure_2", "quantity": 1}]}"#.to_string(),
+        },
+    ];
+    
+    for quest in &ocean_quests {
+        ctx.db.quest().insert(quest.clone());
+    }
+    log::info!("Initialized {} Ocean Mysteries quests", ocean_quests.len());
+    
+    // Daily Quests
+    let daily_quests = vec![
+        Quest {
+            id: "daily_haul".to_string(),
+            title: "Daily Haul".to_string(),
+            description: "A simple task for any fisher. Catch 5 fish of any type today.".to_string(),
+            quest_type: "daily".to_string(),
+            storyline: None,
+            story_order: None,
+            prerequisite_quest_id: None,
+            requirements: r#"{"total_fish": 5}"#.to_string(),
+            rewards: r#"{"gold": 25}"#.to_string(),
+        },
+    ];
+    
+    for quest in &daily_quests {
+        ctx.db.quest().insert(quest.clone());
+    }
+    log::info!("Initialized {} daily quests", daily_quests.len());
     
     log::info!("Lurelands server initialization complete");
 }

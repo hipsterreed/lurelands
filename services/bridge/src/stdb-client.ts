@@ -1,5 +1,5 @@
 import { DbConnection, tables, reducers, type EventContext, type SubscriptionEventContext, type ErrorContext } from './generated';
-import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem, GameEvent } from './types';
+import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem, GameEvent, Quest, PlayerQuest } from './types';
 import { stdbLogger } from './logger';
 
 // =============================================================================
@@ -12,6 +12,7 @@ export type WorldStateCallback = (worldState: WorldState) => void;
 export type FishCaughtCallback = (fishCatch: FishCatch) => void;
 export type InventoryUpdateCallback = (playerId: string, items: InventoryItem[]) => void;
 export type GameEventCallback = (event: GameEvent) => void;
+export type QuestUpdateCallback = (playerId: string, quests: Quest[], playerQuests: PlayerQuest[]) => void;
 
 export class StdbClient {
   private conn: DbConnection | null = null;
@@ -32,12 +33,17 @@ export class StdbClient {
   private gameEvents: GameEvent[] = [];
   private static MAX_EVENTS = 200;
 
+  // Quest caches
+  private quests: Map<string, Quest> = new Map();
+  private playerQuests: Map<string, Map<string, PlayerQuest>> = new Map(); // Map<playerId, Map<questId, PlayerQuest>>
+
   // Callbacks
   private onPlayersUpdate: PlayerUpdateCallback | null = null;
   private onWorldState: WorldStateCallback | null = null;
   private onFishCaught: FishCaughtCallback | null = null;
   private onInventoryUpdate: InventoryUpdateCallback | null = null;
   private onGameEvent: GameEventCallback | null = null;
+  private onQuestUpdate: QuestUpdateCallback | null = null;
 
   constructor(
     private uri: string,
@@ -50,12 +56,14 @@ export class StdbClient {
     onFishCaught?: FishCaughtCallback;
     onInventoryUpdate?: InventoryUpdateCallback;
     onGameEvent?: GameEventCallback;
+    onQuestUpdate?: QuestUpdateCallback;
   }) {
     this.onPlayersUpdate = callbacks.onPlayersUpdate ?? null;
     this.onWorldState = callbacks.onWorldState ?? null;
     this.onFishCaught = callbacks.onFishCaught ?? null;
     this.onInventoryUpdate = callbacks.onInventoryUpdate ?? null;
     this.onGameEvent = callbacks.onGameEvent ?? null;
+    this.onQuestUpdate = callbacks.onQuestUpdate ?? null;
   }
 
   async connect(): Promise<boolean> {
@@ -105,6 +113,8 @@ export class StdbClient {
                 'SELECT * FROM fish_catch',
                 'SELECT * FROM inventory',
                 'SELECT * FROM game_event',
+                'SELECT * FROM quest',
+                'SELECT * FROM player_quest',
               ]);
             
             resolve(true);
@@ -226,6 +236,26 @@ export class StdbClient {
         stdbLogger.warn({ err: error }, 'Error loading game events - table may not exist yet');
       }
 
+      // Load quests
+      this.quests.clear();
+      try {
+        for (const quest of ctx.db.quest.iter()) {
+          this.cacheQuest(quest);
+        }
+      } catch (error: any) {
+        stdbLogger.warn({ err: error }, 'Error loading quests - table may not exist yet');
+      }
+
+      // Load player quests
+      this.playerQuests.clear();
+      try {
+        for (const pq of ctx.db.playerQuest.iter()) {
+          this.cachePlayerQuest(pq);
+        }
+      } catch (error: any) {
+        stdbLogger.warn({ err: error }, 'Error loading player quests - table may not exist yet');
+      }
+
       stdbLogger.info({
         spawnPoints: this.spawnPoints.length,
         ponds: this.ponds.length,
@@ -234,6 +264,8 @@ export class StdbClient {
         players: this.players.size,
         inventoryEntries: Array.from(this.inventory.values()).reduce((sum, map) => sum + map.size, 0),
         gameEvents: this.gameEvents.length,
+        quests: this.quests.size,
+        playerQuests: Array.from(this.playerQuests.values()).reduce((sum, map) => sum + map.size, 0),
       }, 'Initial state loaded');
 
       // Emit callbacks
@@ -315,6 +347,43 @@ export class StdbClient {
       const mapped = this.cacheGameEvent(event);
       this.addGameEvent(mapped);
     });
+
+    // Quest callbacks
+    this.conn.db.quest.onInsert((ctx: EventContext, quest) => {
+      stdbLogger.debug({ questId: quest.id, title: quest.title }, 'Quest inserted');
+      this.cacheQuest(quest);
+    });
+
+    this.conn.db.quest.onUpdate((ctx: EventContext, oldQuest, newQuest) => {
+      this.cacheQuest(newQuest);
+    });
+
+    this.conn.db.quest.onDelete((ctx: EventContext, quest) => {
+      stdbLogger.debug({ questId: quest.id }, 'Quest deleted');
+      this.quests.delete(quest.id);
+    });
+
+    // Player quest callbacks
+    this.conn.db.playerQuest.onInsert((ctx: EventContext, pq) => {
+      stdbLogger.debug({ playerId: pq.playerId, questId: pq.questId, status: pq.status }, 'Player quest inserted');
+      this.cachePlayerQuest(pq);
+      this.emitQuestUpdate(pq.playerId);
+    });
+
+    this.conn.db.playerQuest.onUpdate((ctx: EventContext, oldPq, newPq) => {
+      stdbLogger.debug({ playerId: newPq.playerId, questId: newPq.questId, status: newPq.status }, 'Player quest updated');
+      this.cachePlayerQuest(newPq);
+      this.emitQuestUpdate(newPq.playerId);
+    });
+
+    this.conn.db.playerQuest.onDelete((ctx: EventContext, pq) => {
+      stdbLogger.debug({ playerId: pq.playerId, questId: pq.questId }, 'Player quest deleted');
+      const playerQs = this.playerQuests.get(pq.playerId);
+      if (playerQs) {
+        playerQs.delete(pq.questId);
+      }
+      this.emitQuestUpdate(pq.playerId);
+    });
   }
 
   // --- Inventory helpers ---
@@ -371,6 +440,46 @@ export class StdbClient {
     // Emit callback
     if (this.onGameEvent) {
       this.onGameEvent(event);
+    }
+  }
+
+  // --- Quest helpers ---
+
+  private cacheQuest(quest: any) {
+    this.quests.set(quest.id, {
+      id: quest.id,
+      title: quest.title,
+      description: quest.description,
+      questType: quest.questType as 'story' | 'daily',
+      storyline: quest.storyline ?? null,
+      storyOrder: quest.storyOrder ?? null,
+      prerequisiteQuestId: quest.prerequisiteQuestId ?? null,
+      requirements: quest.requirements,
+      rewards: quest.rewards,
+    });
+  }
+
+  private cachePlayerQuest(pq: any) {
+    const playerId = pq.playerId;
+    if (!this.playerQuests.has(playerId)) {
+      this.playerQuests.set(playerId, new Map());
+    }
+    this.playerQuests.get(playerId)!.set(pq.questId, {
+      id: Number(pq.id),
+      playerId: pq.playerId,
+      questId: pq.questId,
+      status: pq.status as 'available' | 'active' | 'completed',
+      progress: pq.progress,
+      acceptedAt: pq.acceptedAt ? Number(pq.acceptedAt) : null,
+      completedAt: pq.completedAt ? Number(pq.completedAt) : null,
+    });
+  }
+
+  private emitQuestUpdate(playerId: string) {
+    if (this.onQuestUpdate) {
+      const quests = this.getQuests();
+      const playerQs = this.getPlayerQuests(playerId);
+      this.onQuestUpdate(playerId, quests, playerQs);
     }
   }
 
@@ -928,6 +1037,95 @@ export class StdbClient {
     return [...this.gameEvents];
   }
 
+  // --- Quest methods ---
+
+  getQuests(): Quest[] {
+    return Array.from(this.quests.values());
+  }
+
+  getPlayerQuests(playerId: string): PlayerQuest[] {
+    const playerQs = this.playerQuests.get(playerId);
+    if (!playerQs) return [];
+    return Array.from(playerQs.values());
+  }
+
+  async acceptQuest(playerId: string, questId: string): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    
+    try {
+      // Check if quest exists
+      const quest = this.quests.get(questId);
+      if (!quest) {
+        stdbLogger.warn({ playerId, questId }, 'Quest not found');
+        return;
+      }
+      
+      // Optimistic update - add to local cache
+      let playerQs = this.playerQuests.get(playerId);
+      if (!playerQs) {
+        playerQs = new Map();
+        this.playerQuests.set(playerId, playerQs);
+      }
+      
+      const tempPq: PlayerQuest = {
+        id: Date.now(), // Temporary ID
+        playerId,
+        questId,
+        status: 'active',
+        progress: '{}',
+        acceptedAt: Date.now() * 1000, // Microseconds
+        completedAt: null,
+      };
+      playerQs.set(questId, tempPq);
+      
+      // Emit update immediately
+      this.emitQuestUpdate(playerId);
+      
+      // Call SpacetimeDB reducer
+      this.conn.reducers.acceptQuest({ playerId, questId });
+      
+      stdbLogger.info({ playerId, questId, title: quest.title }, 'Accepted quest');
+      
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId, questId }, 'Failed to accept quest');
+    }
+  }
+
+  async completeQuest(playerId: string, questId: string): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    
+    try {
+      // Check if player has this quest active
+      const playerQs = this.playerQuests.get(playerId);
+      if (!playerQs || !playerQs.has(questId)) {
+        stdbLogger.warn({ playerId, questId }, 'Player does not have this quest');
+        return;
+      }
+      
+      const pq = playerQs.get(questId)!;
+      if (pq.status !== 'active') {
+        stdbLogger.warn({ playerId, questId, status: pq.status }, 'Quest is not active');
+        return;
+      }
+      
+      // Optimistic update
+      pq.status = 'completed';
+      pq.completedAt = Date.now() * 1000;
+      playerQs.set(questId, pq);
+      
+      // Emit update immediately
+      this.emitQuestUpdate(playerId);
+      
+      // Call SpacetimeDB reducer
+      this.conn.reducers.completeQuest({ playerId, questId });
+      
+      stdbLogger.info({ playerId, questId }, 'Completed quest');
+      
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId, questId }, 'Failed to complete quest');
+    }
+  }
+
   disconnect() {
     if (this.conn) {
       this.conn.disconnect();
@@ -937,5 +1135,7 @@ export class StdbClient {
     this.players.clear();
     this.inventory.clear();
     this.gameEvents = [];
+    this.quests.clear();
+    this.playerQuests.clear();
   }
 }

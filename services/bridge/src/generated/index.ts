@@ -31,16 +31,22 @@ import {
 } from "spacetimedb";
 
 // Import and reexport all reducer arg types
+import AcceptQuestReducer from "./accept_quest_reducer";
+export { AcceptQuestReducer };
 import AddGoldReducer from "./add_gold_reducer";
 export { AddGoldReducer };
 import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
 import CatchFishReducer from "./catch_fish_reducer";
 export { CatchFishReducer };
+import CompleteQuestReducer from "./complete_quest_reducer";
+export { CompleteQuestReducer };
 import EndSessionReducer from "./end_session_reducer";
 export { EndSessionReducer };
 import EquipPoleReducer from "./equip_pole_reducer";
 export { EquipPoleReducer };
+import GetAvailableQuestsReducer from "./get_available_quests_reducer";
+export { GetAvailableQuestsReducer };
 import GetPlayerInventoryReducer from "./get_player_inventory_reducer";
 export { GetPlayerInventoryReducer };
 import GetPlayerStatsReducer from "./get_player_stats_reducer";
@@ -89,12 +95,16 @@ import OceanRow from "./ocean_table";
 export { OceanRow };
 import PlayerRow from "./player_table";
 export { PlayerRow };
+import PlayerQuestRow from "./player_quest_table";
+export { PlayerQuestRow };
 import PlayerSessionRow from "./player_session_table";
 export { PlayerSessionRow };
 import PlayerStatsRow from "./player_stats_table";
 export { PlayerStatsRow };
 import PondRow from "./pond_table";
 export { PondRow };
+import QuestRow from "./quest_table";
+export { QuestRow };
 import RiverRow from "./river_table";
 export { RiverRow };
 import SpawnPointRow from "./spawn_point_table";
@@ -111,12 +121,16 @@ import Ocean from "./ocean_type";
 export { Ocean };
 import Player from "./player_type";
 export { Player };
+import PlayerQuest from "./player_quest_type";
+export { PlayerQuest };
 import PlayerSession from "./player_session_type";
 export { PlayerSession };
 import PlayerStats from "./player_stats_type";
 export { PlayerStats };
 import Pond from "./pond_type";
 export { Pond };
+import Quest from "./quest_type";
+export { Quest };
 import River from "./river_type";
 export { River };
 import SpawnPoint from "./spawn_point_type";
@@ -180,6 +194,17 @@ const tablesSchema = __schema(
     ],
   }, PlayerRow),
   __table({
+    name: 'player_quest',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_quest_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, PlayerQuestRow),
+  __table({
     name: 'player_session',
     indexes: [
       { name: 'id', algorithm: 'btree', columns: [
@@ -213,6 +238,17 @@ const tablesSchema = __schema(
     ],
   }, PondRow),
   __table({
+    name: 'quest',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'quest_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, QuestRow),
+  __table({
     name: 'river',
     indexes: [
       { name: 'id', algorithm: 'btree', columns: [
@@ -238,11 +274,14 @@ const tablesSchema = __schema(
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("accept_quest", AcceptQuestReducer),
   __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
+  __reducerSchema("complete_quest", CompleteQuestReducer),
   __reducerSchema("end_session", EndSessionReducer),
   __reducerSchema("equip_pole", EquipPoleReducer),
+  __reducerSchema("get_available_quests", GetAvailableQuestsReducer),
   __reducerSchema("get_player_inventory", GetPlayerInventoryReducer),
   __reducerSchema("get_player_stats", GetPlayerStatsReducer),
   __reducerSchema("join_world", JoinWorldReducer),

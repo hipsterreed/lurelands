@@ -5,6 +5,7 @@ import 'package:flame/components.dart';
 
 import '../../services/spacetimedb/stdb_service.dart';
 import '../../utils/constants.dart';
+import '../components/quest_sign.dart';
 import '../components/shop.dart';
 import '../components/sunflower.dart';
 import '../components/tiled_water.dart';
@@ -40,6 +41,7 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
   final List<TiledWaterBody> _tiledWaterComponents = [];
   final List<Tree> _treeComponents = [];
   final List<Shop> _shopComponents = [];
+  final List<QuestSign> _questSignComponents = [];
 
   /// Dock walkable areas (rectangles where players can walk over water)
   final List<Rect> _dockAreas = [];
@@ -55,6 +57,9 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// All shop components in the world
   List<Shop> get shopComponents => _shopComponents;
+
+  /// All quest sign components in the world
+  List<QuestSign> get questSignComponents => _questSignComponents;
 
   /// All tiled water body components
   List<TiledWaterBody> get tiledWaterComponents => _tiledWaterComponents;
@@ -87,6 +92,9 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
     
     // Add shops
     await _spawnShops();
+    
+    // Add quest signs
+    await _spawnQuestSigns();
   }
 
   /// Add all water body components to the world
@@ -433,6 +441,28 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
         );
         _shopComponents.add(shop);
         await add(shop);
+      }
+    }
+  }
+
+  /// Spawn quest signs at fixed locations on the map
+  Future<void> _spawnQuestSigns() async {
+    // Place quest signs at strategic locations
+    final questSignPositions = [
+      (x: 600.0, y: 900.0, id: 'quest_board_1', name: 'Quest Board'),
+      (x: 1200.0, y: 500.0, id: 'quest_board_2', name: 'Quest Board'),
+    ];
+
+    for (final signData in questSignPositions) {
+      // Make sure sign is not inside water or on a dock
+      if (_isValidPlacement(signData.x, signData.y)) {
+        final questSign = QuestSign(
+          position: Vector2(signData.x, signData.y),
+          id: signData.id,
+          name: signData.name,
+        );
+        _questSignComponents.add(questSign);
+        await add(questSign);
       }
     }
   }

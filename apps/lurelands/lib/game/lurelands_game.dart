@@ -12,6 +12,7 @@ import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import 'components/caught_fish_animation.dart';
 import 'components/player.dart';
+import 'components/quest_sign.dart';
 import 'components/shop.dart';
 import 'components/tiled_water.dart';
 import 'components/tree.dart';
@@ -74,6 +75,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Public getter for shops
   List<Shop> get shops => _lurelandsWorld.shopComponents;
 
+  // Public getter for quest signs
+  List<QuestSign> get questSigns => _lurelandsWorld.questSignComponents;
+
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
 
@@ -90,6 +94,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   
   // Shop notifiers
   final ValueNotifier<Shop?> nearbyShopNotifier = ValueNotifier(null);
+  
+  // Quest sign notifiers
+  final ValueNotifier<QuestSign?> nearbyQuestSignNotifier = ValueNotifier(null);
 
   // Charging state
   bool _isCharging = false;
@@ -250,6 +257,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     
     // Update nearby shop
     _updateNearbyShop(player);
+    
+    // Update nearby quest sign
+    _updateNearbyQuestSign(player);
 
     // Handle charging power meter
     if (_isCharging) {
@@ -572,6 +582,20 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
+  /// Update the nearby quest sign notifier
+  void _updateNearbyQuestSign(Player player) {
+    QuestSign? nearestSign;
+    for (final sign in questSigns) {
+      if (sign.isPlayerNearby) {
+        nearestSign = sign;
+        break;
+      }
+    }
+    if (nearbyQuestSignNotifier.value != nearestSign) {
+      nearbyQuestSignNotifier.value = nearestSign;
+    }
+  }
+
   /// Get info about nearby water the player can cast into
   /// Returns (waterType, id) if near water, null otherwise
   ({WaterType waterType, String id})? getNearbyWaterInfo() {
@@ -727,6 +751,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     fishingStateNotifier.dispose();
     hookedFishNotifier.dispose();
     nearbyShopNotifier.dispose();
+    nearbyQuestSignNotifier.dispose();
     super.onRemove();
   }
 }
