@@ -259,6 +259,10 @@ class _GameScreenState extends State<GameScreen> {
                   _playerGold = 0;
                 });
               },
+              onResetPosition: () {
+                _game?.resetPlayerPosition();
+                setState(() => _showInventory = false);
+              },
             ),
           // Shop panel overlay
           if (_showShop && _nearbyShop != null)

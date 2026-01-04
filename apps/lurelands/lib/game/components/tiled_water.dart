@@ -144,6 +144,10 @@ class TiledWaterData {
   final int widthInTiles;
   final int heightInTiles;
   final WaterType waterType;
+  
+  /// Collision margin - how much smaller the collision box is than the visual
+  /// This allows players to walk closer to the water's edge
+  static const double collisionMargin = 20.0;
 
   const TiledWaterData({
     required this.id,
@@ -160,17 +164,23 @@ class TiledWaterData {
   /// Get the rendered height in world units
   double get height => heightInTiles * NatureTilesheet.tileSize * NatureTilesheet.renderScale;
 
-  /// Check if a point is inside this water body
+  /// Check if a point is inside this water body (with margin for walking closer)
   bool containsPoint(double px, double py) {
-    return px >= x && px <= x + width && py >= y && py <= y + height;
+    // Use a smaller collision box so players can walk closer to the water
+    return px >= x + collisionMargin && 
+           px <= x + width - collisionMargin && 
+           py >= y + collisionMargin && 
+           py <= y + height - collisionMargin;
   }
 
-  /// Check if within casting range
+  /// Check if within casting range (uses visual bounds, not collision bounds)
   bool isWithinCastingRange(double px, double py, double proximityRadius) {
+    // Use full visual bounds for casting range
     final inExtended = px >= x - proximityRadius && 
                        px <= x + width + proximityRadius &&
                        py >= y - proximityRadius && 
                        py <= y + height + proximityRadius;
+    // But use collision bounds for "inside water" check
     return inExtended && !containsPoint(px, py);
   }
 

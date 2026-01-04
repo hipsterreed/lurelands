@@ -91,24 +91,38 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Add tiled water bodies built from the tileset
   Future<void> _addTiledWaterBodies() async {
-    // Define tiled ponds and rivers
+    // Calculate ocean height in tiles to span full map height
+    // Tile size = 16 * 3 = 48px, map height = 2000px
+    final tileSize = NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+    final oceanHeightInTiles = (GameConstants.worldHeight / tileSize).ceil();
+    
+    // Define tiled ponds, rivers, and ocean
     final tiledWaterConfigs = [
-      // Pond 1: 5x4 tiles at position (500, 500)
+      // Ocean: spans the left edge of the map, shifted 1 tile left to hide the edge
+      TiledWaterData(
+        id: 'ocean_1',
+        x: -tileSize,  // Start 1 tile off-screen to hide left edge
+        y: 0,
+        widthInTiles: 6,  // One extra tile to compensate for offset
+        heightInTiles: oceanHeightInTiles,
+        waterType: WaterType.ocean,
+      ),
+      // Pond 1: 8x6 tiles - bigger to accommodate dock
       const TiledWaterData(
         id: 'tiled_pond_1',
         x: 500,
         y: 500,
-        widthInTiles: 5,
-        heightInTiles: 4,
+        widthInTiles: 8,
+        heightInTiles: 6,
         waterType: WaterType.pond,
       ),
-      // Pond 2: 4x3 tiles at position (1300, 1000)
+      // Pond 2: 7x5 tiles - bigger to accommodate dock
       const TiledWaterData(
         id: 'tiled_pond_2',
         x: 1300,
-        y: 1000,
-        widthInTiles: 4,
-        heightInTiles: 3,
+        y: 900,
+        widthInTiles: 7,
+        heightInTiles: 5,
         waterType: WaterType.pond,
       ),
       // River: 10x3 tiles (long horizontal river)
@@ -135,6 +149,143 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
       );
       _tiledWaterComponents.add(waterBody);
       await add(waterBody);
+    }
+    
+    // Add decorations (reeds and rocks) to ponds and rivers
+    await _spawnWaterDecorations();
+    
+    // Add docks to ocean and ponds
+    await _spawnDocks();
+  }
+  
+  /// Spawn docks next to water bodies
+  Future<void> _spawnDocks() async {
+    final tileSize = NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+    
+    // Ocean dock - rotated 90° clockwise to extend horizontally from shore into ocean
+    // Ocean right edge is at 5 * tileSize - tileSize = ~192px
+    await _spawnOceanDock(
+      oceanEdgeX: 5 * tileSize - tileSize,
+      y: 500.0,
+      tileSize: tileSize,
+    );
+    
+    // Pond 1 dock - extends from bottom shore into pond (moved up 4 tiles from bottom edge)
+    // Pond 1 is at (500, 500) with size 8x6 tiles, bottom edge at 500 + 6*48 = 788
+    // Moving dock up 4 tiles: 788 - 4*48 = 596
+    await _spawnPondDock(
+      pondX: 500.0,
+      pondBottomY: 500.0 + 6 * tileSize - 4 * tileSize,  // Moved up 4 tiles
+      pondWidth: 8 * tileSize,
+      tileSize: tileSize,
+    );
+    
+    // Pond 2 dock - extends from bottom shore into pond
+    // Pond 2 is at (1300, 900) with size 7x5 tiles, bottom edge at 900 + 5*48 = 1140
+    await _spawnPondDock(
+      pondX: 1300.0,
+      pondBottomY: 900.0 + 5 * tileSize,
+      pondWidth: 7 * tileSize,
+      tileSize: tileSize,
+    );
+  }
+  
+  /// Spawn ocean dock - rotated 90° clockwise to go horizontally
+  Future<void> _spawnOceanDock({required double oceanEdgeX, required double y, required double tileSize}) async {
+    // Dock rotated 90° clockwise: what was vertical is now horizontal
+    // Left 2 columns on grass, right 2 columns over water
+    // We'll place tiles manually with rotation
+    
+    final dockTiles = [
+      // First column (far left, on grass) - use bottom tiles (end of dock on land)
+      (tile: NatureTile.dockBottomLeft, col: 0, row: 0),
+      (tile: NatureTile.dockBottomRight, col: 0, row: 1),
+      // Second column - on grass
+      (tile: NatureTile.dockMiddle2Left, col: 1, row: 0),
+      (tile: NatureTile.dockMiddle2Right, col: 1, row: 1),
+      // Third column - over water
+      (tile: NatureTile.dockMiddle1Left, col: 2, row: 0),
+      (tile: NatureTile.dockMiddle1Right, col: 2, row: 1),
+      // Fourth column (far right, over water) - use top tiles (end of dock in water)
+      (tile: NatureTile.dockTopLeft, col: 3, row: 0),
+      (tile: NatureTile.dockTopRight, col: 3, row: 1),
+    ];
+    
+    // Position so 2 columns on grass (right of ocean edge), 2 columns over water
+    final startX = oceanEdgeX - tileSize * 2;  // Start 2 tiles left of ocean edge
+    final startY = y;
+    
+    for (final dt in dockTiles) {
+      final sprite = _tilesheet.getSprite(dt.tile);
+      final dockTile = SpriteComponent(
+        sprite: sprite,
+        position: Vector2(startX + dt.col * tileSize, startY + dt.row * tileSize),
+        size: NatureTilesheet.renderedSize,
+        anchor: Anchor.topLeft,
+        angle: 1.5708,  // 90 degrees clockwise in radians (pi/2)
+        priority: GameLayers.pond.toInt() + 2,
+      );
+      await add(dockTile);
+    }
+  }
+  
+  /// Spawn pond dock - vertical, extending from bottom shore into pond
+  Future<void> _spawnPondDock({required double pondX, required double pondBottomY, required double pondWidth, required double tileSize}) async {
+    // Position dock centered on pond, with top 2 rows on grass (below pond), bottom 2 in water
+    final dockX = pondX + (pondWidth - DockTiles.width) / 2;  // Centered
+    final dockY = pondBottomY - tileSize * 2;  // Top 2 rows inside pond, bottom 2 outside
+    
+    final placements = DockTiles.generate(
+      startX: dockX,
+      startY: dockY,
+    );
+    
+    for (final placement in placements) {
+      final sprite = _tilesheet.getSprite(placement.tile);
+      final dockTile = SpriteComponent(
+        sprite: sprite,
+        position: Vector2(placement.x, placement.y),
+        size: NatureTilesheet.renderedSize,
+        anchor: Anchor.topLeft,
+        priority: GameLayers.pond.toInt() + 2,
+      );
+      await add(dockTile);
+    }
+  }
+  
+  /// Spawn reeds and rocks inside/around ponds and rivers
+  Future<void> _spawnWaterDecorations() async {
+    final random = Random(888); // Seeded for consistent placement
+    final tileSize = NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+    
+    for (final waterData in _tiledWaterData) {
+      // Skip ocean - too big and doesn't need decorations
+      if (waterData.waterType == WaterType.ocean) continue;
+      
+      // Calculate number of decorations based on water body size
+      final area = waterData.widthInTiles * waterData.heightInTiles;
+      final decorationCount = (area * 0.3).ceil().clamp(2, 8); // ~30% coverage, min 2, max 8
+      
+      for (var i = 0; i < decorationCount; i++) {
+        // Random position within the water body (avoiding edges)
+        final margin = tileSize * 0.5;
+        final x = waterData.x + margin + random.nextDouble() * (waterData.width - margin * 2);
+        final y = waterData.y + margin + random.nextDouble() * (waterData.height - margin * 2);
+        
+        // Randomly choose reed or rock
+        final tile = random.nextBool() ? NatureTile.reeds : NatureTile.rockInWater;
+        
+        // Create a sprite component for the decoration
+        final sprite = _tilesheet.getSprite(tile);
+        final decoration = SpriteComponent(
+          sprite: sprite,
+          position: Vector2(x, y),
+          size: NatureTilesheet.renderedSize,
+          anchor: Anchor.center,
+          priority: GameLayers.pond.toInt() + 1, // Just above water
+        );
+        await add(decoration);
+      }
     }
   }
 

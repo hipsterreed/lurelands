@@ -32,6 +32,20 @@ enum NatureTile {
   waterBottomRight(5, 2),  // Corner: grass bottom-right
   // Plain water (solid color, for large bodies)
   waterPlain(4, 3),
+  
+  // Dock tiles (2 wide x 4 tall)
+  // Top row (row 3)
+  dockTopLeft(17, 3),
+  dockTopRight(18, 3),
+  // Second row (row 4)
+  dockMiddle1Left(17, 4),
+  dockMiddle1Right(18, 4),
+  // Third row (row 5)
+  dockMiddle2Left(17, 5),
+  dockMiddle2Right(18, 5),
+  // Bottom row (row 6)
+  dockBottomLeft(17, 6),
+  dockBottomRight(18, 6)
   ;
 
   /// Column index (0-based) in the tileset
@@ -204,5 +218,56 @@ class WaterTiles {
     
     return placements;
   }
+}
+
+/// Helper class for building docks from the tileset.
+/// 
+/// The dock is a 2x4 tile structure:
+/// ```
+/// [TopLeft]    [TopRight]
+/// [Middle1L]   [Middle1R]
+/// [Middle2L]   [Middle2R]
+/// [BottomLeft] [BottomRight]
+/// ```
+class DockTiles {
+  DockTiles._();
+  
+  /// Generate tile placements for a dock at the given position.
+  /// 
+  /// [startX] - world X position of top-left corner
+  /// [startY] - world Y position of top-left corner
+  /// [tileSize] - rendered size of each tile (default: 48 = 16 * 3)
+  static List<({NatureTile tile, double x, double y})> generate({
+    required double startX,
+    required double startY,
+    double tileSize = 48.0,
+  }) {
+    return [
+      // Top row
+      (tile: NatureTile.dockTopLeft, x: startX, y: startY),
+      (tile: NatureTile.dockTopRight, x: startX + tileSize, y: startY),
+      // Second row
+      (tile: NatureTile.dockMiddle1Left, x: startX, y: startY + tileSize),
+      (tile: NatureTile.dockMiddle1Right, x: startX + tileSize, y: startY + tileSize),
+      // Third row
+      (tile: NatureTile.dockMiddle2Left, x: startX, y: startY + tileSize * 2),
+      (tile: NatureTile.dockMiddle2Right, x: startX + tileSize, y: startY + tileSize * 2),
+      // Bottom row
+      (tile: NatureTile.dockBottomLeft, x: startX, y: startY + tileSize * 3),
+      (tile: NatureTile.dockBottomRight, x: startX + tileSize, y: startY + tileSize * 3),
+    ];
+  }
+  
+  /// Width of dock in tiles
+  static const int widthInTiles = 2;
+  
+  /// Height of dock in tiles
+  static const int heightInTiles = 4;
+  
+  /// Get rendered width of dock
+  static double get width => widthInTiles * NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+  
+  /// Get rendered height of dock
+  static double get height => heightInTiles * NatureTilesheet.tileSize * NatureTilesheet.renderScale;
 }
 

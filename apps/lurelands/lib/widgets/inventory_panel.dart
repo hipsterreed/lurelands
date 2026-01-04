@@ -40,6 +40,7 @@ class InventoryPanel extends StatefulWidget {
   final void Function(String poleItemId)? onEquipPole; // Called when player equips a pole
   final VoidCallback? onUnequipPole; // Called when player unequips a pole
   final VoidCallback? onResetGold; // Called when player resets gold to 0 (debug)
+  final VoidCallback? onResetPosition; // Called when player resets position (debug)
 
   const InventoryPanel({
     super.key,
@@ -54,6 +55,7 @@ class InventoryPanel extends StatefulWidget {
     this.onEquipPole,
     this.onUnequipPole,
     this.onResetGold,
+    this.onResetPosition,
   });
 
   @override
@@ -1063,6 +1065,61 @@ class _InventoryPanelState extends State<InventoryPanel> {
                     Icon(
                       Icons.chevron_right,
                       color: Colors.red.withAlpha(150),
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          // Reset Position button
+          if (widget.onResetPosition != null)
+            GestureDetector(
+              onTap: widget.onResetPosition,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _BackpackColors.slotBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.blue.withAlpha(150),
+                    width: 2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.my_location,
+                      color: Colors.blue,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Reset Position',
+                            style: TextStyle(
+                              color: _BackpackColors.textLight,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Teleport to safe location if stuck',
+                            style: TextStyle(
+                              color: _BackpackColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: Colors.blue.withAlpha(150),
                       size: 24,
                     ),
                   ],

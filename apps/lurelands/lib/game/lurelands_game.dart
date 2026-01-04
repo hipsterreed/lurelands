@@ -676,6 +676,15 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
+  /// Reset player to a safe spawn position (for debugging stuck states)
+  void resetPlayerPosition() {
+    if (_player != null) {
+      // Reset to a safe position away from water bodies
+      _player!.position = Vector2(800, 800);
+      debugPrint('[LurelandsGame] Reset player position to (800, 800)');
+    }
+  }
+
   @override
   void onRemove() {
     // Leave the world when game is disposed
