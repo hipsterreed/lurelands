@@ -12,12 +12,14 @@ class CaughtFishAnimation extends PositionComponent {
   final Vector2 startPosition;  // Bobber position
   final Vector2 targetPosition; // Above player name
   final String fishAssetPath;
+  final int rarity; // Number of stars (1-3)
   final VoidCallback? onComplete;
 
   CaughtFishAnimation({
     required this.startPosition,
     required this.targetPosition,
     required this.fishAssetPath,
+    this.rarity = 1,
     this.onComplete,
   }) : super(
           position: startPosition.clone(),
@@ -176,6 +178,9 @@ class CaughtFishAnimation extends PositionComponent {
     canvas.scale(_scale);
     canvas.translate(-size.x / 2, -size.y / 2);
 
+    // Draw rarity stars above the fish
+    _drawRarityStars(canvas);
+
     // Draw fish with opacity
     final paint = ui.Paint();
     if (_opacity < 1.0) {
@@ -198,6 +203,54 @@ class CaughtFishAnimation extends PositionComponent {
     }
 
     canvas.restore();
+  }
+
+  void _drawRarityStars(ui.Canvas canvas) {
+    if (rarity <= 0) return;
+    
+    final starSize = 8.0;
+    final starSpacing = 10.0;
+    final totalWidth = rarity * starSpacing;
+    final startX = (size.x - totalWidth) / 2 + starSpacing / 2;
+    final starY = -4.0; // Above the fish
+    
+    final starPaint = ui.Paint()
+      ..color = ui.Color.fromRGBO(255, 193, 7, _opacity) // Amber color
+      ..style = ui.PaintingStyle.fill;
+    
+    final shadowPaint = ui.Paint()
+      ..color = ui.Color.fromRGBO(0, 0, 0, 0.5 * _opacity)
+      ..style = ui.PaintingStyle.fill;
+    
+    for (var i = 0; i < rarity; i++) {
+      final x = startX + i * starSpacing;
+      // Draw shadow
+      _drawStarShape(canvas, x + 0.5, starY + 1, starSize * 0.6, shadowPaint);
+      // Draw star
+      _drawStarShape(canvas, x, starY, starSize * 0.6, starPaint);
+    }
+  }
+
+  void _drawStarShape(ui.Canvas canvas, double x, double y, double radius, ui.Paint paint) {
+    final path = ui.Path();
+    const points = 5;
+    const innerRadius = 0.4; // Inner radius as fraction of outer
+    
+    for (var i = 0; i < points * 2; i++) {
+      final angle = (i * pi / points) - pi / 2;
+      final r = i.isEven ? radius : radius * innerRadius;
+      final px = x + cos(angle) * r;
+      final py = y + sin(angle) * r;
+      
+      if (i == 0) {
+        path.moveTo(px, py);
+      } else {
+        path.lineTo(px, py);
+      }
+    }
+    path.close();
+    
+    canvas.drawPath(path, paint);
   }
 
   void _drawSparkles(ui.Canvas canvas) {

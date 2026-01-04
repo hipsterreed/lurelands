@@ -1481,22 +1481,51 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
 
   Widget _buildFish() {
     final fishY = (1.0 - _fishPosition) * (meterHeight - 40);
+    // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
+    final rarity = widget.fish.tier <= 2 ? 1 : (widget.fish.tier == 3 ? 2 : 3);
+    
     return Positioned(
       left: (meterWidth - 32) / 2,
       top: fishY,
-      child: Image.asset(
-        widget.fish.assetPath,
-        width: 32,
-        height: 32,
-        errorBuilder: (_, __, ___) => Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: Colors.orange,
-            borderRadius: BorderRadius.circular(8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Stars above the fish
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: List.generate(
+              rarity,
+              (i) => Icon(
+                Icons.star,
+                size: 10,
+                color: Colors.amber,
+                shadows: [
+                  Shadow(
+                    color: Colors.black.withAlpha(180),
+                    blurRadius: 2,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+              ),
+            ),
           ),
-          child: const Icon(Icons.catching_pokemon, size: 20, color: Colors.white),
-        ),
+          const SizedBox(height: 2),
+          // Fish image
+          Image.asset(
+            widget.fish.assetPath,
+            width: 32,
+            height: 32,
+            errorBuilder: (_, __, ___) => Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(Icons.catching_pokemon, size: 20, color: Colors.white),
+            ),
+          ),
+        ],
       ),
     );
   }

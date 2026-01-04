@@ -423,11 +423,15 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         player.position.y - 60, // Above the player's head/name
       );
       
+      // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
+      final rarity = fish.tier <= 2 ? 1 : (fish.tier == 3 ? 2 : 3);
+      
       // Create the caught fish animation
       final fishAnimation = CaughtFishAnimation(
         startPosition: bobberPosition,
         targetPosition: targetPosition,
         fishAssetPath: fish.assetPath,
+        rarity: rarity,
         onComplete: () {
           // Animation complete - now show the "CAUGHT!" UI
           _completeFishCatch(fish);
