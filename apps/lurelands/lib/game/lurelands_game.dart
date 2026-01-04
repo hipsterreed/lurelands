@@ -118,6 +118,34 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Color backgroundColor() => GameColors.grassGreen;
 
   @override
+  void onGameResize(Vector2 size) {
+    super.onGameResize(size);
+    _updateCameraBounds();
+  }
+
+  /// Update camera bounds to account for viewport size
+  /// This ensures the camera stops at the world edge so the player
+  /// can walk to the edge without the camera panning beyond it
+  void _updateCameraBounds() {
+    final viewportSize = size;
+    final halfWidth = viewportSize.x / 2;
+    final halfHeight = viewportSize.y / 2;
+
+    // Only set bounds if we have a valid viewport size
+    if (halfWidth <= 0 || halfHeight <= 0) return;
+
+    // Ensure bounds don't become inverted if world is smaller than viewport
+    final minX = halfWidth.clamp(0.0, GameConstants.worldWidth / 2);
+    final minY = halfHeight.clamp(0.0, GameConstants.worldHeight / 2);
+    final maxX = (GameConstants.worldWidth - halfWidth).clamp(GameConstants.worldWidth / 2, GameConstants.worldWidth);
+    final maxY = (GameConstants.worldHeight - halfHeight).clamp(GameConstants.worldHeight / 2, GameConstants.worldHeight);
+
+    camera.setBounds(
+      Rect.fromLTRB(minX, minY, maxX, maxY).toFlameRectangle(),
+    );
+  }
+
+  @override
   Future<void> onLoad() async {
     await super.onLoad();
 
@@ -159,10 +187,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     camera.viewfinder.anchor = Anchor.center;
     camera.follow(_player!, maxSpeed: 800);
 
-    // Set camera bounds to prevent viewing outside the world
-    camera.setBounds(
-      Rect.fromLTWH(0, 0, GameConstants.worldWidth, GameConstants.worldHeight).toFlameRectangle(),
-    );
+    // Camera bounds will be set in onGameResize once we know viewport size
 
     // Mark game as loaded
     isLoadedNotifier.value = true;
