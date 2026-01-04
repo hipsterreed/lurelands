@@ -114,6 +114,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   
   /// All tiled water data for collision/spawning checks
   List<TiledWaterData> get allTiledWaterData => _lurelandsWorld.allTiledWaterData;
+  
+  /// All dock walkable areas (player can walk on docks over water)
+  List<Rect> get dockAreas => _lurelandsWorld.dockAreas;
 
   /// Get current game time for animations
   double currentTime() => _gameTime;
@@ -519,8 +522,26 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final playerPos = player.position;
     const castingBuffer = 50.0;
 
+    // Check if player is on a dock (can fish from dock even though it's over water)
+    final onDock = _isOnDock(playerPos);
+    
     for (final tiledWater in allTiledWaterData) {
+      // If on a dock, check if over this water body (can cast into it)
+      if (onDock && tiledWater.containsPoint(playerPos.x, playerPos.y)) {
+        return true;
+      }
+      // Otherwise use normal casting range check
       if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  /// Check if a position is on a walkable dock
+  bool _isOnDock(Vector2 pos) {
+    for (final dockRect in dockAreas) {
+      if (dockRect.contains(Offset(pos.x, pos.y))) {
         return true;
       }
     }
@@ -559,8 +580,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     final playerPos = player.position;
     const castingBuffer = 50.0;
+    
+    // Check if player is on a dock
+    final onDock = _isOnDock(playerPos);
 
     for (final tiledWater in allTiledWaterData) {
+      // If on a dock over this water, can cast into it
+      if (onDock && tiledWater.containsPoint(playerPos.x, playerPos.y)) {
+        return (waterType: tiledWater.waterType, id: tiledWater.id);
+      }
+      // Otherwise use normal casting range check
       if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
         return (waterType: tiledWater.waterType, id: tiledWater.id);
       }

@@ -40,10 +40,13 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
   final List<TiledWaterBody> _tiledWaterComponents = [];
   final List<Tree> _treeComponents = [];
   final List<Shop> _shopComponents = [];
-  
+
+  /// Dock walkable areas (rectangles where players can walk over water)
+  final List<Rect> _dockAreas = [];
+
   /// Nature tileset for decorations and water
   late NatureTilesheet _tilesheet;
-  
+
   /// Tiled water body configurations (ponds/rivers built from tiles)
   final List<TiledWaterData> _tiledWaterData = [];
 
@@ -52,12 +55,15 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// All shop components in the world
   List<Shop> get shopComponents => _shopComponents;
-  
+
   /// All tiled water body components
   List<TiledWaterBody> get tiledWaterComponents => _tiledWaterComponents;
   
   /// All tiled water data for collision/proximity checks
   List<TiledWaterData> get allTiledWaterData => _tiledWaterData;
+  
+  /// All dock walkable areas
+  List<Rect> get dockAreas => _dockAreas;
 
   @override
   Future<void> onLoad() async {
@@ -98,38 +104,38 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
     
     // Define tiled ponds, rivers, and ocean
     final tiledWaterConfigs = [
-      // Ocean: spans the left edge of the map, shifted 1 tile left to hide the edge
+      // Ocean: spans the left edge of the map, extended 6 tiles further into the world
       TiledWaterData(
         id: 'ocean_1',
         x: -tileSize,  // Start 1 tile off-screen to hide left edge
         y: 0,
-        widthInTiles: 6,  // One extra tile to compensate for offset
+        widthInTiles: 12,  // Extended 6 more tiles into the world (was 6)
         heightInTiles: oceanHeightInTiles,
         waterType: WaterType.ocean,
       ),
-      // Pond 1: 8x6 tiles - bigger to accommodate dock
+      // Pond 1: 10x8 tiles - larger lake by the merchant
       const TiledWaterData(
         id: 'tiled_pond_1',
-        x: 500,
-        y: 500,
-        widthInTiles: 8,
-        heightInTiles: 6,
+        x: 980,
+        y: 450,  // Moved up slightly to accommodate larger size
+        widthInTiles: 10,
+        heightInTiles: 8,
         waterType: WaterType.pond,
       ),
-      // Pond 2: 7x5 tiles - bigger to accommodate dock
+      // Pond 2: 7x5 tiles - moved 10 tiles right
       const TiledWaterData(
         id: 'tiled_pond_2',
-        x: 1300,
+        x: 1780,  // Was 1300, moved 10 tiles (480px) right
         y: 900,
         widthInTiles: 7,
         heightInTiles: 5,
         waterType: WaterType.pond,
       ),
-      // River: 10x3 tiles (long horizontal river)
+      // River: 10x3 tiles - moved 10 tiles right and up 1 tile
       const TiledWaterData(
         id: 'tiled_river_1',
-        x: 800,
-        y: 300,
+        x: 1280,  // Was 800, moved 10 tiles (480px) right
+        y: 252,   // Moved up 1 tile (was 300)
         widthInTiles: 10,
         heightInTiles: 3,
         waterType: WaterType.river,
@@ -163,28 +169,28 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
     final tileSize = NatureTilesheet.tileSize * NatureTilesheet.renderScale;
     
     // Ocean dock - rotated 90° clockwise to extend horizontally from shore into ocean
-    // Ocean right edge is at 5 * tileSize - tileSize = ~192px
+    // Ocean: x=-48, width=12 tiles, so right edge is at -48 + 12*48 = 528
     await _spawnOceanDock(
-      oceanEdgeX: 5 * tileSize - tileSize,
+      oceanEdgeX: -tileSize + 12 * tileSize,  // Right edge of the ocean (528px)
       y: 500.0,
       tileSize: tileSize,
     );
     
-    // Pond 1 dock - extends from bottom shore into pond (moved up 4 tiles from bottom edge)
-    // Pond 1 is at (500, 500) with size 8x6 tiles, bottom edge at 500 + 6*48 = 788
-    // Moving dock up 4 tiles: 788 - 4*48 = 596
+    // Pond 1 dock - extends from bottom shore into pond (moved up 6 tiles from bottom edge)
+    // Pond 1 is at (980, 450) with size 10x8 tiles, bottom edge at 450 + 8*48 = 834
+    // Moving dock up 6 tiles: 834 - 6*48 = 546
     await _spawnPondDock(
-      pondX: 500.0,
-      pondBottomY: 500.0 + 6 * tileSize - 4 * tileSize,  // Moved up 4 tiles
-      pondWidth: 8 * tileSize,
+      pondX: 980.0,
+      pondBottomY: 450.0 + 8 * tileSize - 6 * tileSize,  // Moved up 6 tiles (was 4)
+      pondWidth: 10 * tileSize,
       tileSize: tileSize,
     );
     
-    // Pond 2 dock - extends from bottom shore into pond
-    // Pond 2 is at (1300, 900) with size 7x5 tiles, bottom edge at 900 + 5*48 = 1140
+    // Pond 2 dock - extends from bottom shore into pond (moved up 3 tiles)
+    // Pond 2 is at (1780, 900) with size 7x5 tiles, bottom edge at 900 + 5*48 = 1140
     await _spawnPondDock(
-      pondX: 1300.0,
-      pondBottomY: 900.0 + 5 * tileSize,
+      pondX: 1780.0,  // Updated to match new pond position
+      pondBottomY: 900.0 + 5 * tileSize - 3 * tileSize,  // Moved up 3 tiles
       pondWidth: 7 * tileSize,
       tileSize: tileSize,
     );
@@ -227,6 +233,9 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
       );
       await add(dockTile);
     }
+    
+    // Register dock walkable area (3 columns wide, 2 rows tall - exclude rightmost column which is the end)
+    _dockAreas.add(Rect.fromLTWH(startX, startY, tileSize * 3, tileSize * 2));
   }
   
   /// Spawn pond dock - vertical, extending from bottom shore into pond
@@ -251,12 +260,16 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
       );
       await add(dockTile);
     }
+    
+    // Register dock walkable area (2 tiles wide, 3 tiles tall - exclude bottom tile which is the end)
+    _dockAreas.add(Rect.fromLTWH(dockX, dockY, DockTiles.width, DockTiles.height - tileSize));
   }
   
   /// Spawn reeds and rocks inside/around ponds and rivers
   Future<void> _spawnWaterDecorations() async {
-    final random = Random(888); // Seeded for consistent placement
+    final random = Random(999); // Changed seed for better distribution
     final tileSize = NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+    final minDistance = tileSize * 1.5; // Minimum distance between decorations
     
     for (final waterData in _tiledWaterData) {
       // Skip ocean - too big and doesn't need decorations
@@ -264,27 +277,54 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
       
       // Calculate number of decorations based on water body size
       final area = waterData.widthInTiles * waterData.heightInTiles;
-      final decorationCount = (area * 0.3).ceil().clamp(2, 8); // ~30% coverage, min 2, max 8
+      final decorationCount = (area * 0.25).ceil().clamp(2, 6); // Reduced for better spread
+      
+      // Track placed positions to ensure spread and no overlaps
+      final placedPositions = <Vector2>[];
       
       for (var i = 0; i < decorationCount; i++) {
-        // Random position within the water body (avoiding edges)
-        final margin = tileSize * 0.5;
-        final x = waterData.x + margin + random.nextDouble() * (waterData.width - margin * 2);
-        final y = waterData.y + margin + random.nextDouble() * (waterData.height - margin * 2);
+        // Try to find a good position that's spread out
+        Vector2? bestPosition;
+        for (var attempt = 0; attempt < 20; attempt++) {
+          // Random position within the water body (avoiding edges)
+          final margin = tileSize * 0.8;
+          final x = waterData.x + margin + random.nextDouble() * (waterData.width - margin * 2);
+          final y = waterData.y + margin + random.nextDouble() * (waterData.height - margin * 2);
+          final candidatePos = Vector2(x, y);
+          
+          // Check if this position is far enough from all placed decorations
+          bool tooClose = false;
+          for (final placed in placedPositions) {
+            if (candidatePos.distanceTo(placed) < minDistance) {
+              tooClose = true;
+              break;
+            }
+          }
+          
+          if (!tooClose) {
+            bestPosition = candidatePos;
+            break;
+          }
+        }
         
-        // Randomly choose reed or rock
-        final tile = random.nextBool() ? NatureTile.reeds : NatureTile.rockInWater;
-        
-        // Create a sprite component for the decoration
-        final sprite = _tilesheet.getSprite(tile);
-        final decoration = SpriteComponent(
-          sprite: sprite,
-          position: Vector2(x, y),
-          size: NatureTilesheet.renderedSize,
-          anchor: Anchor.center,
-          priority: GameLayers.pond.toInt() + 1, // Just above water
-        );
-        await add(decoration);
+        // If we found a valid position, place the decoration
+        if (bestPosition != null) {
+          placedPositions.add(bestPosition);
+          
+          // Alternate between reeds and rocks for variety
+          final tile = i.isEven ? NatureTile.reeds : NatureTile.rockInWater;
+          
+          // Create a sprite component for the decoration
+          final sprite = _tilesheet.getSprite(tile);
+          final decoration = SpriteComponent(
+            sprite: sprite,
+            position: bestPosition,
+            size: NatureTilesheet.renderedSize,
+            anchor: Anchor.center,
+            priority: GameLayers.pond.toInt() + 1, // Just above water
+          );
+          await add(decoration);
+        }
       }
     }
   }
@@ -301,12 +341,12 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
     const count = 30;
 
     for (var i = 0; i < count; i++) {
-      // Start after ocean area
-      final x = 300 + random.nextDouble() * (GameConstants.worldWidth - 400);
+      // Start after ocean area (ocean right edge is at ~528px)
+      final x = 580 + random.nextDouble() * (GameConstants.worldWidth - 680);
       final y = 100 + random.nextDouble() * (GameConstants.worldHeight - 200);
 
-      // Don't place sunflowers inside any water body
-      if (!_isInsideWater(x, y)) {
+      // Don't place sunflowers inside water or on docks
+      if (_isValidPlacement(x, y)) {
         await add(Sunflower(position: Vector2(x, y)));
       }
     }
@@ -314,16 +354,16 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Spawn trees randomly around the map
   Future<void> _spawnTrees() async {
-    final random = Random(456); // Different seed for variety
+    final random = Random(1234); // Changed seed to avoid trees in ponds/rivers
     const count = 20;
 
     for (var i = 0; i < count; i++) {
-      // Start after ocean area
-      final x = 350 + random.nextDouble() * (GameConstants.worldWidth - 450);
+      // Start after ocean area (ocean right edge is at ~528px)
+      final x = 580 + random.nextDouble() * (GameConstants.worldWidth - 680);
       final y = 150 + random.nextDouble() * (GameConstants.worldHeight - 300);
 
-      // Don't place trees inside any water body
-      if (!_isInsideWater(x, y)) {
+      // Don't place trees inside water or on docks
+      if (_isValidPlacement(x, y)) {
         final tree = Tree.random(Vector2(x, y), random);
         _treeComponents.add(tree);
         await add(tree);
@@ -342,7 +382,7 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
       ],
       count: 150,
       seed: 777,
-      isValidPosition: (x, y) => !_isInsideWater(x, y),
+      isValidPosition: (x, y) => _isValidPlacement(x, y),
     );
     await add(decorations);
   }
@@ -355,6 +395,21 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
       }
     }
     return false;
+  }
+  
+  /// Check if a point is on a dock
+  bool _isOnDock(double x, double y) {
+    for (final dockRect in _dockAreas) {
+      if (dockRect.contains(Offset(x, y))) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  /// Check if a position is valid for placing objects (not in water or on dock)
+  bool _isValidPlacement(double x, double y) {
+    return !_isInsideWater(x, y) && !_isOnDock(x, y);
   }
 
   /// Check if a point is inside any water body (public for external use)
@@ -369,8 +424,8 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
     ];
 
     for (final shopData in shopPositions) {
-      // Make sure shop is not inside water
-      if (!_isInsideWater(shopData.x, shopData.y)) {
+      // Make sure shop is not inside water or on a dock
+      if (_isValidPlacement(shopData.x, shopData.y)) {
         final shop = Shop(
           position: Vector2(shopData.x, shopData.y),
           id: shopData.id,

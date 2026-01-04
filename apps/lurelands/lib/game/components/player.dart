@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
@@ -178,11 +179,24 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     for (final tiledWater in game.allTiledWaterData) {
       for (final point in checkPoints) {
         if (tiledWater.containsPoint(point.x, point.y)) {
-          return true;
+          // Check if this point is on a dock (docks allow walking over water)
+          if (!_isOnDock(point)) {
+            return true;
+          }
         }
       }
     }
     
+    return false;
+  }
+  
+  /// Check if a point is on a walkable dock
+  bool _isOnDock(Vector2 point) {
+    for (final dockRect in game.dockAreas) {
+      if (dockRect.contains(Offset(point.x, point.y))) {
+        return true;
+      }
+    }
     return false;
   }
 
