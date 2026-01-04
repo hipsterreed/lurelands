@@ -683,6 +683,30 @@ export class StdbClient {
     }
   }
 
+  async setGold(playerId: string, amount: number): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    
+    try {
+      // Update local player state (optimistic update)
+      const player = this.players.get(playerId);
+      if (player) {
+        stdbLogger.info({ playerId, oldGold: player.gold, newGold: amount }, 'Setting gold');
+        player.gold = amount;
+        this.players.set(playerId, player);
+        this.broadcastPlayersUpdate();
+      }
+      
+      // Call SpacetimeDB reducer
+      this.conn.reducers.setGold({
+        playerId,
+        amount,
+      });
+      
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId, amount }, 'Failed to set gold');
+    }
+  }
+
   // --- Getters ---
 
   getWorldState(): WorldState {

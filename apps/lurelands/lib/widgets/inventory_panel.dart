@@ -39,6 +39,7 @@ class InventoryPanel extends StatefulWidget {
   final String? equippedPoleId; // Currently equipped pole item ID
   final void Function(String poleItemId)? onEquipPole; // Called when player equips a pole
   final VoidCallback? onUnequipPole; // Called when player unequips a pole
+  final VoidCallback? onResetGold; // Called when player resets gold to 0 (debug)
 
   const InventoryPanel({
     super.key,
@@ -52,6 +53,7 @@ class InventoryPanel extends StatefulWidget {
     this.equippedPoleId,
     this.onEquipPole,
     this.onUnequipPole,
+    this.onResetGold,
   });
 
   @override
@@ -1012,6 +1014,61 @@ class _InventoryPanelState extends State<InventoryPanel> {
               ),
             ),
           ),
+          const SizedBox(height: 16),
+          // Reset Gold button
+          if (widget.onResetGold != null)
+            GestureDetector(
+              onTap: widget.onResetGold,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _BackpackColors.slotBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.red.withAlpha(150),
+                    width: 2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.money_off,
+                      color: Colors.red,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Reset Gold',
+                            style: TextStyle(
+                              color: _BackpackColors.textLight,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Set gold to 0 (Current: ${widget.playerGold}g)',
+                            style: TextStyle(
+                              color: _BackpackColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: Colors.red.withAlpha(150),
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

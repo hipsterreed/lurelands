@@ -253,6 +253,12 @@ class _GameScreenState extends State<GameScreen> {
               onUnequipPole: () {
                 _stdbService.unequipPole();
               },
+              onResetGold: () {
+                _stdbService.setGold(0);
+                setState(() {
+                  _playerGold = 0;
+                });
+              },
             ),
           // Shop panel overlay
           if (_showShop && _nearbyShop != null)

@@ -204,6 +204,14 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       break;
     }
 
+    case 'set_gold': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId, amount: message.amount }, 'Setting player gold (debug)');
+        await stdb.setGold(session.playerId, message.amount);
+      }
+      break;
+    }
+
     default:
       wsLogger.warn({ type: (message as any).type }, 'Unknown message type');
   }

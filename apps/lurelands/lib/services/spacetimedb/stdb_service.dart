@@ -168,6 +168,9 @@ abstract class SpacetimeDBService {
   /// Unequip the currently equipped fishing pole
   void unequipPole();
 
+  /// Set player's gold to a specific amount (debug function)
+  void setGold(int amount);
+
   /// Dispose resources
   void dispose();
 }
@@ -338,10 +341,28 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       case 'players':
         final playersData = data['players'] as List?;
         if (playersData != null) {
+          // Preserve local player's equipped pole state before clearing
+          final preservedPoleId = _localPlayer?.equippedPoleId;
+          final preservedPoleTier = _localPlayer?.equippedPoleTier ?? 1;
+          
           _players.clear();
           for (final playerJson in playersData) {
             final player = _parsePlayer(playerJson as Map<String, dynamic>);
-            _players[player.id] = player;
+            // For local player, preserve our equipped pole state to avoid flicker
+            if (player.id == _playerId && preservedPoleId != null) {
+              final updatedLocal = player.copyWith(
+                equippedPoleId: preservedPoleId,
+                equippedPoleTier: preservedPoleTier,
+              );
+              _localPlayer = updatedLocal;
+              _players[player.id] = updatedLocal;
+            } else {
+              _players[player.id] = player;
+              // Update _localPlayer reference if this is the local player
+              if (player.id == _playerId) {
+                _localPlayer = player;
+              }
+            }
           }
           _emitPlayerUpdate();
         }
@@ -756,6 +777,27 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
         clearEquippedPoleId: true,
         equippedPoleTier: 1,
       );
+      _players[_playerId!] = _localPlayer!;
+      _emitPlayerUpdate();
+    }
+  }
+
+  @override
+  void setGold(int amount) {
+    if (_playerId == null || !isConnected) {
+      debugPrint('[Bridge] Cannot set gold - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Setting gold to: $amount');
+    _sendMessage({
+      'type': 'set_gold',
+      'amount': amount,
+    });
+
+    // Update local state immediately for responsiveness
+    if (_localPlayer != null) {
+      _localPlayer = _localPlayer!.copyWith(gold: amount);
       _players[_playerId!] = _localPlayer!;
       _emitPlayerUpdate();
     }

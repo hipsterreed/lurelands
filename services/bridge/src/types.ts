@@ -95,7 +95,8 @@ export type ClientMessage =
   | { type: 'sell_item'; itemId: string; rarity: number; quantity: number }
   | { type: 'buy_item'; itemId: string; price: number }
   | { type: 'equip_pole'; poleItemId: string }
-  | { type: 'unequip_pole' };
+  | { type: 'unequip_pole' }
+  | { type: 'set_gold'; amount: number };
 
 // =============================================================================
 // Bridge → Client Messages

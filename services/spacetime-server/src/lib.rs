@@ -507,6 +507,18 @@ pub fn spend_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
     }
 }
 
+/// Set a player's gold to a specific amount (debug/admin function)
+#[spacetimedb::reducer]
+pub fn set_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        let old_gold = player.gold;
+        player.gold = amount;
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
+        log::info!("Player {} gold set from {}g to {}g", player_id, old_gold, amount);
+    }
+}
+
 /// Equip a fishing pole from inventory
 /// The pole must exist in the player's inventory to be equipped
 #[spacetimedb::reducer]
