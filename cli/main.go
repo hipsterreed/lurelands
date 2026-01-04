@@ -349,9 +349,25 @@ func initialModel() model {
 			args:        []string{"run", "-d", "chrome"},
 			workDir:     flutterDir,
 		},
-		item{title: "─── Database ───", description: "", category: "header", command: "", args: nil, workDir: ""},
+		item{title: "─── Deploy ───", description: "", category: "header", command: "", args: nil, workDir: ""},
 		item{
-			title:       "Deploy to Maincloud",
+			title:       "🚀 Full Deploy (Maincloud)",
+			description: "Publish + Generate + Build",
+			category:    "deploy",
+			command:     "deploy:full",
+			args:        []string{},
+			workDir:     rootDir,
+		},
+		item{
+			title:       "🚀 Full Deploy (Local)",
+			description: "Publish locally + Generate + Build",
+			category:    "deploy",
+			command:     "deploy:full:local",
+			args:        []string{},
+			workDir:     rootDir,
+		},
+		item{
+			title:       "Deploy DB to Maincloud",
 			description: "spacetime publish --server maincloud",
 			category:    "database",
 			command:     "spacetime",
@@ -359,7 +375,7 @@ func initialModel() model {
 			workDir:     spacetimeDir,
 		},
 		item{
-			title:       "Deploy Locally",
+			title:       "Deploy DB Locally",
 			description: "spacetime publish lurelands",
 			category:    "database",
 			command:     "spacetime",
@@ -445,6 +461,12 @@ func main() {
 	if fm, ok := finalModel.(model); ok && fm.executing {
 		i, ok := fm.list.SelectedItem().(item)
 		if ok && i.command != "" {
+			// Handle multi-step deploy commands
+			if i.command == "deploy:full" || i.command == "deploy:full:local" {
+				handleDirectCommand([]string{i.command})
+				return
+			}
+
 			fmt.Printf("\n%s Running: %s %s\n",
 				lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Render("▸"),
 				i.command,
@@ -469,6 +491,35 @@ func main() {
 			fmt.Printf("\n%s\n", successStyle.Render("✓ Done!"))
 		}
 	}
+}
+
+// Step represents a single command to run in a sequence
+type step struct {
+	name    string
+	cmd     string
+	args    []string
+	workDir string
+}
+
+// Run multiple steps in sequence with progress display
+func runSteps(steps []step) error {
+	total := len(steps)
+	for i, s := range steps {
+		stepNum := i + 1
+		fmt.Printf("\n%s [%d/%d] %s\n",
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Render("▸"),
+			stepNum, total, s.name)
+
+		err := runCommandWithSpinner(
+			fmt.Sprintf("%s...", s.name),
+			s.cmd, s.args, s.workDir,
+		)
+		if err != nil {
+			return fmt.Errorf("step %d (%s) failed: %w", stepNum, s.name, err)
+		}
+		fmt.Printf("  %s\n", successStyle.Render("✓ Complete"))
+	}
+	return nil
 }
 
 func handleDirectCommand(args []string) {
@@ -497,6 +548,50 @@ func handleDirectCommand(args []string) {
 
 	if args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		printHelp(commands)
+		return
+	}
+
+	// Handle deploy:full (multi-step command)
+	if args[0] == "deploy:full" {
+		fmt.Printf("\n%s %s\n",
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Bold(true).Render("🚀"),
+			lipgloss.NewStyle().Bold(true).Render("Full Deployment"))
+		fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Render("  Publishing SpacetimeDB → Generating types → Building bridge"))
+
+		steps := []step{
+			{"Publishing to SpacetimeDB", "spacetime", []string{"publish", "--server", "maincloud", "lurelands"}, spacetimeDir},
+			{"Generating TypeScript types", "bun", []string{"run", "generate"}, bridgeDir},
+			{"Building bridge service", "bun", []string{"run", "build"}, bridgeDir},
+		}
+
+		err := runSteps(steps)
+		if err != nil {
+			fmt.Printf("\n%s\n", errorStyle.Render(fmt.Sprintf("✗ Deployment failed: %v", err)))
+			os.Exit(1)
+		}
+		fmt.Printf("\n%s\n", successStyle.Render("🎉 Full deployment complete!"))
+		return
+	}
+
+	// Handle deploy:full:local (multi-step command for local)
+	if args[0] == "deploy:full:local" {
+		fmt.Printf("\n%s %s\n",
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Bold(true).Render("🚀"),
+			lipgloss.NewStyle().Bold(true).Render("Full Local Deployment"))
+		fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Render("  Publishing SpacetimeDB locally → Generating types → Building bridge"))
+
+		steps := []step{
+			{"Publishing to local SpacetimeDB", "spacetime", []string{"publish", "lurelands"}, spacetimeDir},
+			{"Generating TypeScript types", "bun", []string{"run", "generate"}, bridgeDir},
+			{"Building bridge service", "bun", []string{"run", "build"}, bridgeDir},
+		}
+
+		err := runSteps(steps)
+		if err != nil {
+			fmt.Printf("\n%s\n", errorStyle.Render(fmt.Sprintf("✗ Deployment failed: %v", err)))
+			os.Exit(1)
+		}
+		fmt.Printf("\n%s\n", successStyle.Render("🎉 Full local deployment complete!"))
 		return
 	}
 
@@ -554,6 +649,12 @@ func printHelp(commands map[string]struct {
 
 	cmdStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Width(20)
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#AAAAAA"))
+	highlightStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#FFD700")).Width(20)
+
+	// Full deploy commands (special multi-step)
+	fmt.Printf("\n  %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Italic(true).Render("─── Full Deploy ───"))
+	fmt.Printf("  %s %s\n", highlightStyle.Render("deploy:full"), descStyle.Render("🚀 Publish + Generate + Build (maincloud)"))
+	fmt.Printf("  %s %s\n", highlightStyle.Render("deploy:full:local"), descStyle.Render("🚀 Publish + Generate + Build (local)"))
 
 	orderedCmds := []string{
 		"run", "run:ios", "run:android", "run:web",
@@ -562,9 +663,9 @@ func printHelp(commands map[string]struct {
 	}
 
 	categories := map[string]string{
-		"run":            "Flutter",
-		"deploy":         "Database",
-		"bridge:build":   "Bridge",
+		"run":          "Flutter",
+		"deploy":       "Database",
+		"bridge:build": "Bridge",
 	}
 
 	for _, name := range orderedCmds {

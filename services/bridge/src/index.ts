@@ -154,6 +154,9 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       if (session.playerId) {
         wsLogger.info({ playerId: session.playerId, itemId: message.itemId, rarity: message.rarity }, 'Player catching fish');
         await stdb.catchFish(session.playerId, message.itemId, message.rarity, message.waterBodyId);
+        // Send updated inventory (the optimistic update in catchFish should have already updated the cache)
+        const items = stdb.getPlayerInventory(session.playerId);
+        send(ws, { type: 'inventory', items });
       }
       break;
     }

@@ -447,6 +447,36 @@ export class StdbClient {
       const parts = itemId.split('_');
       const fishType = parts.length >= 2 ? parts[1] : 'unknown';
       
+      // Get or create player inventory (optimistic update)
+      let playerInv = this.inventory.get(playerId);
+      if (!playerInv) {
+        playerInv = new Map();
+        this.inventory.set(playerId, playerInv);
+      }
+      
+      // Add fish to local inventory (optimistic update)
+      const stackKey = `${itemId}:${rarity}`;
+      const existingItem = playerInv.get(stackKey);
+      if (existingItem) {
+        existingItem.quantity += 1;
+        playerInv.set(stackKey, existingItem);
+      } else {
+        const newItem: import('./types').InventoryItem = {
+          id: Date.now(), // Temporary ID until server confirms
+          playerId,
+          itemId,
+          rarity,
+          quantity: 1,
+        };
+        playerInv.set(stackKey, newItem);
+      }
+      
+      // Notify inventory update immediately (optimistic)
+      if (this.onInventoryUpdate) {
+        this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
+      }
+      
+      // Persist to SpacetimeDB
       this.conn.reducers.catchFish({
         playerId,
         itemId,
