@@ -45,6 +45,8 @@ import LeaveWorldReducer from "./leave_world_reducer";
 export { LeaveWorldReducer };
 import ReleaseFishReducer from "./release_fish_reducer";
 export { ReleaseFishReducer };
+import RemoveFromInventoryReducer from "./remove_from_inventory_reducer";
+export { RemoveFromInventoryReducer };
 import StartCastingReducer from "./start_casting_reducer";
 export { StartCastingReducer };
 import StopCastingReducer from "./stop_casting_reducer";
@@ -178,6 +180,7 @@ const reducersSchema = __reducers(
   __reducerSchema("join_world", JoinWorldReducer),
   __reducerSchema("leave_world", LeaveWorldReducer),
   __reducerSchema("release_fish", ReleaseFishReducer),
+  __reducerSchema("remove_from_inventory", RemoveFromInventoryReducer),
   __reducerSchema("start_casting", StartCastingReducer),
   __reducerSchema("stop_casting", StopCastingReducer),
   __reducerSchema("update_player_name", UpdatePlayerNameReducer),

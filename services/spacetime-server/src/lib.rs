@@ -386,6 +386,46 @@ pub fn get_player_inventory(ctx: &ReducerContext, player_id: String) {
     log::info!("Player {} has {} inventory stacks", player_id, count);
 }
 
+/// Remove items from a player's inventory (for selling/using)
+#[spacetimedb::reducer]
+pub fn remove_from_inventory(
+    ctx: &ReducerContext,
+    player_id: String,
+    item_id: String,
+    rarity: u8,
+    quantity: u32,
+) {
+    // Find the inventory stack
+    let existing = ctx.db.inventory().iter().find(|inv| {
+        inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity
+    });
+    
+    if let Some(mut inv) = existing {
+        if inv.quantity <= quantity {
+            // Remove the entire stack
+            ctx.db.inventory().id().delete(&inv.id);
+            log::info!(
+                "Removed entire stack from inventory for player {}: {} (rarity {})",
+                player_id, item_id, rarity
+            );
+        } else {
+            // Reduce the quantity
+            inv.quantity -= quantity;
+            let new_quantity = inv.quantity;
+            ctx.db.inventory().id().update(inv);
+            log::info!(
+                "Removed {} from inventory for player {}: {} x{} (rarity {})",
+                quantity, player_id, item_id, new_quantity, rarity
+            );
+        }
+    } else {
+        log::warn!(
+            "No inventory stack found for player {} item {} (rarity {})",
+            player_id, item_id, rarity
+        );
+    }
+}
+
 /// Called when a player updates their display name
 /// If the player doesn't exist, creates them with a default spawn position
 #[spacetimedb::reducer]

@@ -492,7 +492,7 @@ export class StdbClient {
         playerInv.set(stackKey, item);
       }
       
-      // Update local player gold
+      // Update local player gold (optimistic update)
       const player = this.players.get(playerId);
       if (player) {
         player.gold += totalGold;
@@ -500,15 +500,18 @@ export class StdbClient {
         this.broadcastPlayersUpdate();
       }
       
+      // Persist gold change to SpacetimeDB
+      this.conn.reducers.addGold({
+        playerId,
+        amount: totalGold,
+      });
+      
       // Notify inventory update
       if (this.onInventoryUpdate) {
         this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
       }
       
-      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item');
-      
-      // TODO: Once a sell_item reducer exists on the server, call it here
-      // this.conn.reducers.sellItem({ playerId, itemId, rarity, quantity });
+      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item, added gold via reducer');
       
     } catch (error) {
       stdbLogger.error({ err: error, playerId, itemId, quantity }, 'Failed to sell item');
