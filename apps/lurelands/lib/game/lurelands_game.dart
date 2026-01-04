@@ -443,13 +443,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       stdbService.stopCasting();
     }
     
-    // Reset after showing catch
-    Future.delayed(const Duration(seconds: 2), () {
-      if (fishingStateNotifier.value == FishingState.caught) {
-        fishingStateNotifier.value = FishingState.idle;
-        hookedFishNotifier.value = null;
-      }
-    });
+    // Reset state immediately - player can already move during caught state
+    // and the animation has already played the celebration
+    fishingStateNotifier.value = FishingState.idle;
+    hookedFishNotifier.value = null;
   }
 
   /// Called when fish escapes during minigame

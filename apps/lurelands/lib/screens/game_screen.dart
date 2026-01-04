@@ -697,9 +697,8 @@ class _GameScreenState extends State<GameScreen> {
         return ValueListenableBuilder<FishingState>(
           valueListenable: _game!.fishingStateNotifier,
           builder: (context, fishingState, _) {
-            // Hide during minigame or result states
+            // Hide during minigame or escaped states (allow movement during caught)
             if (fishingState == FishingState.minigame ||
-                fishingState == FishingState.caught ||
                 fishingState == FishingState.escaped) {
               return const SizedBox.shrink();
             }
