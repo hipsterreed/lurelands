@@ -1,12 +1,13 @@
 import 'dart:math';
 import 'dart:ui';
 
+import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 
 import '../lurelands_game.dart';
 
 /// A shop building component that players can interact with
-class Shop extends PositionComponent with HasGameReference<LurelandsGame> {
+class Shop extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
   /// Unique identifier for this shop
   final String id;
   
@@ -15,10 +16,6 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame> {
   
   /// Interaction radius - how close player needs to be to interact
   static const double interactionRadius = 80.0;
-  
-  // Visual dimensions
-  static const double shopWidth = 96.0;
-  static const double shopHeight = 112.0;
   
   // Shake animation state (when player is near)
   double _shakeTime = 0;
@@ -29,6 +26,16 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame> {
   // Track player proximity
   bool _playerNearby = false;
   bool get isPlayerNearby => _playerNearby;
+  
+  // Shop building sprite
+  Sprite? _shopSprite;
+  
+  // Hitbox for collision detection
+  late RectangleHitbox _hitbox;
+  
+  // Getters for collision checking
+  Vector2 get hitboxWorldPosition => _hitbox.absoluteCenter;
+  Vector2 get hitboxSize => _hitbox.size;
 
   Shop({
     required Vector2 position,
@@ -36,13 +43,33 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame> {
     this.name = 'Shop',
   }) : super(
          position: position,
-         size: Vector2(shopWidth, shopHeight),
          anchor: Anchor.bottomCenter,
        );
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
+    
+    // Load the fish house sprite
+    _shopSprite = await game.loadSprite('structures/fish_house1.png');
+    
+    // Set size based on sprite dimensions (scaled up for visibility)
+    if (_shopSprite != null) {
+      final srcSize = _shopSprite!.srcSize;
+      // Scale up the sprite (2x for pixel art)
+      size = Vector2(srcSize.x * 2, srcSize.y * 2);
+    }
+    
+    // Add rectangular hitbox at the base of the building
+    // Make it smaller than the full sprite to feel natural (just the base/foundation)
+    final hitboxWidth = size.x * 0.8;
+    final hitboxHeight = size.y * 0.35; // Just the bottom portion
+    final hitboxOffsetY = 40.0; // Move hitbox up from the very bottom
+    _hitbox = RectangleHitbox(
+      size: Vector2(hitboxWidth, hitboxHeight),
+      position: Vector2((size.x - hitboxWidth) / 2, size.y - hitboxHeight - hitboxOffsetY),
+    );
+    await add(_hitbox);
     
     // Set priority based on Y position for depth sorting
     priority = position.y.toInt();
@@ -98,116 +125,12 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame> {
   }
 
   void _drawShopBuilding(Canvas canvas) {
-    // Base/foundation
-    final basePaint = Paint()..color = const Color(0xFF5D4037);
-    canvas.drawRect(
-      Rect.fromLTWH(4, size.y - 12, size.x - 8, 12),
-      basePaint,
-    );
-    
-    // Main building body
-    final wallPaint = Paint()..color = const Color(0xFFD7CCC8);
-    canvas.drawRect(
-      Rect.fromLTWH(8, 32, size.x - 16, size.y - 44),
-      wallPaint,
-    );
-    
-    // Wood frame outline
-    final framePaint = Paint()
-      ..color = const Color(0xFF6D4C41)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 4;
-    canvas.drawRect(
-      Rect.fromLTWH(8, 32, size.x - 16, size.y - 44),
-      framePaint,
-    );
-    
-    // Roof
-    final roofPath = Path()
-      ..moveTo(0, 36)
-      ..lineTo(size.x / 2, 0)
-      ..lineTo(size.x, 36)
-      ..close();
-    final roofPaint = Paint()..color = const Color(0xFF8D6E63);
-    canvas.drawPath(roofPath, roofPaint);
-    
-    // Roof outline
-    final roofOutlinePaint = Paint()
-      ..color = const Color(0xFF5D4037)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawPath(roofPath, roofOutlinePaint);
-    
-    // Door
-    final doorPaint = Paint()..color = const Color(0xFF4E342E);
-    canvas.drawRect(
-      Rect.fromLTWH(size.x / 2 - 12, size.y - 52, 24, 40),
-      doorPaint,
-    );
-    
-    // Door knob
-    final knobPaint = Paint()..color = const Color(0xFFFFD54F);
-    canvas.drawCircle(
-      Offset(size.x / 2 + 6, size.y - 32),
-      3,
-      knobPaint,
-    );
-    
-    // Window on left
-    final windowPaint = Paint()..color = const Color(0xFF81D4FA);
-    canvas.drawRect(
-      Rect.fromLTWH(14, 48, 18, 18),
-      windowPaint,
-    );
-    final windowFramePaint = Paint()
-      ..color = const Color(0xFF5D4037)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawRect(
-      Rect.fromLTWH(14, 48, 18, 18),
-      windowFramePaint,
-    );
-    // Window cross
-    canvas.drawLine(Offset(23, 48), Offset(23, 66), windowFramePaint);
-    canvas.drawLine(Offset(14, 57), Offset(32, 57), windowFramePaint);
-    
-    // Window on right
-    canvas.drawRect(
-      Rect.fromLTWH(size.x - 32, 48, 18, 18),
-      windowPaint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(size.x - 32, 48, 18, 18),
-      windowFramePaint,
-    );
-    canvas.drawLine(Offset(size.x - 23, 48), Offset(size.x - 23, 66), windowFramePaint);
-    canvas.drawLine(Offset(size.x - 32, 57), Offset(size.x - 14, 57), windowFramePaint);
-    
-    // Sign above door
-    final signPaint = Paint()..color = const Color(0xFF8D6E63);
-    canvas.drawRect(
-      Rect.fromLTWH(size.x / 2 - 20, 36, 40, 14),
-      signPaint,
-    );
-    final signBorderPaint = Paint()
-      ..color = const Color(0xFF5D4037)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-    canvas.drawRect(
-      Rect.fromLTWH(size.x / 2 - 20, 36, 40, 14),
-      signBorderPaint,
-    );
-    
-    // "SHOP" text on sign (simplified as dots for pixel art feel)
-    final textPaint = Paint()..color = const Color(0xFFFFFFFF);
-    // S
-    canvas.drawRect(Rect.fromLTWH(size.x / 2 - 14, 40, 2, 6), textPaint);
-    // H
-    canvas.drawRect(Rect.fromLTWH(size.x / 2 - 8, 40, 2, 6), textPaint);
-    // O
-    canvas.drawRect(Rect.fromLTWH(size.x / 2 - 2, 40, 2, 6), textPaint);
-    // P
-    canvas.drawRect(Rect.fromLTWH(size.x / 2 + 4, 40, 2, 6), textPaint);
+    if (_shopSprite != null) {
+      _shopSprite!.render(
+        canvas,
+        size: size,
+      );
+    }
   }
 
   void _drawInteractionIndicator(Canvas canvas) {

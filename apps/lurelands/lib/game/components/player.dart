@@ -11,6 +11,7 @@ import 'cast_line.dart';
 import 'player_name_label.dart';
 import 'pond.dart';
 import 'power_meter.dart';
+import 'shop.dart';
 import 'tree.dart';
 
 /// Player component - animated sprite that can move and fish
@@ -46,6 +47,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   // Track current collisions
   final Set<Tree> _collidingTrees = {};
   final Set<Pond> _collidingPonds = {};
+  final Set<Shop> _collidingShops = {};
 
   // Casting state
   bool _isCasting = false;
@@ -145,7 +147,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, GameConstants.worldHeight - GameConstants.playerSize / 2);
 
     // Check for collisions BEFORE moving (Flame best practice: predictive collision detection)
-    if (!_wouldCollideWithWater(newPosition) && !_wouldCollideWithTree(newPosition)) {
+    if (!_wouldCollideWithWater(newPosition) && !_wouldCollideWithTree(newPosition) && !_wouldCollideWithShop(newPosition)) {
       position = newPosition;
     }
 
@@ -221,6 +223,36 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     return false;
   }
 
+  bool _wouldCollideWithShop(Vector2 newPos) {
+    // Player hitbox is roughly 50x50, so use ~25px as player "radius"
+    const playerHitboxRadius = 25.0;
+    
+    for (final shop in game.shops) {
+      // Get the shop's hitbox position and size in world space
+      final hitboxCenter = shop.hitboxWorldPosition;
+      final hitboxSize = shop.hitboxSize;
+      
+      // Calculate the half-extents of the shop hitbox
+      final halfWidth = hitboxSize.x / 2;
+      final halfHeight = hitboxSize.y / 2;
+      
+      // Find the closest point on the rectangle to the player
+      final closestX = (newPos.x).clamp(hitboxCenter.x - halfWidth, hitboxCenter.x + halfWidth);
+      final closestY = (newPos.y).clamp(hitboxCenter.y - halfHeight, hitboxCenter.y + halfHeight);
+      
+      // Calculate distance from player to closest point on rectangle
+      final dx = newPos.x - closestX;
+      final dy = newPos.y - closestY;
+      final distance = sqrt(dx * dx + dy * dy);
+      
+      // Check if player would overlap with shop hitbox
+      if (distance < playerHitboxRadius) {
+        return true;
+      }
+    }
+    return false;
+  }
+
 
   /// Start casting into water
   /// [power] is a value from 0.0 to 1.0 representing the charge level
@@ -273,6 +305,9 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     if (other is Pond) {
       _collidingPonds.add(other);
     }
+    if (other is Shop) {
+      _collidingShops.add(other);
+    }
   }
 
   @override
@@ -283,6 +318,9 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     }
     if (other is Pond) {
       _collidingPonds.remove(other);
+    }
+    if (other is Shop) {
+      _collidingShops.remove(other);
     }
   }
 
