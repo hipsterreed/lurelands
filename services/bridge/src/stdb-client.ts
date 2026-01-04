@@ -559,7 +559,7 @@ export class StdbClient {
     }
   }
 
-  async sellItem(playerId: string, itemId: string, rarity: number, quantity: number): Promise<void> {
+  async sellItem(playerId: string, itemId: string, rarity: number, quantity: number, inventoryId?: number): Promise<void> {
     if (!this.conn || !this.isConnected) return;
     
     try {
@@ -570,10 +570,26 @@ export class StdbClient {
         return;
       }
       
-      // Find the item stack
-      const stackKey = `${itemId}:${rarity}`;
-      const item = playerInv.get(stackKey);
-      if (!item || item.quantity < quantity) {
+      // Find the item - prefer by inventoryId if provided, otherwise find first matching itemId:rarity
+      let item: InventoryItem | undefined;
+      let itemKey: string | undefined;
+      
+      if (inventoryId !== undefined) {
+        // Find by specific inventory ID
+        itemKey = String(inventoryId);
+        item = playerInv.get(itemKey);
+      } else {
+        // Find first item matching itemId and rarity
+        for (const [key, invItem] of playerInv) {
+          if (invItem.itemId === itemId && invItem.rarity === rarity && invItem.quantity >= quantity) {
+            item = invItem;
+            itemKey = key;
+            break;
+          }
+        }
+      }
+      
+      if (!item || !itemKey || item.quantity < quantity) {
         stdbLogger.warn({ playerId, itemId, rarity, quantity, available: item?.quantity ?? 0 }, 'Not enough items to sell');
         return;
       }
@@ -585,10 +601,10 @@ export class StdbClient {
       // Update local inventory
       const newQuantity = item.quantity - quantity;
       if (newQuantity <= 0) {
-        playerInv.delete(stackKey);
+        playerInv.delete(itemKey);
       } else {
         item.quantity = newQuantity;
-        playerInv.set(stackKey, item);
+        playerInv.set(itemKey, item);
       }
       
       // Update local player gold (optimistic update)

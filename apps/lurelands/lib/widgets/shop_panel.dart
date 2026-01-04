@@ -344,7 +344,8 @@ class _ShopPanelState extends State<ShopPanel> {
             spacing: 6,
             runSpacing: 6,
             children: widget.playerItems.map((item) {
-              final isSelected = _selectedPlayerItem?.stackKey == item.stackKey;
+              // Use id for selection comparison since non-stackable items (poles) may have same stackKey
+              final isSelected = _selectedPlayerItem?.id == item.id;
               return GestureDetector(
                 onTap: () {
                   setState(() {

@@ -437,8 +437,8 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
         final itemData = data['item'] as Map<String, dynamic>?;
         if (itemData != null) {
           final updatedItem = InventoryEntry.fromJson(itemData);
-          // Update or add the item in our local list
-          final index = _inventory.indexWhere((e) => e.stackKey == updatedItem.stackKey);
+          // Update or add the item in our local list (use id for uniqueness since items may not stack)
+          final index = _inventory.indexWhere((e) => e.id == updatedItem.id);
           if (index >= 0) {
             _inventory[index] = updatedItem;
           } else {
