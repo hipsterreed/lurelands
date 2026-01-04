@@ -146,9 +146,36 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     newPosition.x = newPosition.x.clamp(GameConstants.playerSize / 2, GameConstants.worldWidth - GameConstants.playerSize / 2);
     newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, GameConstants.worldHeight - GameConstants.playerSize / 2);
 
-    // Check for collisions BEFORE moving (Flame best practice: predictive collision detection)
-    if (!_wouldCollideWithWater(newPosition) && !_wouldCollideWithTree(newPosition) && !_wouldCollideWithShop(newPosition)) {
+    // Axis-separated collision resolution (wall sliding)
+    // Try full movement first, then fall back to single-axis movement
+    if (!_wouldCollide(newPosition)) {
       position = newPosition;
+    } else {
+      // Full movement blocked - try sliding along each axis
+      final xOnlyPosition = Vector2(newPosition.x, position.y);
+      final yOnlyPosition = Vector2(position.x, newPosition.y);
+      
+      final canMoveX = !_wouldCollide(xOnlyPosition);
+      final canMoveY = !_wouldCollide(yOnlyPosition);
+      
+      if (canMoveX && canMoveY) {
+        // Both axes work individually - prefer the dominant movement direction
+        if (movement.x.abs() >= movement.y.abs()) {
+          position = xOnlyPosition;
+        } else {
+          position = yOnlyPosition;
+        }
+      } else if (canMoveX) {
+        position = xOnlyPosition;
+      } else if (canMoveY) {
+        position = yOnlyPosition;
+      } else {
+        // Neither axis works - try tangential sliding for circular obstacles (trees)
+        final slidePosition = _getTreeSlidePosition(movement);
+        if (slidePosition != null && !_wouldCollide(slidePosition)) {
+          position = slidePosition;
+        }
+      }
     }
 
     // Update facing direction (flip sprite for left/right)
@@ -162,6 +189,64 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
 
     // Update facing angle based on movement direction
     _facingAngle = atan2(direction.y, direction.x);
+  }
+
+  /// Check if position would collide with any obstacle
+  bool _wouldCollide(Vector2 newPos) {
+    return _wouldCollideWithWater(newPos) ||
+        _wouldCollideWithTree(newPos) ||
+        _wouldCollideWithShop(newPos);
+  }
+
+  /// Calculate tangential slide position when colliding with a tree
+  /// Returns null if no tree collision or slide isn't possible
+  Vector2? _getTreeSlidePosition(Vector2 movement) {
+    const playerHitboxRadius = 25.0;
+    
+    // Find the closest tree we're colliding with
+    Tree? closestTree;
+    double closestDistance = double.infinity;
+    
+    for (final tree in game.trees) {
+      final hitboxWorldPos = tree.hitboxWorldPosition;
+      final dx = position.x - hitboxWorldPos.x;
+      final dy = position.y - hitboxWorldPos.y;
+      final distance = sqrt(dx * dx + dy * dy);
+      final collisionDistance = tree.hitboxRadius + playerHitboxRadius;
+      
+      // Check if we're near this tree (within collision range + small buffer)
+      if (distance < collisionDistance + 5 && distance < closestDistance) {
+        closestDistance = distance;
+        closestTree = tree;
+      }
+    }
+    
+    if (closestTree == null) return null;
+    
+    // Calculate the normal (direction from tree center to player)
+    final treePos = closestTree.hitboxWorldPosition;
+    final toPlayer = Vector2(position.x - treePos.x, position.y - treePos.y);
+    
+    if (toPlayer.length < 0.001) return null; // Player is at tree center (edge case)
+    toPlayer.normalize();
+    
+    // Calculate tangent (perpendicular to normal)
+    // Choose the tangent direction that aligns with the movement
+    final tangent1 = Vector2(-toPlayer.y, toPlayer.x);
+    final tangent2 = Vector2(toPlayer.y, -toPlayer.x);
+    
+    // Pick the tangent that's more aligned with our intended movement
+    final dot1 = tangent1.dot(movement);
+    final dot2 = tangent2.dot(movement);
+    final slideTangent = dot1.abs() > dot2.abs() ? tangent1 : tangent2;
+    
+    // Project movement onto the tangent
+    final slideAmount = movement.dot(slideTangent);
+    if (slideAmount.abs() < 0.001) return null; // No meaningful slide
+    
+    // Apply slide movement
+    final slideMovement = slideTangent * slideAmount;
+    return position + slideMovement;
   }
 
   bool _wouldCollideWithWater(Vector2 newPos) {
