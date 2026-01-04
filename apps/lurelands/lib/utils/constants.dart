@@ -42,6 +42,12 @@ class GameConstants {
   static const List<double> barSizeByTier = [0.25, 0.20, 0.15, 0.12];
   // Minigame timeout by tier (seconds) - harder fish get more time
   static const List<double> minigameTimeoutByTier = [10.0, 14.0, 18.0, 24.0];
+  
+  // Pole tier bonuses (indexed by pole tier - 1, so tier 1 = index 0)
+  // Gravity multiplier: higher = faster fall = more control
+  static const List<double> poleGravityMultiplier = [1.0, 1.15, 1.3, 1.5];
+  // Bar size bonus: adds to base bar size (helps with harder fish)
+  static const List<double> poleBarSizeBonus = [0.0, 0.02, 0.04, 0.07];
 
   // Pond settings
   static const double minPondRadius = 80.0;

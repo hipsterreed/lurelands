@@ -368,7 +368,18 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
         final playerData = data['player'] as Map<String, dynamic>?;
         if (playerData != null) {
           final player = _parsePlayer(playerData);
-          _players[player.id] = player;
+          // For local player, preserve our equipped pole state to avoid flicker
+          // from server broadcasts that may have stale data
+          if (player.id == _playerId && _localPlayer != null) {
+            final updatedLocal = player.copyWith(
+              equippedPoleId: _localPlayer!.equippedPoleId,
+              equippedPoleTier: _localPlayer!.equippedPoleTier,
+            );
+            _localPlayer = updatedLocal;
+            _players[player.id] = updatedLocal;
+          } else {
+            _players[player.id] = player;
+          }
           _emitPlayerUpdate();
         }
         break;

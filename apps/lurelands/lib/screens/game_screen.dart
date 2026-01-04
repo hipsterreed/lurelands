@@ -134,6 +134,12 @@ class _GameScreenState extends State<GameScreen> {
           if (localPlayer.equippedPoleId != _equippedPoleId) {
             _equippedPoleId = localPlayer.equippedPoleId;
             needsUpdate = true;
+            
+            // Sync the equipped pole tier to the game's Player component
+            // This affects cast distance and pole sprite
+            if (_game?.player != null) {
+              _game!.player!.equippedPoleTier = localPlayer.equippedPoleTier;
+            }
           }
           if (needsUpdate) {
             setState(() {});
@@ -283,6 +289,7 @@ class _GameScreenState extends State<GameScreen> {
               fish: fish,
               onCaught: () => _game!.onFishCaught(),
               onEscaped: () => _game!.onFishEscapedMinigame(),
+              poleTier: _game!.player?.equippedPoleTier ?? 1,
             );
           },
         );
@@ -770,7 +777,12 @@ class _GameScreenState extends State<GameScreen> {
                         child: Center(
                           child: Builder(
                             builder: (context) {
-                              final poleTier = _game!.player?.equippedPoleTier ?? 1;
+                              // Use cached _equippedPoleId to derive tier, avoiding flicker
+                              // from server broadcast timing during walking
+                              int poleTier = 1;
+                              if (_equippedPoleId != null && _equippedPoleId!.startsWith('pole_')) {
+                                poleTier = int.tryParse(_equippedPoleId!.split('_').last) ?? 1;
+                              }
                               final poleAsset = ItemAssets.getFishingPole(poleTier);
                               final imagePath =
                                   isCasting ? poleAsset.casted : poleAsset.normal;
@@ -1116,12 +1128,14 @@ class FishingMinigameOverlay extends StatefulWidget {
   final HookedFish fish;
   final VoidCallback onCaught;
   final VoidCallback onEscaped;
+  final int poleTier; // Equipped pole tier (1-4) affects control and bar size
 
   const FishingMinigameOverlay({
     super.key,
     required this.fish,
     required this.onCaught,
     required this.onEscaped,
+    this.poleTier = 1,
   });
 
   @override
@@ -1144,6 +1158,7 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   late double _barVelocity;
   late double _progress;     // 0.0 to 1.0
   late double _barSize;      // As fraction of meter height
+  late double _gravityMultiplier; // Pole tier bonus for control
 
   // Fish movement AI
   double _directionChangeTimer = 0.0;
@@ -1162,11 +1177,20 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
     super.initState();
 
     // Initialize based on fish tier
-    final tierIndex = widget.fish.tier - 1;
-    _fishSpeed = GameConstants.fishSpeedByTier[tierIndex];
-    _barSize = GameConstants.barSizeByTier[tierIndex];
-    _totalTime = GameConstants.minigameTimeoutByTier[tierIndex];
+    final fishTierIndex = widget.fish.tier - 1;
+    _fishSpeed = GameConstants.fishSpeedByTier[fishTierIndex];
+    _totalTime = GameConstants.minigameTimeoutByTier[fishTierIndex];
     _timeRemaining = _totalTime;
+    
+    // Calculate pole tier bonuses
+    final poleTierIndex = (widget.poleTier - 1).clamp(0, 3);
+    _gravityMultiplier = GameConstants.poleGravityMultiplier[poleTierIndex];
+    
+    // Bar size = base size (from fish tier) + pole bonus
+    // Better poles give bigger bar, especially helpful for harder fish
+    final baseBarSize = GameConstants.barSizeByTier[fishTierIndex];
+    final poleBonus = GameConstants.poleBarSizeBonus[poleTierIndex];
+    _barSize = baseBarSize + poleBonus;
 
     // Start positions
     _fishPosition = 0.5;
@@ -1241,8 +1265,8 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   }
 
   void _updateBar(double dt) {
-    // Apply gravity
-    _barVelocity -= GameConstants.minigameBarGravity * dt / meterHeight;
+    // Apply gravity (higher tier poles = more gravity = more control)
+    _barVelocity -= GameConstants.minigameBarGravity * _gravityMultiplier * dt / meterHeight;
     
     // Clamp velocity
     final maxVel = GameConstants.minigameBarMaxSpeed / meterHeight;

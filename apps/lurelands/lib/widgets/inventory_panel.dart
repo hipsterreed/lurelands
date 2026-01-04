@@ -380,25 +380,52 @@ class _InventoryPanelState extends State<InventoryPanel> {
   }
 
   Widget _buildCharacterSection() {
-    return Row(
+    return Column(
       children: [
-        // Left equipment slots + Character + Right equipment slots
-        Expanded(
-          child: Center(child: _buildEquipmentArea()),
-        ),
-        // Vertical divider
-        Container(
-          width: 2,
-          height: double.infinity,
-          margin: const EdgeInsets.symmetric(vertical: 4),
-          decoration: BoxDecoration(
-            color: _BackpackColors.divider,
-            borderRadius: BorderRadius.circular(1),
+        // Player name at top
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(
+            widget.playerName,
+            style: TextStyle(
+              color: _BackpackColors.textGold,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withAlpha(150),
+                  offset: const Offset(1, 1),
+                  blurRadius: 2,
+                ),
+              ],
+            ),
           ),
         ),
-        // Player info
+        // Equipment + Stats row
         Expanded(
-          child: Center(child: _buildPlayerInfo()),
+          child: Row(
+            children: [
+              // Left: Equipment slots + Character
+              Expanded(
+                child: Center(child: _buildEquipmentArea()),
+              ),
+              // Vertical divider
+              Container(
+                width: 2,
+                height: double.infinity,
+                margin: const EdgeInsets.symmetric(vertical: 4),
+                decoration: BoxDecoration(
+                  color: _BackpackColors.divider,
+                  borderRadius: BorderRadius.circular(1),
+                ),
+              ),
+              // Right: Stats panel
+              Expanded(
+                child: _buildPlayerInfo(),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -428,6 +455,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
               onTap: widget.equippedPoleId != null && widget.onUnequipPole != null
                   ? widget.onUnequipPole
                   : null,
+              onDrop: widget.onEquipPole,
             ),
             const SizedBox(height: 4),
             _EquipmentSlotWidget(
@@ -502,88 +530,200 @@ class _InventoryPanelState extends State<InventoryPanel> {
     );
   }
 
+  /// Get pole tier from equipped pole ID
+  int get _equippedPoleTier {
+    if (widget.equippedPoleId == null) return 1;
+    if (widget.equippedPoleId!.startsWith('pole_')) {
+      return int.tryParse(widget.equippedPoleId!.split('_').last) ?? 1;
+    }
+    return 1;
+  }
+
   Widget _buildPlayerInfo() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        // Player name
-        Text(
-          widget.playerName,
-          style: TextStyle(
-            color: _BackpackColors.textGold,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            shadows: [
-              Shadow(
-                color: Colors.black.withAlpha(150),
-                offset: const Offset(1, 1),
-                blurRadius: 2,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        // Divider line
-        Container(
-          height: 1,
-          width: 60,
-          color: _BackpackColors.divider,
-        ),
-        const SizedBox(height: 8),
-        // Gold display
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: _BackpackColors.slotBg,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: _BackpackColors.textGold.withAlpha(80),
-              width: 2,
+    final poleTier = _equippedPoleTier;
+    final poleItem = widget.equippedPoleId != null 
+        ? GameItems.get(widget.equippedPoleId!) 
+        : null;
+    
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // Player name
+          Text(
+            widget.playerName,
+            style: TextStyle(
+              color: _BackpackColors.textGold,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              shadows: [
+                Shadow(
+                  color: Colors.black.withAlpha(150),
+                  offset: const Offset(1, 1),
+                  blurRadius: 2,
+                ),
+              ],
             ),
           ),
-          child: Row(
+          const SizedBox(height: 4),
+          // Gold display
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _BackpackColors.slotBg,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: _BackpackColors.textGold.withAlpha(80),
+                width: 2,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.monetization_on,
+                  color: _BackpackColors.textGold,
+                  size: 14,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${_formatGold(widget.playerGold)}g',
+                  style: TextStyle(
+                    color: _BackpackColors.textGold,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 6),
+          // Divider
+          Container(
+            height: 1,
+            width: 80,
+            color: _BackpackColors.divider,
+          ),
+          const SizedBox(height: 6),
+          // Equipment Stats Header
+          Text(
+            'FISHING STATS',
+            style: TextStyle(
+              color: _BackpackColors.textMuted,
+              fontSize: 9,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Pole name
+          Text(
+            poleItem?.name ?? 'No Pole',
+            style: TextStyle(
+              color: poleItem != null ? _BackpackColors.textLight : _BackpackColors.textMuted,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // Stats grid
+          _buildStatRow(
+            Icons.straighten,
+            'Cast',
+            '${_getCastDistance(poleTier).toInt()}px',
+            _getStatColor(poleTier),
+          ),
+          const SizedBox(height: 2),
+          _buildStatRow(
+            Icons.speed,
+            'Control',
+            '+${((_getGravityMultiplier(poleTier) - 1) * 100).toInt()}%',
+            _getStatColor(poleTier),
+          ),
+          const SizedBox(height: 2),
+          _buildStatRow(
+            Icons.expand,
+            'Bar Bonus',
+            '+${(_getBarBonus(poleTier) * 100).toInt()}%',
+            _getStatColor(poleTier),
+          ),
+          const SizedBox(height: 6),
+          // Item count
+          Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                Icons.monetization_on,
-                color: _BackpackColors.textGold,
-                size: 18,
+                Icons.inventory_2,
+                color: _BackpackColors.textMuted,
+                size: 12,
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Text(
-                '${_formatGold(widget.playerGold)}g',
+                '${widget.items.fold<int>(0, (sum, e) => sum + e.quantity)} items',
                 style: TextStyle(
-                  color: _BackpackColors.textGold,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
+                  color: _BackpackColors.textMuted,
+                  fontSize: 10,
                 ),
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow(IconData icon, String label, String value, Color valueColor) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 10, color: _BackpackColors.textMuted),
+        const SizedBox(width: 3),
+        Text(
+          '$label: ',
+          style: TextStyle(
+            color: _BackpackColors.textMuted,
+            fontSize: 10,
+          ),
         ),
-        const SizedBox(height: 8),
-        // Item count
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.inventory_2,
-              color: _BackpackColors.textMuted,
-              size: 14,
-            ),
-            const SizedBox(width: 4),
-            Text(
-              '${widget.items.fold<int>(0, (sum, e) => sum + e.quantity)} items',
-              style: TextStyle(
-                color: _BackpackColors.textMuted,
-                fontSize: 11,
-              ),
-            ),
-          ],
+        Text(
+          value,
+          style: TextStyle(
+            color: valueColor,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
         ),
       ],
     );
+  }
+
+  double _getCastDistance(int poleTier) {
+    const distances = [100.0, 140.0, 180.0, 220.0];
+    return distances[(poleTier - 1).clamp(0, 3)];
+  }
+
+  double _getGravityMultiplier(int poleTier) {
+    return GameConstants.poleGravityMultiplier[(poleTier - 1).clamp(0, 3)];
+  }
+
+  double _getBarBonus(int poleTier) {
+    return GameConstants.poleBarSizeBonus[(poleTier - 1).clamp(0, 3)];
+  }
+
+  Color _getStatColor(int poleTier) {
+    switch (poleTier) {
+      case 1:
+        return _BackpackColors.textLight;
+      case 2:
+        return const Color(0xFF7CFC00); // Green
+      case 3:
+        return const Color(0xFF00BFFF); // Blue
+      case 4:
+        return const Color(0xFFFFD700); // Gold
+      default:
+        return _BackpackColors.textLight;
+    }
   }
 
   String _formatGold(int gold) {
@@ -889,9 +1029,78 @@ class _InventorySlot extends StatelessWidget {
     // Build tooltip message - add equip hint for poles
     String tooltipMessage = '${itemDef?.name ?? entry.itemId}\n${itemDef?.description ?? ""}\nValue: ${stackValue}g';
     if (isPole && onTap != null) {
-      tooltipMessage += '\n\nTap to equip';
+      tooltipMessage += '\n\nTap or drag to equip';
     }
 
+    final slotContent = _buildSlotContent(itemDef, isFish, isPole, stackValue);
+
+    // Make poles draggable
+    if (isPole && onTap != null) {
+      return Draggable<InventoryEntry>(
+        data: entry,
+        feedback: Material(
+          color: Colors.transparent,
+          child: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: _BackpackColors.slotBg.withAlpha(230),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: _BackpackColors.textGold, width: 2),
+              boxShadow: [
+                BoxShadow(
+                  color: _BackpackColors.textGold.withAlpha(100),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Center(
+              child: itemDef != null
+                  ? Image.asset(
+                      itemDef.assetPath,
+                      fit: BoxFit.contain,
+                      width: 32,
+                      height: 32,
+                      errorBuilder: (_, __, ___) => Icon(
+                        Icons.phishing,
+                        color: _BackpackColors.textGold,
+                        size: 24,
+                      ),
+                    )
+                  : Icon(Icons.phishing, color: _BackpackColors.textGold, size: 24),
+            ),
+          ),
+        ),
+        childWhenDragging: Container(
+          decoration: BoxDecoration(
+            color: _BackpackColors.slotEmpty.withAlpha(150),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: _BackpackColors.slotBorder.withAlpha(100),
+              width: 2,
+              style: BorderStyle.solid,
+            ),
+          ),
+        ),
+        child: GestureDetector(
+          onTap: onTap,
+          child: Tooltip(
+            message: tooltipMessage,
+            preferBelow: false,
+            decoration: BoxDecoration(
+              color: _BackpackColors.panelBg,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: _BackpackColors.woodMedium, width: 2),
+            ),
+            textStyle: TextStyle(color: _BackpackColors.textLight, fontSize: 12),
+            child: slotContent,
+          ),
+        ),
+      );
+    }
+
+    // Non-draggable items
     return GestureDetector(
       onTap: onTap,
       child: Tooltip(
@@ -903,24 +1112,30 @@ class _InventorySlot extends StatelessWidget {
           border: Border.all(color: _BackpackColors.woodMedium, width: 2),
         ),
         textStyle: TextStyle(color: _BackpackColors.textLight, fontSize: 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: _BackpackColors.slotBg,
-            borderRadius: BorderRadius.circular(4),
-            border: Border.all(
-              color: isPole && onTap != null 
-                  ? _BackpackColors.slotHighlight // Highlight equippable poles
-                  : _BackpackColors.slotBorder, 
-              width: 2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(60),
-                offset: const Offset(1, 2),
-                blurRadius: 2,
-              ),
-            ],
+        child: slotContent,
+      ),
+    );
+  }
+
+  Widget _buildSlotContent(ItemDefinition? itemDef, bool isFish, bool isPole, int stackValue) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _BackpackColors.slotBg,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: isPole && onTap != null 
+              ? _BackpackColors.slotHighlight // Highlight equippable poles
+              : _BackpackColors.slotBorder, 
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(60),
+            offset: const Offset(1, 2),
+            blurRadius: 2,
           ),
+        ],
+      ),
         child: Column(
           children: [
             // Main content area
@@ -1019,9 +1234,7 @@ class _InventorySlot extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    ),
-    );
+      );
   }
 
   Widget _buildFallbackIcon() {
@@ -1056,13 +1269,14 @@ class _EmptySlot extends StatelessWidget {
   }
 }
 
-/// Equipment slot widget
+/// Equipment slot widget with drag-and-drop support
 class _EquipmentSlotWidget extends StatelessWidget {
   final EquipmentSlot slot;
   final IconData icon;
   final String label;
   final InventoryEntry? equippedItem; // The item equipped in this slot
   final VoidCallback? onTap; // Called when slot is tapped (to unequip)
+  final void Function(String poleItemId)? onDrop; // Called when a pole is dropped
 
   const _EquipmentSlotWidget({
     required this.slot,
@@ -1070,6 +1284,7 @@ class _EquipmentSlotWidget extends StatelessWidget {
     required this.label,
     this.equippedItem,
     this.onTap,
+    this.onDrop,
   });
 
   @override
@@ -1082,7 +1297,83 @@ class _EquipmentSlotWidget extends StatelessWidget {
     if (hasItem && itemDef != null) {
       tooltipMessage = '${itemDef.name}\n${itemDef.description}\n\nTap to unequip';
     } else {
-      tooltipMessage = '$label (Empty)';
+      tooltipMessage = '$label (Empty)\n\nDrag a pole here to equip';
+    }
+    
+    // Only make pole slot a drag target
+    final isPoleSlot = slot == EquipmentSlot.pole;
+    
+    if (isPoleSlot && onDrop != null) {
+      return DragTarget<InventoryEntry>(
+        onWillAcceptWithDetails: (details) {
+          // Only accept poles
+          return details.data.itemId.startsWith('pole_');
+        },
+        onAcceptWithDetails: (details) {
+          onDrop!(details.data.itemId);
+        },
+        builder: (context, candidateData, rejectedData) {
+          final isHovering = candidateData.isNotEmpty;
+          return _buildSlotWidget(
+            hasItem: hasItem,
+            itemDef: itemDef,
+            tooltipMessage: tooltipMessage,
+            isDropTarget: true,
+            isHovering: isHovering,
+          );
+        },
+      );
+    }
+    
+    return _buildSlotWidget(
+      hasItem: hasItem,
+      itemDef: itemDef,
+      tooltipMessage: tooltipMessage,
+      isDropTarget: false,
+      isHovering: false,
+    );
+  }
+  
+  Widget _buildSlotWidget({
+    required bool hasItem,
+    required ItemDefinition? itemDef,
+    required String tooltipMessage,
+    required bool isDropTarget,
+    required bool isHovering,
+  }) {
+    // Determine colors based on state
+    Color borderColor;
+    Color bgColor;
+    List<BoxShadow> shadows = [
+      BoxShadow(
+        color: Colors.black.withAlpha(40),
+        offset: const Offset(1, 1),
+        blurRadius: 1,
+      ),
+    ];
+    
+    if (isHovering) {
+      // Hovering with a valid pole - bright highlight
+      borderColor = Colors.greenAccent;
+      bgColor = Colors.greenAccent.withAlpha(40);
+      shadows.add(BoxShadow(
+        color: Colors.greenAccent.withAlpha(100),
+        blurRadius: 8,
+        spreadRadius: 2,
+      ));
+    } else if (hasItem) {
+      // Has equipped item
+      borderColor = _BackpackColors.textGold;
+      bgColor = _BackpackColors.slotBg;
+      shadows.add(BoxShadow(
+        color: _BackpackColors.textGold.withAlpha(30),
+        blurRadius: 4,
+        spreadRadius: 0,
+      ));
+    } else {
+      // Empty slot
+      borderColor = _BackpackColors.slotBorder;
+      bgColor = _BackpackColors.slotEmpty;
     }
     
     return GestureDetector(
@@ -1096,29 +1387,18 @@ class _EquipmentSlotWidget extends StatelessWidget {
           border: Border.all(color: _BackpackColors.woodMedium, width: 2),
         ),
         textStyle: TextStyle(color: _BackpackColors.textLight, fontSize: 12),
-        child: Container(
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: hasItem ? _BackpackColors.slotBg : _BackpackColors.slotEmpty,
+            color: bgColor,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
-              color: hasItem ? _BackpackColors.textGold : _BackpackColors.slotBorder,
-              width: 2,
+              color: borderColor,
+              width: isHovering ? 3 : 2,
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(40),
-                offset: const Offset(1, 1),
-                blurRadius: 1,
-              ),
-              if (hasItem)
-                BoxShadow(
-                  color: _BackpackColors.textGold.withAlpha(30),
-                  blurRadius: 4,
-                  spreadRadius: 0,
-                ),
-            ],
+            boxShadow: shadows,
           ),
           child: Center(
             child: hasItem && itemDef != null
@@ -1136,7 +1416,9 @@ class _EquipmentSlotWidget extends StatelessWidget {
                   )
                 : Icon(
                     icon,
-                    color: _BackpackColors.textMuted.withAlpha(100),
+                    color: isHovering 
+                        ? Colors.greenAccent 
+                        : _BackpackColors.textMuted.withAlpha(100),
                     size: 18,
                   ),
           ),
