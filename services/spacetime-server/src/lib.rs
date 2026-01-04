@@ -305,6 +305,38 @@ pub struct GameEvent {
 }
 
 // =============================================================================
+// ITEM STACKING CONSTANTS
+// =============================================================================
+
+/// Maximum stack size for fish items
+const MAX_FISH_STACK_SIZE: u32 = 5;
+
+/// Maximum stack size for poles (no stacking)
+const MAX_POLE_STACK_SIZE: u32 = 1;
+
+/// Check if an item ID represents a fishing pole
+fn is_pole_item(item_id: &str) -> bool {
+    item_id.starts_with("pole_")
+}
+
+/// Check if an item ID represents a fish
+fn is_fish_item(item_id: &str) -> bool {
+    item_id.starts_with("fish_")
+}
+
+/// Get the maximum stack size for an item type
+fn get_max_stack_size(item_id: &str) -> u32 {
+    if is_pole_item(item_id) {
+        MAX_POLE_STACK_SIZE
+    } else if is_fish_item(item_id) {
+        MAX_FISH_STACK_SIZE
+    } else {
+        // Lures and other items can stack freely (or adjust as needed)
+        u32::MAX
+    }
+}
+
+// =============================================================================
 // REDUCERS - Actions that clients can call to modify state
 // =============================================================================
 
@@ -443,15 +475,19 @@ pub fn catch_fish(
     ctx.db.fish_catch().insert(catch);
     log::info!("Player {} caught fish {} ({}star)", player_id, item_id, rarity);
     
-    // Also add to inventory
+    // Add to inventory with stack size limit
+    let max_stack = get_max_stack_size(&item_id);
+    
+    // Find an existing stack that isn't full
     let existing = ctx.db.inventory().iter().find(|inv| {
-        inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity
+        inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity && inv.quantity < max_stack
     });
     
     if let Some(mut inv) = existing {
         inv.quantity += 1;
         ctx.db.inventory().id().update(inv);
     } else {
+        // Create new stack (either no existing stack or all stacks are full)
         let inv = Inventory {
             id: 0,
             player_id: player_id.clone(),
@@ -493,6 +529,7 @@ pub fn release_fish(ctx: &ReducerContext, catch_id: u64) {
 }
 
 /// Add an item to a player's inventory (creates new stack or increments existing)
+/// Respects stack size limits: poles don't stack, fish max at 5
 #[spacetimedb::reducer]
 pub fn add_to_inventory(
     ctx: &ReducerContext,
@@ -501,33 +538,50 @@ pub fn add_to_inventory(
     rarity: u8,
     quantity: u32,
 ) {
-    // Look for existing stack with same player_id, item_id, and rarity
-    let existing = ctx.db.inventory().iter().find(|inv| {
-        inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity
-    });
+    let max_stack = get_max_stack_size(&item_id);
+    let mut remaining = quantity;
     
-    if let Some(mut inv) = existing {
-        // Update existing stack
-        inv.quantity += quantity;
-        let new_quantity = inv.quantity; // Save before move
-        ctx.db.inventory().id().update(inv);
-        log::info!(
-            "Updated inventory for player {}: {} x{} (rarity {})",
-            player_id, item_id, new_quantity, rarity
-        );
-    } else {
-        // Create new stack
+    // First, try to fill existing non-full stacks
+    while remaining > 0 {
+        // Find an existing stack that isn't full
+        let existing = ctx.db.inventory().iter().find(|inv| {
+            inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity && inv.quantity < max_stack
+        });
+        
+        if let Some(mut inv) = existing {
+            // Calculate how much we can add to this stack
+            let space_available = max_stack - inv.quantity;
+            let to_add = remaining.min(space_available);
+            
+            inv.quantity += to_add;
+            remaining -= to_add;
+            let new_quantity = inv.quantity;
+            ctx.db.inventory().id().update(inv);
+            log::info!(
+                "Updated inventory for player {}: {} x{} (rarity {})",
+                player_id, item_id, new_quantity, rarity
+            );
+        } else {
+            // No existing stack with space, create new stacks
+            break;
+        }
+    }
+    
+    // Create new stacks for remaining items
+    while remaining > 0 {
+        let stack_size = remaining.min(max_stack);
         let inv = Inventory {
             id: 0, // auto-incremented
             player_id: player_id.clone(),
             item_id: item_id.clone(),
             rarity,
-            quantity,
+            quantity: stack_size,
         };
         ctx.db.inventory().insert(inv);
+        remaining -= stack_size;
         log::info!(
             "Added to inventory for player {}: {} x{} (rarity {})",
-            player_id, item_id, quantity, rarity
+            player_id, item_id, stack_size, rarity
         );
     }
 }

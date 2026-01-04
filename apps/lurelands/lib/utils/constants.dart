@@ -469,9 +469,9 @@ class GameItems {
   static const ItemDefinition pole1 = ItemDefinition(
     id: 'pole_1',
     name: 'Wooden Rod',
-    description: 'A basic fishing rod for beginners.',
+    description: 'A basic fishing rod for beginners. Free!',
     type: ItemType.pole,
-    basePrice: 50,
+    basePrice: 0,
     assetPath: '${AssetPaths.items}/fishing_pole_1.png',
     tier: 1,
   );
