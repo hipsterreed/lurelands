@@ -3,29 +3,22 @@ import 'dart:ui';
 
 import 'package:flame/components.dart';
 
-import '../../models/water_body_data.dart';
 import '../../services/spacetimedb/stdb_service.dart';
 import '../../utils/constants.dart';
-import '../components/ocean.dart';
-import '../components/pond.dart';
-import '../components/river.dart';
 import '../components/shop.dart';
 import '../components/sunflower.dart';
+import '../components/tiled_water.dart';
 import '../components/tree.dart';
 import '../lurelands_game.dart';
 import 'nature_tileset.dart';
 import 'world_decorations.dart';
 
 /// Default fallback world state when server data is unavailable
+/// Note: Ponds and rivers are now defined as tiled water bodies in _addTiledWaterBodies()
 const WorldState fallbackWorldState = WorldState(
-  ponds: [
-    PondData(id: 'pond_1', x: 600, y: 600, radius: 100),
-    PondData(id: 'pond_2', x: 1400, y: 1200, radius: 80),
-  ],
-  rivers: [
-    RiverData(id: 'river_1', x: 1000, y: 400, width: 80, length: 600, rotation: 0.3),
-  ],
-  ocean: OceanData(id: 'ocean_1', x: 0, y: 0, width: 250, height: 2000),
+  ponds: [],
+  rivers: [],
+  ocean: null,
 );
 
 /// The game world containing terrain, water bodies, and vegetation.
@@ -44,36 +37,27 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
   LurelandsWorld({required this.worldState});
 
   // Component references for external access
-  final List<Pond> _pondComponents = [];
-  final List<River> _riverComponents = [];
-  Ocean? _oceanComponent;
+  final List<TiledWaterBody> _tiledWaterComponents = [];
   final List<Tree> _treeComponents = [];
   final List<Shop> _shopComponents = [];
   
-  /// Nature tileset for decorations
+  /// Nature tileset for decorations and water
   late NatureTilesheet _tilesheet;
-
-  /// All pond components in the world
-  List<Pond> get pondComponents => _pondComponents;
-
-  /// All river components in the world
-  List<River> get riverComponents => _riverComponents;
-
-  /// The ocean component (if any)
-  Ocean? get oceanComponent => _oceanComponent;
+  
+  /// Tiled water body configurations (ponds/rivers built from tiles)
+  final List<TiledWaterData> _tiledWaterData = [];
 
   /// All tree components in the world
   List<Tree> get treeComponents => _treeComponents;
 
   /// All shop components in the world
   List<Shop> get shopComponents => _shopComponents;
-
-  /// All water body data for collision/proximity checks
-  List<WaterBodyData> get allWaterBodies => [
-    ...worldState.ponds,
-    ...worldState.rivers,
-    if (worldState.ocean != null) worldState.ocean!,
-  ];
+  
+  /// All tiled water body components
+  List<TiledWaterBody> get tiledWaterComponents => _tiledWaterComponents;
+  
+  /// All tiled water data for collision/proximity checks
+  List<TiledWaterData> get allTiledWaterData => _tiledWaterData;
 
   @override
   Future<void> onLoad() async {
@@ -101,24 +85,56 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Add all water body components to the world
   Future<void> _addWaterBodies() async {
-    // Add ocean (typically on left side of map)
-    if (worldState.ocean != null) {
-      _oceanComponent = Ocean(data: worldState.ocean!);
-      await add(_oceanComponent!);
-    }
+    // Add tiled water bodies (ponds and rivers from tileset)
+    await _addTiledWaterBodies();
+  }
 
-    // Add rivers
-    for (final riverData in worldState.rivers) {
-      final river = River(data: riverData);
-      _riverComponents.add(river);
-      await add(river);
-    }
+  /// Add tiled water bodies built from the tileset
+  Future<void> _addTiledWaterBodies() async {
+    // Define tiled ponds and rivers
+    final tiledWaterConfigs = [
+      // Pond 1: 5x4 tiles at position (500, 500)
+      const TiledWaterData(
+        id: 'tiled_pond_1',
+        x: 500,
+        y: 500,
+        widthInTiles: 5,
+        heightInTiles: 4,
+        waterType: WaterType.pond,
+      ),
+      // Pond 2: 4x3 tiles at position (1300, 1000)
+      const TiledWaterData(
+        id: 'tiled_pond_2',
+        x: 1300,
+        y: 1000,
+        widthInTiles: 4,
+        heightInTiles: 3,
+        waterType: WaterType.pond,
+      ),
+      // River: 10x3 tiles (long horizontal river)
+      const TiledWaterData(
+        id: 'tiled_river_1',
+        x: 800,
+        y: 300,
+        widthInTiles: 10,
+        heightInTiles: 3,
+        waterType: WaterType.river,
+      ),
+    ];
 
-    // Add ponds
-    for (final pondData in worldState.ponds) {
-      final pond = Pond(data: pondData);
-      _pondComponents.add(pond);
-      await add(pond);
+    for (final data in tiledWaterConfigs) {
+      _tiledWaterData.add(data);
+      
+      final waterBody = TiledWaterBody(
+        id: data.id,
+        tilesheet: _tilesheet,
+        position: Vector2(data.x, data.y),
+        widthInTiles: data.widthInTiles,
+        heightInTiles: data.heightInTiles,
+        waterType: data.waterType,
+      );
+      _tiledWaterComponents.add(waterBody);
+      await add(waterBody);
     }
   }
 
@@ -182,8 +198,8 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Check if a point is inside any water body
   bool _isInsideWater(double x, double y) {
-    for (final waterBody in allWaterBodies) {
-      if (waterBody.containsPoint(x, y)) {
+    for (final tiledWater in _tiledWaterData) {
+      if (tiledWater.containsPoint(x, y)) {
         return true;
       }
     }

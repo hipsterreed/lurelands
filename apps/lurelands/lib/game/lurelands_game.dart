@@ -8,12 +8,12 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../models/water_body_data.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import 'components/caught_fish_animation.dart';
 import 'components/player.dart';
 import 'components/shop.dart';
+import 'components/tiled_water.dart';
 import 'components/tree.dart';
 import 'world/lurelands_world.dart';
 
@@ -105,11 +105,15 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Fish bite state
   double _biteTimer = 0.0;
   double _biteReactionTimer = 0.0;
-  WaterBodyData? _currentWaterBody;
+  
+  // Current water info for fishing
+  WaterType? _currentWaterType;
+  String? _currentWaterBodyId;
+  
   final Random _random = Random();
-
-  /// All water bodies for collision/spawning checks
-  List<WaterBodyData> get allWaterBodies => _lurelandsWorld.allWaterBodies;
+  
+  /// All tiled water data for collision/spawning checks
+  List<TiledWaterData> get allTiledWaterData => _lurelandsWorld.allTiledWaterData;
 
   /// Get current game time for animations
   double currentTime() => _gameTime;
@@ -350,9 +354,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   /// Select which fish the player has hooked
   void _selectHookedFish() {
-    if (_currentWaterBody == null) return;
+    if (_currentWaterType == null) return;
 
-    final waterType = _currentWaterBody!.waterType;
+    final waterType = _currentWaterType!;
     
     // Weighted random tier selection (lower tiers more common)
     // Weights: Tier 1 = 50%, Tier 2 = 30%, Tier 3 = 15%, Tier 4 = 5%
@@ -462,7 +466,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       final itemId = GameItems.getFishId(fish.waterType, fish.tier);
       // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
       final rarity = fish.tier <= 2 ? 1 : (fish.tier == 3 ? 2 : 3);
-      final waterBodyId = _currentWaterBody?.id ?? 'unknown';
+      final waterBodyId = _currentWaterBodyId ?? 'unknown';
       
       debugPrint('[Game] Caught fish: $itemId ($rarity star) from $waterBodyId');
       stdbService.catchFish(itemId, rarity, waterBodyId);
@@ -515,9 +519,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final playerPos = player.position;
     const castingBuffer = 50.0;
 
-    // Check all water bodies
-    for (final waterBody in allWaterBodies) {
-      if (waterBody.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
+    for (final tiledWater in allTiledWaterData) {
+      if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
         return true;
       }
     }
@@ -526,8 +529,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   /// Check if a position is inside any water body
   bool _isBobberInWater(Vector2 position) {
-    for (final waterBody in allWaterBodies) {
-      if (waterBody.containsPoint(position.x, position.y)) {
+    for (final tiledWater in allTiledWaterData) {
+      if (tiledWater.containsPoint(position.x, position.y)) {
         return true;
       }
     }
@@ -548,19 +551,21 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// Get the water body the player can cast into, if any
-  WaterBodyData? getNearbyWaterBody() {
+  /// Get info about nearby water the player can cast into
+  /// Returns (waterType, id) if near water, null otherwise
+  ({WaterType waterType, String id})? getNearbyWaterInfo() {
     final player = _player;
     if (player == null) return null;
 
     final playerPos = player.position;
     const castingBuffer = 50.0;
 
-    for (final waterBody in allWaterBodies) {
-      if (waterBody.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
-        return waterBody;
+    for (final tiledWater in allTiledWaterData) {
+      if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
+        return (waterType: tiledWater.waterType, id: tiledWater.id);
       }
     }
+    
     return null;
   }
 
@@ -603,10 +608,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     // If we were charging, execute the cast
     if (_isCharging) {
       _isCharging = false;
-      final nearbyWater = getNearbyWaterBody();
-      if (nearbyWater != null) {
-        player.startCasting(nearbyWater, _castPower);
-        _currentWaterBody = nearbyWater;
+      final waterInfo = getNearbyWaterInfo();
+      if (waterInfo != null) {
+        player.startCasting(_castPower);
+        _currentWaterType = waterInfo.waterType;
+        _currentWaterBodyId = waterInfo.id;
 
         // Notify server about casting
         final castLine = player.castLine;
@@ -653,8 +659,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       }
     }
 
-    for (final pond in _lurelandsWorld.pondComponents) {
-      for (final child in pond.children) {
+    for (final water in _lurelandsWorld.tiledWaterComponents) {
+      for (final child in water.children) {
         if (child is ShapeHitbox) {
           child.debugMode = enabled;
         }

@@ -4,7 +4,6 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
 
-import '../../models/water_body_data.dart';
 import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import 'cast_line.dart';
@@ -166,24 +165,24 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     // Player hitbox is roughly 50x50, so use ~25px as player "radius"
     const playerHitboxRadius = 25.0;
     
-    // Check all water bodies
-    for (final waterBody in game.allWaterBodies) {
-      // Use a slightly expanded containsPoint check for the player hitbox
-      // Check corners and center of player hitbox
-      final checkPoints = [
-        newPos,
-        Vector2(newPos.x - playerHitboxRadius, newPos.y),
-        Vector2(newPos.x + playerHitboxRadius, newPos.y),
-        Vector2(newPos.x, newPos.y - playerHitboxRadius),
-        Vector2(newPos.x, newPos.y + playerHitboxRadius),
-      ];
-      
+    // Check points around player hitbox
+    final checkPoints = [
+      newPos,
+      Vector2(newPos.x - playerHitboxRadius, newPos.y),
+      Vector2(newPos.x + playerHitboxRadius, newPos.y),
+      Vector2(newPos.x, newPos.y - playerHitboxRadius),
+      Vector2(newPos.x, newPos.y + playerHitboxRadius),
+    ];
+    
+    // Check tiled water bodies
+    for (final tiledWater in game.allTiledWaterData) {
       for (final point in checkPoints) {
-        if (waterBody.containsPoint(point.x, point.y)) {
+        if (tiledWater.containsPoint(point.x, point.y)) {
           return true;
         }
       }
     }
+    
     return false;
   }
 
@@ -209,11 +208,11 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   }
 
 
-  /// Start casting into a water body
+  /// Start casting into water
   /// [power] is a value from 0.0 to 1.0 representing the charge level
   /// Cast distance is based on equipped pole's max distance and power level
   /// Casts in the direction the player is currently facing
-  void startCasting(WaterBodyData waterBody, double power) {
+  void startCasting(double power) {
     if (_isCasting) return;
 
     _isCasting = true;
