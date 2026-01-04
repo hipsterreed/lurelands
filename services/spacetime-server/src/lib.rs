@@ -43,6 +43,11 @@ pub struct Player {
     #[sats(default)]
     pub gold: u32,
     
+    /// Currently equipped fishing pole item ID (e.g., "pole_1", "pole_2", etc.)
+    /// None means no pole equipped (uses default tier 1)
+    #[sats(default)]
+    pub equipped_pole_id: Option<String>,
+    
     /// Timestamp of last update
     pub last_updated: Timestamp,
 }
@@ -222,6 +227,7 @@ pub fn join_world(ctx: &ReducerContext, player_id: String, name: String, color: 
         color,
         is_online: true,
         gold: 0,
+        equipped_pole_id: None,
         last_updated: ctx.timestamp,
     };
     
@@ -464,6 +470,7 @@ pub fn update_player_name(ctx: &ReducerContext, player_id: String, name: String)
             color: 0xFFE74C3C, // Default red color
             is_online: false, // Created via name update, not yet in world
             gold: 0,
+            equipped_pole_id: None,
             last_updated: ctx.timestamp,
         };
         
@@ -497,6 +504,42 @@ pub fn spend_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
         } else {
             log::warn!("Player {} tried to spend {}g but only has {}g", player_id, amount, player.gold);
         }
+    }
+}
+
+/// Equip a fishing pole from inventory
+/// The pole must exist in the player's inventory to be equipped
+#[spacetimedb::reducer]
+pub fn equip_pole(ctx: &ReducerContext, player_id: String, pole_item_id: String) {
+    // Check if the player owns this pole in their inventory
+    let has_pole = ctx.db.inventory().iter().any(|inv| {
+        inv.player_id == player_id && inv.item_id == pole_item_id
+    });
+    
+    if !has_pole {
+        log::warn!("Player {} tried to equip pole {} but doesn't own it", player_id, pole_item_id);
+        return;
+    }
+    
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        player.equipped_pole_id = Some(pole_item_id.clone());
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
+        log::info!("Player {} equipped pole: {}", player_id, pole_item_id);
+    }
+}
+
+/// Unequip the currently equipped fishing pole
+/// The pole goes back to regular inventory (it never left, just marked as equipped)
+#[spacetimedb::reducer]
+pub fn unequip_pole(ctx: &ReducerContext, player_id: String) {
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        if let Some(pole_id) = &player.equipped_pole_id {
+            log::info!("Player {} unequipped pole: {}", player_id, pole_id);
+        }
+        player.equipped_pole_id = None;
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
     }
 }
 

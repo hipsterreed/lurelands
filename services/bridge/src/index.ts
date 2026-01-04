@@ -188,6 +188,22 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       break;
     }
 
+    case 'equip_pole': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId, poleItemId: message.poleItemId }, 'Player equipping pole');
+        await stdb.equipPole(session.playerId, message.poleItemId);
+      }
+      break;
+    }
+
+    case 'unequip_pole': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId }, 'Player unequipping pole');
+        await stdb.unequipPole(session.playerId);
+      }
+      break;
+    }
+
     default:
       wsLogger.warn({ type: (message as any).type }, 'Unknown message type');
   }

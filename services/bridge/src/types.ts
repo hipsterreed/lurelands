@@ -56,6 +56,7 @@ export interface Player {
   color: number;
   isOnline: boolean;
   gold: number;
+  equippedPoleId: string | null;  // Currently equipped fishing pole item ID
 }
 
 export interface FishCatch {
@@ -92,7 +93,9 @@ export type ClientMessage =
   | { type: 'catch_fish'; itemId: string; rarity: number; waterBodyId: string }
   | { type: 'get_inventory' }
   | { type: 'sell_item'; itemId: string; rarity: number; quantity: number }
-  | { type: 'buy_item'; itemId: string; price: number };
+  | { type: 'buy_item'; itemId: string; price: number }
+  | { type: 'equip_pole'; poleItemId: string }
+  | { type: 'unequip_pole' };
 
 // =============================================================================
 // Bridge → Client Messages

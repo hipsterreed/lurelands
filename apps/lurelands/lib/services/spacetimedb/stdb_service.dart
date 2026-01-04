@@ -162,6 +162,12 @@ abstract class SpacetimeDBService {
   /// Buy an item from the shop
   void buyItem(String itemId, int price);
 
+  /// Equip a fishing pole from inventory
+  void equipPole(String poleItemId);
+
+  /// Unequip the currently equipped fishing pole
+  void unequipPole();
+
   /// Dispose resources
   void dispose();
 }
@@ -421,6 +427,13 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   }
 
   PlayerState _parsePlayer(Map<String, dynamic> json) {
+    final equippedPoleId = json['equippedPoleId'] as String?;
+    // Derive equippedPoleTier from equippedPoleId if present
+    int poleTier = 1;
+    if (equippedPoleId != null && equippedPoleId.startsWith('pole_')) {
+      poleTier = int.tryParse(equippedPoleId.split('_').last) ?? 1;
+    }
+    
     return PlayerState(
       id: json['id'] as String,
       name: json['name'] as String? ?? 'Player',
@@ -433,6 +446,8 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       color: json['color'] as int? ?? 0xFFE74C3C,
       isOnline: json['isOnline'] as bool? ?? true,
       gold: json['gold'] as int? ?? 0,
+      equippedPoleTier: poleTier,
+      equippedPoleId: equippedPoleId,
     );
   }
 
@@ -682,6 +697,57 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       'itemId': itemId,
       'price': price,
     });
+  }
+
+  @override
+  void equipPole(String poleItemId) {
+    if (_playerId == null || !isConnected) {
+      debugPrint('[Bridge] Cannot equip pole - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Equipping pole: $poleItemId');
+    _sendMessage({
+      'type': 'equip_pole',
+      'poleItemId': poleItemId,
+    });
+
+    // Update local state immediately for responsiveness
+    if (_localPlayer != null) {
+      int poleTier = 1;
+      if (poleItemId.startsWith('pole_')) {
+        poleTier = int.tryParse(poleItemId.split('_').last) ?? 1;
+      }
+      _localPlayer = _localPlayer!.copyWith(
+        equippedPoleId: poleItemId,
+        equippedPoleTier: poleTier,
+      );
+      _players[_playerId!] = _localPlayer!;
+      _emitPlayerUpdate();
+    }
+  }
+
+  @override
+  void unequipPole() {
+    if (_playerId == null || !isConnected) {
+      debugPrint('[Bridge] Cannot unequip pole - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Unequipping pole');
+    _sendMessage({
+      'type': 'unequip_pole',
+    });
+
+    // Update local state immediately for responsiveness
+    if (_localPlayer != null) {
+      _localPlayer = _localPlayer!.copyWith(
+        clearEquippedPoleId: true,
+        equippedPoleTier: 1,
+      );
+      _players[_playerId!] = _localPlayer!;
+      _emitPlayerUpdate();
+    }
   }
 
   Completer<PlayerState?>? _fetchPlayerCompleter;

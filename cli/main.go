@@ -351,11 +351,11 @@ func initialModel() model {
 		},
 		item{title: "─── Database ───", description: "", category: "header", command: "", args: nil, workDir: ""},
 		item{
-			title:       "Deploy to Mainnet",
-			description: "spacetime publish --server mainnet",
+			title:       "Deploy to Maincloud",
+			description: "spacetime publish --server maincloud",
 			category:    "database",
 			command:     "spacetime",
-			args:        []string{"publish", "--server", "mainnet", "lurelands"},
+			args:        []string{"publish", "--server", "maincloud", "lurelands"},
 			workDir:     spacetimeDir,
 		},
 		item{
@@ -487,7 +487,7 @@ func handleDirectCommand(args []string) {
 		"run:ios":         {"flutter", []string{"run", "-d", "ios"}, flutterDir, "Run on iOS"},
 		"run:android":     {"flutter", []string{"run", "-d", "android"}, flutterDir, "Run on Android"},
 		"run:web":         {"flutter", []string{"run", "-d", "chrome"}, flutterDir, "Run on web"},
-		"deploy":          {"spacetime", []string{"publish", "--server", "mainnet", "lurelands"}, spacetimeDir, "Deploy to mainnet"},
+		"deploy":          {"spacetime", []string{"publish", "--server", "maincloud", "lurelands"}, spacetimeDir, "Deploy to maincloud"},
 		"deploy:local":    {"spacetime", []string{"publish", "lurelands"}, spacetimeDir, "Deploy locally"},
 		"bridge:build":    {"bun", []string{"run", "build"}, bridgeDir, "Build bridge"},
 		"bridge:dev":      {"bun", []string{"run", "dev"}, bridgeDir, "Bridge dev mode"},

@@ -10,10 +10,11 @@ class PlayerState {
   final double? castTargetY;
   final int color; // ARGB color value for customization
   final double facingAngle; // Radians, 0 = right, PI/2 = down
-  final int equippedPoleTier; // Fishing pole tier (1-4)
+  final int equippedPoleTier; // Fishing pole tier (1-4) - derived from equippedPoleId
   final int equippedLureTier; // Lure tier (1-4)
   final bool isOnline; // Whether the player is currently online and in the world
   final int gold; // Player's gold currency
+  final String? equippedPoleId; // Currently equipped fishing pole item ID (e.g., "pole_1")
 
   const PlayerState({
     required this.id,
@@ -29,6 +30,7 @@ class PlayerState {
     this.equippedLureTier = 1, // Default to tier 1
     this.isOnline = true, // Default to online
     this.gold = 0, // Default to 0 gold
+    this.equippedPoleId, // Null means use default tier 1
   });
 
   PlayerState copyWith({
@@ -45,6 +47,8 @@ class PlayerState {
     int? equippedLureTier,
     bool? isOnline,
     int? gold,
+    String? equippedPoleId,
+    bool clearEquippedPoleId = false, // Use this to explicitly set to null
   }) {
     return PlayerState(
       id: id ?? this.id,
@@ -60,6 +64,7 @@ class PlayerState {
       equippedLureTier: equippedLureTier ?? this.equippedLureTier,
       isOnline: isOnline ?? this.isOnline,
       gold: gold ?? this.gold,
+      equippedPoleId: clearEquippedPoleId ? null : (equippedPoleId ?? this.equippedPoleId),
     );
   }
 
@@ -77,21 +82,32 @@ class PlayerState {
         'equippedLureTier': equippedLureTier,
         'isOnline': isOnline,
         'gold': gold,
+        'equippedPoleId': equippedPoleId,
       };
 
-  factory PlayerState.fromJson(Map<String, dynamic> json) => PlayerState(
-        id: json['id'] as String,
-        name: json['name'] as String? ?? 'Player',
-        x: (json['x'] as num).toDouble(),
-        y: (json['y'] as num).toDouble(),
-        isCasting: json['isCasting'] as bool? ?? false,
-        castTargetX: (json['castTargetX'] as num?)?.toDouble(),
-        castTargetY: (json['castTargetY'] as num?)?.toDouble(),
-        color: json['color'] as int? ?? 0xFFE74C3C,
-        facingAngle: (json['facingAngle'] as num?)?.toDouble() ?? 0.0,
-        equippedPoleTier: json['equippedPoleTier'] as int? ?? 1,
-        equippedLureTier: json['equippedLureTier'] as int? ?? 1,
-        isOnline: json['isOnline'] as bool? ?? true,
-        gold: json['gold'] as int? ?? 0,
-      );
+  factory PlayerState.fromJson(Map<String, dynamic> json) {
+    final equippedPoleId = json['equippedPoleId'] as String?;
+    // Derive equippedPoleTier from equippedPoleId if present
+    int poleTier = 1;
+    if (equippedPoleId != null && equippedPoleId.startsWith('pole_')) {
+      poleTier = int.tryParse(equippedPoleId.split('_').last) ?? 1;
+    }
+    
+    return PlayerState(
+      id: json['id'] as String,
+      name: json['name'] as String? ?? 'Player',
+      x: (json['x'] as num).toDouble(),
+      y: (json['y'] as num).toDouble(),
+      isCasting: json['isCasting'] as bool? ?? false,
+      castTargetX: (json['castTargetX'] as num?)?.toDouble(),
+      castTargetY: (json['castTargetY'] as num?)?.toDouble(),
+      color: json['color'] as int? ?? 0xFFE74C3C,
+      facingAngle: (json['facingAngle'] as num?)?.toDouble() ?? 0.0,
+      equippedPoleTier: poleTier,
+      equippedLureTier: json['equippedLureTier'] as int? ?? 1,
+      isOnline: json['isOnline'] as bool? ?? true,
+      gold: json['gold'] as int? ?? 0,
+      equippedPoleId: equippedPoleId,
+    );
+  }
 }

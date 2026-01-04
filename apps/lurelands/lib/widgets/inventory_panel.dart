@@ -36,6 +36,9 @@ class InventoryPanel extends StatefulWidget {
   final VoidCallback onClose;
   final VoidCallback onToggleDebug;
   final void Function(String) onUpdatePlayerName;
+  final String? equippedPoleId; // Currently equipped pole item ID
+  final void Function(String poleItemId)? onEquipPole; // Called when player equips a pole
+  final VoidCallback? onUnequipPole; // Called when player unequips a pole
 
   const InventoryPanel({
     super.key,
@@ -46,6 +49,9 @@ class InventoryPanel extends StatefulWidget {
     required this.onClose,
     required this.onToggleDebug,
     required this.onUpdatePlayerName,
+    this.equippedPoleId,
+    this.onEquipPole,
+    this.onUnequipPole,
   });
 
   @override
@@ -329,10 +335,21 @@ class _InventoryPanelState extends State<InventoryPanel> {
     );
   }
 
+  /// Get inventory items that are not currently equipped
+  List<InventoryEntry> get _displayedInventoryItems {
+    // Filter out the equipped pole from display
+    if (widget.equippedPoleId == null) {
+      return widget.items;
+    }
+    return widget.items.where((item) => item.itemId != widget.equippedPoleId).toList();
+  }
+
   Widget _buildInventoryGrid() {
     const int columns = 10;
     const int rows = 3;
     const int totalSlots = columns * rows;
+    
+    final displayItems = _displayedInventoryItems;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -343,12 +360,17 @@ class _InventoryPanelState extends State<InventoryPanel> {
           spacing: 3,
           runSpacing: 3,
           children: List.generate(totalSlots, (index) {
-            final item = index < widget.items.length ? widget.items[index] : null;
+            final item = index < displayItems.length ? displayItems[index] : null;
             return SizedBox(
               width: clampedSize,
               height: clampedSize * 1.1, // Slightly taller for gold value
               child: item != null
-                  ? _InventorySlot(entry: item)
+                  ? _InventorySlot(
+                      entry: item,
+                      onTap: item.itemId.startsWith('pole_') && widget.onEquipPole != null
+                          ? () => widget.onEquipPole!(item.itemId)
+                          : null,
+                    )
                   : _EmptySlot(),
             );
           }),
@@ -383,6 +405,14 @@ class _InventoryPanelState extends State<InventoryPanel> {
   }
 
   Widget _buildEquipmentArea() {
+    // Find the equipped pole entry for display
+    InventoryEntry? equippedPoleEntry;
+    if (widget.equippedPoleId != null) {
+      equippedPoleEntry = widget.items
+          .where((item) => item.itemId == widget.equippedPoleId)
+          .firstOrNull;
+    }
+    
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -394,6 +424,10 @@ class _InventoryPanelState extends State<InventoryPanel> {
               slot: EquipmentSlot.pole,
               icon: Icons.phishing,
               label: 'Pole',
+              equippedItem: equippedPoleEntry,
+              onTap: widget.equippedPoleId != null && widget.onUnequipPole != null
+                  ? widget.onUnequipPole
+                  : null,
             ),
             const SizedBox(height: 4),
             _EquipmentSlotWidget(
@@ -841,37 +875,52 @@ class _InventoryPanelState extends State<InventoryPanel> {
 /// Individual inventory slot with item
 class _InventorySlot extends StatelessWidget {
   final InventoryEntry entry;
+  final VoidCallback? onTap;
 
-  const _InventorySlot({required this.entry});
+  const _InventorySlot({required this.entry, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final itemDef = GameItems.get(entry.itemId);
     final isFish = entry.itemId.startsWith('fish_');
+    final isPole = entry.itemId.startsWith('pole_');
     final stackValue = (itemDef?.getSellPrice(entry.rarity) ?? 0) * entry.quantity;
+    
+    // Build tooltip message - add equip hint for poles
+    String tooltipMessage = '${itemDef?.name ?? entry.itemId}\n${itemDef?.description ?? ""}\nValue: ${stackValue}g';
+    if (isPole && onTap != null) {
+      tooltipMessage += '\n\nTap to equip';
+    }
 
-    return Tooltip(
-      message: '${itemDef?.name ?? entry.itemId}\n${itemDef?.description ?? ""}\nValue: ${stackValue}g',
-      preferBelow: false,
-      decoration: BoxDecoration(
-        color: _BackpackColors.panelBg,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: _BackpackColors.woodMedium, width: 2),
-      ),
-      textStyle: TextStyle(color: _BackpackColors.textLight, fontSize: 12),
-      child: Container(
+    return GestureDetector(
+      onTap: onTap,
+      child: Tooltip(
+        message: tooltipMessage,
+        preferBelow: false,
         decoration: BoxDecoration(
-          color: _BackpackColors.slotBg,
+          color: _BackpackColors.panelBg,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: _BackpackColors.slotBorder, width: 2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(60),
-              offset: const Offset(1, 2),
-              blurRadius: 2,
-            ),
-          ],
+          border: Border.all(color: _BackpackColors.woodMedium, width: 2),
         ),
+        textStyle: TextStyle(color: _BackpackColors.textLight, fontSize: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: _BackpackColors.slotBg,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: isPole && onTap != null 
+                  ? _BackpackColors.slotHighlight // Highlight equippable poles
+                  : _BackpackColors.slotBorder, 
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(60),
+                offset: const Offset(1, 2),
+                blurRadius: 2,
+              ),
+            ],
+          ),
         child: Column(
           children: [
             // Main content area
@@ -971,6 +1020,7 @@ class _InventorySlot extends StatelessWidget {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -1011,40 +1061,84 @@ class _EquipmentSlotWidget extends StatelessWidget {
   final EquipmentSlot slot;
   final IconData icon;
   final String label;
+  final InventoryEntry? equippedItem; // The item equipped in this slot
+  final VoidCallback? onTap; // Called when slot is tapped (to unequip)
 
   const _EquipmentSlotWidget({
     required this.slot,
     required this.icon,
     required this.label,
+    this.equippedItem,
+    this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: '$label (Empty)',
-      child: Container(
-        width: 38,
-        height: 38,
+    final hasItem = equippedItem != null;
+    final itemDef = hasItem ? GameItems.get(equippedItem!.itemId) : null;
+    
+    // Build tooltip message
+    String tooltipMessage;
+    if (hasItem && itemDef != null) {
+      tooltipMessage = '${itemDef.name}\n${itemDef.description}\n\nTap to unequip';
+    } else {
+      tooltipMessage = '$label (Empty)';
+    }
+    
+    return GestureDetector(
+      onTap: onTap,
+      child: Tooltip(
+        message: tooltipMessage,
+        preferBelow: false,
         decoration: BoxDecoration(
-          color: _BackpackColors.slotEmpty,
+          color: _BackpackColors.panelBg,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: _BackpackColors.slotBorder,
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(40),
-              offset: const Offset(1, 1),
-              blurRadius: 1,
-            ),
-          ],
+          border: Border.all(color: _BackpackColors.woodMedium, width: 2),
         ),
-        child: Center(
-          child: Icon(
-            icon,
-            color: _BackpackColors.textMuted.withAlpha(100),
-            size: 18,
+        textStyle: TextStyle(color: _BackpackColors.textLight, fontSize: 12),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: hasItem ? _BackpackColors.slotBg : _BackpackColors.slotEmpty,
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: hasItem ? _BackpackColors.textGold : _BackpackColors.slotBorder,
+              width: 2,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(40),
+                offset: const Offset(1, 1),
+                blurRadius: 1,
+              ),
+              if (hasItem)
+                BoxShadow(
+                  color: _BackpackColors.textGold.withAlpha(30),
+                  blurRadius: 4,
+                  spreadRadius: 0,
+                ),
+            ],
+          ),
+          child: Center(
+            child: hasItem && itemDef != null
+                ? Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Image.asset(
+                      itemDef.assetPath,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Icon(
+                        icon,
+                        color: _BackpackColors.textGold,
+                        size: 18,
+                      ),
+                    ),
+                  )
+                : Icon(
+                    icon,
+                    color: _BackpackColors.textMuted.withAlpha(100),
+                    size: 18,
+                  ),
           ),
         ),
       ),

@@ -321,6 +321,7 @@ export class StdbClient {
       color: p.color ?? 0xFFE74C3C,
       isOnline: p.isOnline ?? true,
       gold: p.gold ?? 0,
+      equippedPoleId: p.equippedPoleId ?? null,
     };
   }
 
@@ -616,6 +617,69 @@ export class StdbClient {
   private broadcastPlayersUpdate(): void {
     if (this.onPlayersUpdate) {
       this.onPlayersUpdate(Array.from(this.players.values()));
+    }
+  }
+
+  async equipPole(playerId: string, poleItemId: string): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    
+    try {
+      // Check if player owns this pole
+      const playerInv = this.inventory.get(playerId);
+      if (!playerInv) {
+        stdbLogger.warn({ playerId }, 'No inventory found for player');
+        return;
+      }
+      
+      // Find the pole in inventory (poles have rarity 0)
+      const stackKey = `${poleItemId}:0`;
+      const item = playerInv.get(stackKey);
+      if (!item) {
+        stdbLogger.warn({ playerId, poleItemId }, 'Player does not own this pole');
+        return;
+      }
+      
+      // Update local player state (optimistic update)
+      const player = this.players.get(playerId);
+      if (player) {
+        player.equippedPoleId = poleItemId;
+        this.players.set(playerId, player);
+        this.broadcastPlayersUpdate();
+      }
+      
+      // Call SpacetimeDB reducer
+      this.conn.reducers.equipPole({
+        playerId,
+        poleItemId,
+      });
+      
+      stdbLogger.info({ playerId, poleItemId }, 'Equipped pole');
+      
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId, poleItemId }, 'Failed to equip pole');
+    }
+  }
+
+  async unequipPole(playerId: string): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    
+    try {
+      // Update local player state (optimistic update)
+      const player = this.players.get(playerId);
+      if (player) {
+        stdbLogger.info({ playerId, previousPole: player.equippedPoleId }, 'Unequipping pole');
+        player.equippedPoleId = null;
+        this.players.set(playerId, player);
+        this.broadcastPlayersUpdate();
+      }
+      
+      // Call SpacetimeDB reducer
+      this.conn.reducers.unequipPole({
+        playerId,
+      });
+      
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId }, 'Failed to unequip pole');
     }
   }
 

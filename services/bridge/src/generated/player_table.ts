@@ -22,5 +22,6 @@ export default __t.row({
   color: __t.u32(),
   isOnline: __t.bool().name("is_online"),
   gold: __t.u32(),
+  equippedPoleId: __t.option(__t.string()).name("equipped_pole_id"),
   lastUpdated: __t.timestamp().name("last_updated"),
 });

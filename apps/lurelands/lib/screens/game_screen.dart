@@ -46,6 +46,7 @@ class _GameScreenState extends State<GameScreen> {
   bool _showInventory = false;
   List<InventoryEntry> _inventoryItems = [];
   int _playerGold = 0;
+  String? _equippedPoleId; // Currently equipped fishing pole
   
   // Shop state
   bool _showShop = false;
@@ -119,15 +120,24 @@ class _GameScreenState extends State<GameScreen> {
       }
     });
     
-    // Subscribe to player updates to track gold
+    // Subscribe to player updates to track gold and equipped pole
     _playerSubscription = _stdbService.playerUpdates.listen((players) {
       if (mounted) {
-        // Find local player and update gold
+        // Find local player and update state
         final localPlayer = players.where((p) => p.id == playerId).firstOrNull;
-        if (localPlayer != null && localPlayer.gold != _playerGold) {
-          setState(() {
+        if (localPlayer != null) {
+          bool needsUpdate = false;
+          if (localPlayer.gold != _playerGold) {
             _playerGold = localPlayer.gold;
-          });
+            needsUpdate = true;
+          }
+          if (localPlayer.equippedPoleId != _equippedPoleId) {
+            _equippedPoleId = localPlayer.equippedPoleId;
+            needsUpdate = true;
+          }
+          if (needsUpdate) {
+            setState(() {});
+          }
         }
       }
     });
@@ -229,6 +239,13 @@ class _GameScreenState extends State<GameScreen> {
               onUpdatePlayerName: (newName) async {
                 await GameSettings.instance.setPlayerName(newName);
                 _stdbService.updatePlayerName(newName);
+              },
+              equippedPoleId: _equippedPoleId,
+              onEquipPole: (poleItemId) {
+                _stdbService.equipPole(poleItemId);
+              },
+              onUnequipPole: () {
+                _stdbService.unequipPole();
               },
             ),
           // Shop panel overlay

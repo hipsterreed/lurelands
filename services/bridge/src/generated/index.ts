@@ -37,6 +37,8 @@ import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
 import CatchFishReducer from "./catch_fish_reducer";
 export { CatchFishReducer };
+import EquipPoleReducer from "./equip_pole_reducer";
+export { EquipPoleReducer };
 import GetPlayerInventoryReducer from "./get_player_inventory_reducer";
 export { GetPlayerInventoryReducer };
 import JoinWorldReducer from "./join_world_reducer";
@@ -53,6 +55,8 @@ import StartCastingReducer from "./start_casting_reducer";
 export { StartCastingReducer };
 import StopCastingReducer from "./stop_casting_reducer";
 export { StopCastingReducer };
+import UnequipPoleReducer from "./unequip_pole_reducer";
+export { UnequipPoleReducer };
 import UpdatePlayerNameReducer from "./update_player_name_reducer";
 export { UpdatePlayerNameReducer };
 import UpdatePositionReducer from "./update_position_reducer";
@@ -178,6 +182,7 @@ const reducersSchema = __reducers(
   __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
+  __reducerSchema("equip_pole", EquipPoleReducer),
   __reducerSchema("get_player_inventory", GetPlayerInventoryReducer),
   __reducerSchema("join_world", JoinWorldReducer),
   __reducerSchema("leave_world", LeaveWorldReducer),
@@ -186,6 +191,7 @@ const reducersSchema = __reducers(
   __reducerSchema("spend_gold", SpendGoldReducer),
   __reducerSchema("start_casting", StartCastingReducer),
   __reducerSchema("stop_casting", StopCastingReducer),
+  __reducerSchema("unequip_pole", UnequipPoleReducer),
   __reducerSchema("update_player_name", UpdatePlayerNameReducer),
   __reducerSchema("update_position", UpdatePositionReducer),
 );

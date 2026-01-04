@@ -22,6 +22,7 @@ export default __t.object("Player", {
   color: __t.u32(),
   isOnline: __t.bool(),
   gold: __t.u32(),
+  equippedPoleId: __t.option(__t.string()),
   lastUpdated: __t.timestamp(),
 });
 
