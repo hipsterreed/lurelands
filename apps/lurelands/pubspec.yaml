@@ -80,6 +80,7 @@ flutter:
     - assets/images/characters/
     - assets/images/fish/
     - assets/images/plants/
+    - assets/images/tiles/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

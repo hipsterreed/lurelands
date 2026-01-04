@@ -12,6 +12,9 @@ import '../components/river.dart';
 import '../components/shop.dart';
 import '../components/sunflower.dart';
 import '../components/tree.dart';
+import '../lurelands_game.dart';
+import 'nature_tileset.dart';
+import 'world_decorations.dart';
 
 /// Default fallback world state when server data is unavailable
 const WorldState fallbackWorldState = WorldState(
@@ -31,9 +34,10 @@ const WorldState fallbackWorldState = WorldState(
 /// - Ground/terrain rendering
 /// - Water bodies (ponds, rivers, ocean)
 /// - Vegetation spawning (trees, sunflowers)
+/// - Decorations (weeds, mushrooms) from tileset
 /// 
 /// The player is added separately by [LurelandsGame] after spawn position is determined.
-class LurelandsWorld extends World {
+class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
   /// Water body configuration for this world
   final WorldState worldState;
 
@@ -45,6 +49,9 @@ class LurelandsWorld extends World {
   Ocean? _oceanComponent;
   final List<Tree> _treeComponents = [];
   final List<Shop> _shopComponents = [];
+  
+  /// Nature tileset for decorations
+  late NatureTilesheet _tilesheet;
 
   /// All pond components in the world
   List<Pond> get pondComponents => _pondComponents;
@@ -72,14 +79,21 @@ class LurelandsWorld extends World {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Add ground terrain
-    await add(Ground());
+    // Load the nature tileset
+    _tilesheet = NatureTilesheet();
+    await _tilesheet.load(game.images);
+
+    // Add ground terrain (tiled grass from tileset)
+    await add(TiledGround(tilesheet: _tilesheet));
 
     // Add water bodies
     await _addWaterBodies();
 
     // Add vegetation
     await _spawnVegetation();
+    
+    // Add tileset decorations (weeds, mushrooms)
+    await _spawnDecorations();
     
     // Add shops
     await _spawnShops();
@@ -150,6 +164,22 @@ class LurelandsWorld extends World {
     }
   }
 
+  /// Spawn weeds and flowers across the map using SpriteBatch for performance
+  Future<void> _spawnDecorations() async {
+    final decorations = WorldDecorations.generateRandom(
+      tilesheet: _tilesheet,
+      tiles: [
+        (tile: NatureTile.weed, weight: 10),    // Most common
+        (tile: NatureTile.flower1, weight: 2),  // Light sprinkle
+        (tile: NatureTile.flower2, weight: 2),  // Light sprinkle
+      ],
+      count: 150,
+      seed: 777,
+      isValidPosition: (x, y) => !_isInsideWater(x, y),
+    );
+    await add(decorations);
+  }
+
   /// Check if a point is inside any water body
   bool _isInsideWater(double x, double y) {
     for (final waterBody in allWaterBodies) {
@@ -186,68 +216,62 @@ class LurelandsWorld extends World {
   }
 }
 
-/// Ground component - solid green with scattered pixel shade spots
-class Ground extends PositionComponent {
-  Ground()
+/// Ground component - tiles the grassPlain sprite across the entire world
+class TiledGround extends PositionComponent {
+  final NatureTilesheet tilesheet;
+  
+  TiledGround({required this.tilesheet})
       : super(
           position: Vector2.zero(),
           size: Vector2(GameConstants.worldWidth, GameConstants.worldHeight),
           priority: 0,
         );
 
-  // Size of shade pixels
-  static const double pixelSize = 6.0;
-  
-  // Cached texture image
-  Image? _textureImage;
+  // Cached tiled texture
+  Image? _tiledImage;
   bool _textureGenerated = false;
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    await _generateTexture();
+    await _generateTiledTexture();
   }
 
-  /// Generate the ground texture with sparse pixel spots
-  Future<void> _generateTexture() async {
+  /// Generate the ground by tiling the grass sprite
+  Future<void> _generateTiledTexture() async {
+    final grassSprite = tilesheet.getSprite(NatureTile.grassPlain);
+    
+    // Tile size after scaling
+    final tileSize = NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+    
+    // Calculate how many tiles we need
+    final tilesX = (size.x / tileSize).ceil();
+    final tilesY = (size.y / tileSize).ceil();
+    
     final recorder = PictureRecorder();
     final canvas = Canvas(recorder);
     
-    // Draw solid base color
-    final basePaint = Paint()..color = GameColors.grassGreen;
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.x, size.y), basePaint);
-    
-    // Seeded random for consistent spots
-    final random = Random(789);
-    
-    // Shade colors
-    final darkPaint = Paint()..color = GameColors.grassGreenDark;
-    final lightPaint = Paint()..color = GameColors.grassGreenLight;
-    
-    // Scatter sparse pixel spots across the map
-    final spotCount = 800; // Adjust for density
-    
-    for (var i = 0; i < spotCount; i++) {
-      final x = (random.nextDouble() * size.x / pixelSize).floor() * pixelSize;
-      final y = (random.nextDouble() * size.y / pixelSize).floor() * pixelSize;
-      final isLight = random.nextBool();
-      
-      canvas.drawRect(
-        Rect.fromLTWH(x, y, pixelSize, pixelSize),
-        isLight ? lightPaint : darkPaint,
-      );
+    // Tile the grass sprite across the entire world
+    for (var y = 0; y < tilesY; y++) {
+      for (var x = 0; x < tilesX; x++) {
+        grassSprite.render(
+          canvas,
+          position: Vector2(x * tileSize, y * tileSize),
+          size: Vector2.all(tileSize),
+        );
+      }
     }
     
-    // Convert to image
+    // Convert to image for efficient rendering
     final picture = recorder.endRecording();
-    _textureImage = await picture.toImage(size.x.toInt(), size.y.toInt());
+    _tiledImage = await picture.toImage(size.x.toInt(), size.y.toInt());
     _textureGenerated = true;
   }
 
   @override
   void render(Canvas canvas) {
-    if (_textureGenerated && _textureImage != null) {
-      canvas.drawImage(_textureImage!, Offset.zero, Paint());
+    if (_textureGenerated && _tiledImage != null) {
+      canvas.drawImage(_tiledImage!, Offset.zero, Paint());
     } else {
       // Fallback while texture generates
       final basePaint = Paint()..color = GameColors.grassGreen;

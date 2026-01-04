@@ -158,6 +158,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       'plants/tree_01_strip4.png',
       'plants/tree_02_strip4.png',
       'plants/sunflower.png',
+      // Tilesets
+      'tiles/nature.png',
     ]);
 
     // Get world state from server and build WorldState
