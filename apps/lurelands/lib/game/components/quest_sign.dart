@@ -48,8 +48,8 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
   Future<void> onLoad() async {
     await super.onLoad();
     
-    // Set size for the sign (wooden post style)
-    size = Vector2(32, 64);
+    // Set size for the sign (wooden post style) - larger for visibility
+    size = Vector2(48, 80);
     
     // Add rectangular hitbox at the base
     final hitboxWidth = size.x * 0.8;
@@ -60,8 +60,8 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
     );
     await add(_hitbox);
     
-    // Set priority based on Y position for depth sorting
-    priority = position.y.toInt();
+    // Set priority high enough to be visible above ground but below player at same Y
+    priority = position.y.toInt() + 100;
   }
 
   @override
@@ -117,15 +117,15 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
     // Wooden post
     final postPaint = Paint()..color = const Color(0xFF8B4513);
     canvas.drawRect(
-      Rect.fromLTWH(size.x / 2 - 4, size.y - 40, 8, 40),
+      Rect.fromLTWH(size.x / 2 - 5, size.y - 50, 10, 50),
       postPaint,
     );
     
     // Sign board background
     final boardPaint = Paint()..color = const Color(0xFFA0724B);
     final boardRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.x, size.y * 0.5),
-      const Radius.circular(4),
+      Rect.fromLTWH(0, 0, size.x, size.y * 0.55),
+      const Radius.circular(6),
     );
     canvas.drawRRect(boardRect, boardPaint);
     
@@ -133,7 +133,7 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
     final borderPaint = Paint()
       ..color = const Color(0xFF5D3A1A)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
+      ..strokeWidth = 3;
     canvas.drawRRect(boardRect, borderPaint);
     
     // Question mark icon on sign
@@ -142,7 +142,7 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
         text: '?',
         style: TextStyle(
           color: const Color(0xFFFFD700),
-          fontSize: 20,
+          fontSize: 28,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -153,7 +153,7 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
       canvas,
       Offset(
         (size.x - textPainter.width) / 2,
-        (size.y * 0.5 - textPainter.height) / 2,
+        (size.y * 0.55 - textPainter.height) / 2,
       ),
     );
   }

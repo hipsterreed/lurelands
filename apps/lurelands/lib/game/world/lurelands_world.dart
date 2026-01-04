@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../services/spacetimedb/stdb_service.dart';
 import '../../utils/constants.dart';
@@ -447,15 +448,20 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Spawn quest signs at fixed locations on the map
   Future<void> _spawnQuestSigns() async {
-    // Place quest signs at strategic locations
+    // Place quest signs at strategic locations (away from water bodies)
+    // Shop is at (800, 800), so place sign near it but not overlapping
+    // Ocean is on left (up to ~576px), ponds at (980,450) and (1780,900)
     final questSignPositions = [
-      (x: 600.0, y: 900.0, id: 'quest_board_1', name: 'Quest Board'),
-      (x: 1200.0, y: 500.0, id: 'quest_board_2', name: 'Quest Board'),
+      (x: 700.0, y: 700.0, id: 'quest_board_1', name: 'Quest Board'),  // Near shop
+      (x: 1600.0, y: 600.0, id: 'quest_board_2', name: 'Quest Board'), // Right side of map
     ];
 
     for (final signData in questSignPositions) {
       // Make sure sign is not inside water or on a dock
-      if (_isValidPlacement(signData.x, signData.y)) {
+      final isValid = _isValidPlacement(signData.x, signData.y);
+      debugPrint('[World] QuestSign ${signData.id} at (${signData.x}, ${signData.y}): valid=$isValid');
+      
+      if (isValid) {
         final questSign = QuestSign(
           position: Vector2(signData.x, signData.y),
           id: signData.id,
@@ -463,8 +469,10 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
         );
         _questSignComponents.add(questSign);
         await add(questSign);
+        debugPrint('[World] Added quest sign: ${signData.id}');
       }
     }
+    debugPrint('[World] Total quest signs added: ${_questSignComponents.length}');
   }
 }
 
