@@ -221,6 +221,420 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
 }
 
 // =============================================================================
+// Events Page HTML
+// =============================================================================
+
+const eventsPageHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lurelands - Live Events</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0e14;
+      --bg-card: #151b24;
+      --bg-hover: #1e2732;
+      --text-primary: #e6edf3;
+      --text-muted: #7d8590;
+      --accent-blue: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-yellow: #d29922;
+      --accent-orange: #db6d28;
+      --accent-purple: #a371f7;
+      --accent-pink: #f778ba;
+      --border-color: #30363d;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    h1::before {
+      content: '🎣';
+      font-size: 1.5rem;
+    }
+    
+    .status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+    
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    
+    .stat-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1.25rem;
+    }
+    
+    .stat-label {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+    }
+    
+    .stat-value {
+      font-size: 1.5rem;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+    
+    .events-container {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .events-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .events-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    
+    .filter-pills {
+      display: flex;
+      gap: 0.5rem;
+    }
+    
+    .filter-pill {
+      padding: 0.375rem 0.75rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      border: 1px solid var(--border-color);
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .filter-pill:hover, .filter-pill.active {
+      background: var(--accent-blue);
+      border-color: var(--accent-blue);
+      color: white;
+    }
+    
+    .events-list {
+      max-height: 70vh;
+      overflow-y: auto;
+    }
+    
+    .event-row {
+      display: grid;
+      grid-template-columns: 140px 1fr 120px 100px;
+      gap: 1rem;
+      padding: 0.875rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      font-size: 0.875rem;
+      transition: background 0.15s;
+    }
+    
+    .event-row:hover {
+      background: var(--bg-hover);
+    }
+    
+    .event-row:last-child {
+      border-bottom: none;
+    }
+    
+    .event-time {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    
+    .event-type {
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .event-type-badge {
+      padding: 0.25rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .type-fish_caught { background: rgba(63, 185, 80, 0.15); color: var(--accent-green); }
+    .type-item_sold { background: rgba(210, 153, 34, 0.15); color: var(--accent-yellow); }
+    .type-item_bought { background: rgba(88, 166, 255, 0.15); color: var(--accent-blue); }
+    .type-session_started { background: rgba(163, 113, 247, 0.15); color: var(--accent-purple); }
+    .type-session_ended { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
+    .type-pole_equipped { background: rgba(219, 109, 40, 0.15); color: var(--accent-orange); }
+    .type-pole_unequipped { background: rgba(125, 133, 144, 0.15); color: var(--text-muted); }
+    
+    .event-player {
+      color: var(--accent-blue);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+    }
+    
+    .event-details {
+      color: var(--text-muted);
+      font-size: 0.8rem;
+    }
+    
+    .empty-state {
+      padding: 4rem 2rem;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    
+    .empty-state-icon {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    @media (max-width: 768px) {
+      .event-row {
+        grid-template-columns: 1fr;
+        gap: 0.5rem;
+      }
+      
+      .stats-bar {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Live Events</h1>
+      <div class="status">
+        <span class="status-dot"></span>
+        <span id="status-text">Connecting...</span>
+      </div>
+    </header>
+    
+    <div class="stats-bar">
+      <div class="stat-card">
+        <div class="stat-label">Total Events</div>
+        <div class="stat-value" id="stat-total">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Fish Caught</div>
+        <div class="stat-value" id="stat-fish">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Items Sold</div>
+        <div class="stat-value" id="stat-sold">-</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Items Bought</div>
+        <div class="stat-value" id="stat-bought">-</div>
+      </div>
+    </div>
+    
+    <div class="events-container">
+      <div class="events-header">
+        <h2>Recent Events</h2>
+        <div class="filter-pills">
+          <button class="filter-pill active" data-filter="all">All</button>
+          <button class="filter-pill" data-filter="fish_caught">🐟 Fish</button>
+          <button class="filter-pill" data-filter="item_sold">💰 Sold</button>
+          <button class="filter-pill" data-filter="item_bought">🛒 Bought</button>
+          <button class="filter-pill" data-filter="session">👤 Sessions</button>
+        </div>
+      </div>
+      <div class="events-list" id="events-list">
+        <div class="empty-state">
+          <div class="empty-state-icon">🎣</div>
+          <p>Loading events...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    let events = [];
+    let currentFilter = 'all';
+    
+    function formatTime(timestamp) {
+      // Timestamps from SpacetimeDB are in microseconds
+      const date = new Date(timestamp / 1000);
+      return date.toLocaleTimeString('en-US', { 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        second: '2-digit',
+        hour12: false 
+      });
+    }
+    
+    function formatEventType(type) {
+      const labels = {
+        'fish_caught': '🐟 Fish Caught',
+        'item_sold': '💰 Item Sold',
+        'item_bought': '🛒 Item Bought',
+        'session_started': '▶️ Session Started',
+        'session_ended': '⏹️ Session Ended',
+        'pole_equipped': '🎣 Pole Equipped',
+        'pole_unequipped': '🎣 Pole Unequipped',
+      };
+      return labels[type] || type;
+    }
+    
+    function getEventDetails(event) {
+      const parts = [];
+      if (event.itemId) parts.push(event.itemId);
+      if (event.quantity) parts.push('x' + event.quantity);
+      if (event.goldAmount) parts.push('💰 ' + event.goldAmount);
+      if (event.rarity) {
+        const stars = '⭐'.repeat(event.rarity);
+        parts.push(stars);
+      }
+      if (event.waterBodyId) parts.push('@ ' + event.waterBodyId);
+      return parts.join(' ');
+    }
+    
+    function shortenPlayerId(id) {
+      if (id.length > 12) {
+        return id.substring(0, 8) + '...';
+      }
+      return id;
+    }
+    
+    function filterEvents(events, filter) {
+      if (filter === 'all') return events;
+      if (filter === 'session') {
+        return events.filter(e => e.eventType === 'session_started' || e.eventType === 'session_ended');
+      }
+      return events.filter(e => e.eventType === filter);
+    }
+    
+    function renderEvents() {
+      const filtered = filterEvents(events, currentFilter);
+      const container = document.getElementById('events-list');
+      
+      if (filtered.length === 0) {
+        container.innerHTML = \`
+          <div class="empty-state">
+            <div class="empty-state-icon">🎣</div>
+            <p>No events yet. Start playing to see events appear!</p>
+          </div>
+        \`;
+        return;
+      }
+      
+      container.innerHTML = filtered.map(event => \`
+        <div class="event-row">
+          <div class="event-time">\${formatTime(event.createdAt)}</div>
+          <div class="event-type">
+            <span class="event-type-badge type-\${event.eventType}">\${formatEventType(event.eventType)}</span>
+          </div>
+          <div class="event-player" title="\${event.playerId}">\${shortenPlayerId(event.playerId)}</div>
+          <div class="event-details">\${getEventDetails(event)}</div>
+        </div>
+      \`).join('');
+    }
+    
+    function updateStats() {
+      document.getElementById('stat-total').textContent = events.length;
+      document.getElementById('stat-fish').textContent = events.filter(e => e.eventType === 'fish_caught').length;
+      document.getElementById('stat-sold').textContent = events.filter(e => e.eventType === 'item_sold').length;
+      document.getElementById('stat-bought').textContent = events.filter(e => e.eventType === 'item_bought').length;
+    }
+    
+    async function fetchEvents() {
+      try {
+        const response = await fetch('/api/events?limit=100');
+        events = await response.json();
+        document.getElementById('status-text').textContent = 'Connected • Auto-refresh';
+        renderEvents();
+        updateStats();
+      } catch (error) {
+        console.error('Failed to fetch events:', error);
+        document.getElementById('status-text').textContent = 'Connection error';
+      }
+    }
+    
+    // Filter button handlers
+    document.querySelectorAll('.filter-pill').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.filter-pill').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        renderEvents();
+      });
+    });
+    
+    // Initial fetch
+    fetchEvents();
+    
+    // Poll for updates every 3 seconds
+    setInterval(fetchEvents, 3000);
+  </script>
+</body>
+</html>`;
+
+// =============================================================================
 // Elysia Server
 // =============================================================================
 
@@ -234,6 +648,19 @@ const app = new Elysia()
   }))
   
   .get('/health', () => ({ status: 'ok' }))
+
+  // Events API endpoint
+  .get('/api/events', ({ query }) => {
+    const limit = parseInt(query.limit as string) || 50;
+    return stdb.getGameEvents(limit);
+  })
+
+  // Events viewer page
+  .get('/events', () => {
+    return new Response(eventsPageHtml, {
+      headers: { 'Content-Type': 'text/html' },
+    });
+  })
 
   // WebSocket endpoint
   .ws('/ws', {

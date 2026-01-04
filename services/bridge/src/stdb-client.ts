@@ -1,5 +1,5 @@
 import { DbConnection, tables, reducers, type EventContext, type SubscriptionEventContext, type ErrorContext } from './generated';
-import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem } from './types';
+import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem, GameEvent } from './types';
 import { stdbLogger } from './logger';
 
 // =============================================================================
@@ -11,6 +11,7 @@ export type PlayerUpdateCallback = (players: Player[]) => void;
 export type WorldStateCallback = (worldState: WorldState) => void;
 export type FishCaughtCallback = (fishCatch: FishCatch) => void;
 export type InventoryUpdateCallback = (playerId: string, items: InventoryItem[]) => void;
+export type GameEventCallback = (event: GameEvent) => void;
 
 export class StdbClient {
   private conn: DbConnection | null = null;
@@ -26,12 +27,17 @@ export class StdbClient {
   
   // Inventory cache - Map<playerId, Map<"itemId:rarity", InventoryItem>>
   private inventory: Map<string, Map<string, InventoryItem>> = new Map();
+  
+  // Game events cache - recent events for the dashboard (max 200)
+  private gameEvents: GameEvent[] = [];
+  private static MAX_EVENTS = 200;
 
   // Callbacks
   private onPlayersUpdate: PlayerUpdateCallback | null = null;
   private onWorldState: WorldStateCallback | null = null;
   private onFishCaught: FishCaughtCallback | null = null;
   private onInventoryUpdate: InventoryUpdateCallback | null = null;
+  private onGameEvent: GameEventCallback | null = null;
 
   constructor(
     private uri: string,
@@ -43,11 +49,13 @@ export class StdbClient {
     onWorldState?: WorldStateCallback;
     onFishCaught?: FishCaughtCallback;
     onInventoryUpdate?: InventoryUpdateCallback;
+    onGameEvent?: GameEventCallback;
   }) {
     this.onPlayersUpdate = callbacks.onPlayersUpdate ?? null;
     this.onWorldState = callbacks.onWorldState ?? null;
     this.onFishCaught = callbacks.onFishCaught ?? null;
     this.onInventoryUpdate = callbacks.onInventoryUpdate ?? null;
+    this.onGameEvent = callbacks.onGameEvent ?? null;
   }
 
   async connect(): Promise<boolean> {
@@ -96,6 +104,7 @@ export class StdbClient {
                 'SELECT * FROM player',
                 'SELECT * FROM fish_catch',
                 'SELECT * FROM inventory',
+                'SELECT * FROM game_event',
               ]);
             
             resolve(true);
@@ -200,6 +209,23 @@ export class StdbClient {
         stdbLogger.warn({ err: error }, 'Error loading inventory - table may not exist yet');
       }
 
+      // Load game events (most recent ones)
+      this.gameEvents = [];
+      try {
+        for (const event of ctx.db.gameEvent.iter()) {
+          const mapped = this.cacheGameEvent(event);
+          this.gameEvents.push(mapped);
+        }
+        // Sort by createdAt descending (newest first)
+        this.gameEvents.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
+        // Keep only the most recent events
+        if (this.gameEvents.length > StdbClient.MAX_EVENTS) {
+          this.gameEvents = this.gameEvents.slice(0, StdbClient.MAX_EVENTS);
+        }
+      } catch (error: any) {
+        stdbLogger.warn({ err: error }, 'Error loading game events - table may not exist yet');
+      }
+
       stdbLogger.info({
         spawnPoints: this.spawnPoints.length,
         ponds: this.ponds.length,
@@ -207,6 +233,7 @@ export class StdbClient {
         hasOcean: !!this.ocean,
         players: this.players.size,
         inventoryEntries: Array.from(this.inventory.values()).reduce((sum, map) => sum + map.size, 0),
+        gameEvents: this.gameEvents.length,
       }, 'Initial state loaded');
 
       // Emit callbacks
@@ -281,6 +308,13 @@ export class StdbClient {
       }
       this.emitInventoryUpdate(inv.playerId);
     });
+
+    // Game event callback
+    this.conn.db.gameEvent.onInsert((ctx: EventContext, event) => {
+      stdbLogger.debug({ eventType: event.eventType, playerId: event.playerId }, 'Game event logged');
+      const mapped = this.cacheGameEvent(event);
+      this.addGameEvent(mapped);
+    });
   }
 
   // --- Inventory helpers ---
@@ -305,6 +339,38 @@ export class StdbClient {
     if (this.onInventoryUpdate) {
       const items = this.getPlayerInventory(playerId);
       this.onInventoryUpdate(playerId, items);
+    }
+  }
+
+  // --- Game Event helpers ---
+
+  private cacheGameEvent(event: any): GameEvent {
+    const mapped: GameEvent = {
+      id: Number(event.id),
+      playerId: event.playerId,
+      sessionId: event.sessionId ? Number(event.sessionId) : null,
+      eventType: event.eventType,
+      itemId: event.itemId ?? null,
+      quantity: event.quantity ?? null,
+      goldAmount: event.goldAmount ?? null,
+      rarity: event.rarity ?? null,
+      waterBodyId: event.waterBodyId ?? null,
+      metadata: event.metadata ?? null,
+      createdAt: Number(event.createdAt),
+    };
+    return mapped;
+  }
+
+  private addGameEvent(event: GameEvent) {
+    // Add to front (newest first)
+    this.gameEvents.unshift(event);
+    // Keep max size
+    if (this.gameEvents.length > StdbClient.MAX_EVENTS) {
+      this.gameEvents.pop();
+    }
+    // Emit callback
+    if (this.onGameEvent) {
+      this.onGameEvent(event);
     }
   }
 
@@ -839,6 +905,13 @@ export class StdbClient {
     return Array.from(playerInv.values());
   }
 
+  getGameEvents(limit?: number): GameEvent[] {
+    if (limit && limit > 0) {
+      return this.gameEvents.slice(0, limit);
+    }
+    return [...this.gameEvents];
+  }
+
   disconnect() {
     if (this.conn) {
       this.conn.disconnect();
@@ -847,5 +920,6 @@ export class StdbClient {
     this.isConnected = false;
     this.players.clear();
     this.inventory.clear();
+    this.gameEvents = [];
   }
 }
