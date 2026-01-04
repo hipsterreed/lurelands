@@ -547,12 +547,32 @@ export class StdbClient {
       this.conn.reducers.joinWorld({ playerId, name, color: color >>> 0 });
       
       // Pick a random spawn point for new players
-      if (this.spawnPoints.length > 0) {
-        const spawn = this.spawnPoints[Math.floor(Math.random() * this.spawnPoints.length)];
-        stdbLogger.info({ playerId, spawn: spawn.name }, 'New player spawned');
-        return { x: spawn.x, y: spawn.y };
-      }
-      return { x: 1000, y: 1000 };
+      const spawn = this.spawnPoints.length > 0
+        ? this.spawnPoints[Math.floor(Math.random() * this.spawnPoints.length)]
+        : { x: 1000, y: 1000, id: 'default', name: 'Default Spawn' };
+      
+      // Add to local cache optimistically so buyItem works immediately
+      // Without this, there's a race condition where the player tries to buy
+      // before the SpacetimeDB insert callback fires
+      const newPlayer: Player = {
+        id: playerId,
+        name,
+        x: spawn.x,
+        y: spawn.y,
+        facingAngle: 0,
+        isCasting: false,
+        castTargetX: null,
+        castTargetY: null,
+        color,
+        isOnline: true,
+        gold: 0,
+        equippedPoleId: null,
+      };
+      this.players.set(playerId, newPlayer);
+      this.emitPlayersUpdate();
+      
+      stdbLogger.info({ playerId, spawn: spawn.name }, 'New player spawned');
+      return { x: spawn.x, y: spawn.y };
     } catch (error) {
       stdbLogger.error({ err: error, playerId }, 'Failed to join world');
       return null;
@@ -902,10 +922,16 @@ export class StdbClient {
         return;
       }
       
-      // Find the pole in inventory (poles have rarity 0)
-      const stackKey = `${poleItemId}:0`;
-      const item = playerInv.get(stackKey);
-      if (!item) {
+      // Find the pole in inventory by searching through values
+      // (inventory is keyed by database ID, not itemId:rarity)
+      let hasPole = false;
+      for (const item of playerInv.values()) {
+        if (item.itemId === poleItemId && item.quantity > 0) {
+          hasPole = true;
+          break;
+        }
+      }
+      if (!hasPole) {
         stdbLogger.warn({ playerId, poleItemId }, 'Player does not own this pole');
         return;
       }
