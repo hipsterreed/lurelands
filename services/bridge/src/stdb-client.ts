@@ -566,9 +566,7 @@ export class StdbClient {
         playerInv.set(stackKey, newItem);
       }
       
-      // Persist to SpacetimeDB - deduct gold
-      // Note: We use a negative gold add for now (or implement a separate reducer)
-      // For now, we'll add the item to inventory and track gold locally
+      // Persist to SpacetimeDB - add item to inventory
       this.conn.reducers.addToInventory({
         playerId,
         itemId,
@@ -576,8 +574,11 @@ export class StdbClient {
         quantity: 1,
       });
       
-      // Deduct gold via a custom approach - for now just track locally
-      // TODO: Add a spendGold reducer to the server
+      // Deduct gold from player's balance
+      this.conn.reducers.spendGold({
+        playerId,
+        amount: price,
+      });
       
       // Notify inventory update
       if (this.onInventoryUpdate) {
