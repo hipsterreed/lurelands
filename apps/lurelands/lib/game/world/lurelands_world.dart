@@ -9,6 +9,7 @@ import '../../utils/constants.dart';
 import '../components/ocean.dart';
 import '../components/pond.dart';
 import '../components/river.dart';
+import '../components/shop.dart';
 import '../components/sunflower.dart';
 import '../components/tree.dart';
 
@@ -43,6 +44,7 @@ class LurelandsWorld extends World {
   final List<River> _riverComponents = [];
   Ocean? _oceanComponent;
   final List<Tree> _treeComponents = [];
+  final List<Shop> _shopComponents = [];
 
   /// All pond components in the world
   List<Pond> get pondComponents => _pondComponents;
@@ -55,6 +57,9 @@ class LurelandsWorld extends World {
 
   /// All tree components in the world
   List<Tree> get treeComponents => _treeComponents;
+
+  /// All shop components in the world
+  List<Shop> get shopComponents => _shopComponents;
 
   /// All water body data for collision/proximity checks
   List<WaterBodyData> get allWaterBodies => [
@@ -75,6 +80,9 @@ class LurelandsWorld extends World {
 
     // Add vegetation
     await _spawnVegetation();
+    
+    // Add shops
+    await _spawnShops();
   }
 
   /// Add all water body components to the world
@@ -154,6 +162,28 @@ class LurelandsWorld extends World {
 
   /// Check if a point is inside any water body (public for external use)
   bool isInsideWater(double x, double y) => _isInsideWater(x, y);
+
+  /// Spawn shops at fixed locations on the map
+  Future<void> _spawnShops() async {
+    // Place a shop at a nice location - near center but not in water
+    // Position it away from the ocean (which is on the left side)
+    final shopPositions = [
+      (x: 800.0, y: 800.0, id: 'main_shop', name: 'Fish Market'),
+    ];
+
+    for (final shopData in shopPositions) {
+      // Make sure shop is not inside water
+      if (!_isInsideWater(shopData.x, shopData.y)) {
+        final shop = Shop(
+          position: Vector2(shopData.x, shopData.y),
+          id: shopData.id,
+          name: shopData.name,
+        );
+        _shopComponents.add(shop);
+        await add(shop);
+      }
+    }
+  }
 }
 
 /// Ground component - solid green with scattered pixel shade spots

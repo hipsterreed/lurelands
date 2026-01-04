@@ -21,5 +21,6 @@ export default __t.row({
   castTargetY: __t.option(__t.f32()).name("cast_target_y"),
   color: __t.u32(),
   isOnline: __t.bool().name("is_online"),
+  gold: __t.u32(),
   lastUpdated: __t.timestamp().name("last_updated"),
 });

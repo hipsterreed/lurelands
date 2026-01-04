@@ -460,6 +460,88 @@ export class StdbClient {
     }
   }
 
+  async sellItem(playerId: string, itemId: string, rarity: number, quantity: number): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+    
+    try {
+      // Get the player's inventory
+      const playerInv = this.inventory.get(playerId);
+      if (!playerInv) {
+        stdbLogger.warn({ playerId }, 'No inventory found for player');
+        return;
+      }
+      
+      // Find the item stack
+      const stackKey = `${itemId}:${rarity}`;
+      const item = playerInv.get(stackKey);
+      if (!item || item.quantity < quantity) {
+        stdbLogger.warn({ playerId, itemId, rarity, quantity, available: item?.quantity ?? 0 }, 'Not enough items to sell');
+        return;
+      }
+      
+      // Calculate sell price based on item type
+      const sellPrice = this.calculateSellPrice(itemId, rarity);
+      const totalGold = sellPrice * quantity;
+      
+      // Update local inventory
+      const newQuantity = item.quantity - quantity;
+      if (newQuantity <= 0) {
+        playerInv.delete(stackKey);
+      } else {
+        item.quantity = newQuantity;
+        playerInv.set(stackKey, item);
+      }
+      
+      // Update local player gold
+      const player = this.players.get(playerId);
+      if (player) {
+        player.gold += totalGold;
+        this.players.set(playerId, player);
+        this.broadcastPlayersUpdate();
+      }
+      
+      // Notify inventory update
+      if (this.onInventoryUpdate) {
+        this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
+      }
+      
+      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item');
+      
+      // TODO: Once a sell_item reducer exists on the server, call it here
+      // this.conn.reducers.sellItem({ playerId, itemId, rarity, quantity });
+      
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId, itemId, quantity }, 'Failed to sell item');
+    }
+  }
+
+  private calculateSellPrice(itemId: string, rarity: number): number {
+    // Base prices for different item types
+    const basePrices: Record<string, number> = {
+      // Fish prices by water type and tier
+      'fish_pond_1': 10, 'fish_pond_2': 25, 'fish_pond_3': 50, 'fish_pond_4': 150,
+      'fish_river_1': 12, 'fish_river_2': 30, 'fish_river_3': 60, 'fish_river_4': 180,
+      'fish_ocean_1': 15, 'fish_ocean_2': 40, 'fish_ocean_3': 80, 'fish_ocean_4': 250,
+      'fish_night_1': 20, 'fish_night_2': 45, 'fish_night_3': 90, 'fish_night_4': 300,
+      // Poles
+      'pole_1': 50, 'pole_2': 200, 'pole_3': 500, 'pole_4': 1500,
+      // Lures
+      'lure_1': 10, 'lure_2': 30, 'lure_3': 80, 'lure_4': 250,
+    };
+    
+    const basePrice = basePrices[itemId] ?? 10;
+    
+    // Apply rarity multiplier for fish
+    const multiplier = rarity <= 1 ? 1.0 : (rarity === 2 ? 2.0 : 4.0);
+    return Math.round(basePrice * multiplier);
+  }
+
+  private broadcastPlayersUpdate(): void {
+    if (this.onPlayersUpdate) {
+      this.onPlayersUpdate(Array.from(this.players.values()));
+    }
+  }
+
   // --- Getters ---
 
   getWorldState(): WorldState {

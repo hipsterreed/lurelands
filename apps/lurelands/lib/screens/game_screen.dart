@@ -11,6 +11,8 @@ import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
+import '../widgets/shop_panel.dart';
+import '../game/components/shop.dart';
 
 /// Bridge server URL (Bun/Elysia bridge to SpacetimeDB)
 const String _bridgeUrl = 'wss://api.lurelands.com/ws';
@@ -31,6 +33,7 @@ class _GameScreenState extends State<GameScreen> {
   StreamSubscription<StdbConnectionState>? _connectionSubscription;
   StreamSubscription<List<InventoryEntry>>? _inventorySubscription;
   StreamSubscription<List<PlayerState>>? _playerSubscription;
+  VoidCallback? _shopNotifierListener;
   final TextEditingController _nameController = TextEditingController();
 
   // Connection state (unused but kept for potential future use)
@@ -43,6 +46,10 @@ class _GameScreenState extends State<GameScreen> {
   bool _showInventory = false;
   List<InventoryEntry> _inventoryItems = [];
   int _playerGold = 0;
+  
+  // Shop state
+  bool _showShop = false;
+  Shop? _nearbyShop;
 
   @override
   void initState() {
@@ -128,14 +135,26 @@ class _GameScreenState extends State<GameScreen> {
     // Initialize inventory from current state
     _inventoryItems = _stdbService.inventory;
 
+    final game = LurelandsGame(
+      stdbService: _stdbService,
+      playerId: playerId,
+      playerName: playerName,
+      playerColor: playerColor,
+    );
+    
+    // Listen to nearby shop changes
+    _shopNotifierListener = () {
+      if (mounted) {
+        setState(() {
+          _nearbyShop = game.nearbyShopNotifier.value;
+        });
+      }
+    };
+    game.nearbyShopNotifier.addListener(_shopNotifierListener!);
+    
     setState(() {
       _isConnecting = false;
-      _game = LurelandsGame(
-        stdbService: _stdbService,
-        playerId: playerId,
-        playerName: playerName,
-        playerColor: playerColor,
-      );
+      _game = game;
     });
   }
 
@@ -153,6 +172,9 @@ class _GameScreenState extends State<GameScreen> {
     _connectionSubscription?.cancel();
     _inventorySubscription?.cancel();
     _playerSubscription?.cancel();
+    if (_shopNotifierListener != null && _game != null) {
+      _game!.nearbyShopNotifier.removeListener(_shopNotifierListener!);
+    }
     _stdbService.dispose();
     _nameController.dispose();
     super.dispose();
@@ -209,6 +231,18 @@ class _GameScreenState extends State<GameScreen> {
                 _stdbService.updatePlayerName(newName);
               },
             ),
+          // Shop panel overlay
+          if (_showShop && _nearbyShop != null)
+            ShopPanel(
+              playerItems: _inventoryItems,
+              playerGold: _playerGold,
+              shopName: _nearbyShop!.name,
+              onClose: () => setState(() => _showShop = false),
+              onSellItem: _onSellItem,
+            ),
+          // Shop interaction button (when near shop)
+          if (_nearbyShop != null && !_showShop && !_showInventory)
+            _buildShopButton(),
         ],
       ),
     );
@@ -967,6 +1001,77 @@ class _GameScreenState extends State<GameScreen> {
         ],
       ),
     );
+  }
+
+  /// Build the shop interaction button (appears when near a shop)
+  Widget _buildShopButton() {
+    return Positioned(
+      bottom: 160,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: GestureDetector(
+          onTap: () => setState(() => _showShop = true),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: GameColors.menuBackground.withAlpha(230),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: GameColors.pondBlue,
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: GameColors.pondBlue.withAlpha(100),
+                  blurRadius: 12,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.storefront,
+                  color: GameColors.pondBlue,
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'OPEN SHOP',
+                  style: TextStyle(
+                    color: GameColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Handle selling an item
+  void _onSellItem(InventoryEntry item, int quantity) {
+    final itemDef = GameItems.get(item.itemId);
+    if (itemDef == null) return;
+
+    final sellPrice = itemDef.getSellPrice(item.rarity);
+    final totalGold = sellPrice * quantity;
+
+    debugPrint('[GameScreen] Selling ${item.itemId} x$quantity for ${totalGold}g');
+    
+    // Call the sell item method on the service
+    _stdbService.sellItem(item.itemId, item.rarity, quantity);
+    
+    // Optimistically update local gold
+    setState(() {
+      _playerGold += totalGold;
+    });
   }
 }
 

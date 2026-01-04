@@ -31,6 +31,8 @@ import {
 } from "spacetimedb";
 
 // Import and reexport all reducer arg types
+import AddGoldReducer from "./add_gold_reducer";
+export { AddGoldReducer };
 import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
 import CatchFishReducer from "./catch_fish_reducer";
@@ -169,6 +171,7 @@ const tablesSchema = __schema(
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
   __reducerSchema("get_player_inventory", GetPlayerInventoryReducer),

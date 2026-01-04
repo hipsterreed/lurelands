@@ -10,19 +10,7 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.object("Player", {
-  id: __t.string(),
-  name: __t.string(),
-  x: __t.f32(),
-  y: __t.f32(),
-  facingAngle: __t.f32(),
-  isCasting: __t.bool(),
-  castTargetX: __t.option(__t.f32()),
-  castTargetY: __t.option(__t.f32()),
-  color: __t.u32(),
-  isOnline: __t.bool(),
-  gold: __t.u32(),
-  lastUpdated: __t.timestamp(),
-});
-
-
+export default {
+  playerId: __t.string(),
+  amount: __t.u32(),
+};

@@ -13,6 +13,7 @@ import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import 'components/caught_fish_animation.dart';
 import 'components/player.dart';
+import 'components/shop.dart';
 import 'components/tree.dart';
 import 'world/lurelands_world.dart';
 
@@ -70,6 +71,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Public getter for trees (used by player for collision checking)
   List<Tree> get trees => _lurelandsWorld.treeComponents;
 
+  // Public getter for shops
+  List<Shop> get shops => _lurelandsWorld.shopComponents;
+
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
 
@@ -83,6 +87,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Fishing state notifiers
   final ValueNotifier<FishingState> fishingStateNotifier = ValueNotifier(FishingState.idle);
   final ValueNotifier<HookedFish?> hookedFishNotifier = ValueNotifier(null);
+  
+  // Shop notifiers
+  final ValueNotifier<Shop?> nearbyShopNotifier = ValueNotifier(null);
 
   // Charging state
   bool _isCharging = false;
@@ -92,6 +99,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Lure sit timer (auto-reel after duration)
   double _lureSitTimer = 0.0;
   
+  // Game time for animations
+  double _gameTime = 0.0;
+  
   // Fish bite state
   double _biteTimer = 0.0;
   double _biteReactionTimer = 0.0;
@@ -100,6 +110,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   /// All water bodies for collision/spawning checks
   List<WaterBodyData> get allWaterBodies => _lurelandsWorld.allWaterBodies;
+
+  /// Get current game time for animations
+  double currentTime() => _gameTime;
 
   @override
   Color backgroundColor() => GameColors.grassGreen;
@@ -177,6 +190,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   @override
   void update(double dt) {
     super.update(dt);
+    
+    // Update game time
+    _gameTime += dt;
 
     final player = _player;
     if (player == null) return;
@@ -197,6 +213,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Update casting state notifiers
     _updateCastingState(player);
+    
+    // Update nearby shop
+    _updateNearbyShop(player);
 
     // Handle charging power meter
     if (_isCharging) {
@@ -470,6 +489,20 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     return false;
   }
 
+  /// Update the nearby shop notifier
+  void _updateNearbyShop(Player player) {
+    Shop? nearestShop;
+    for (final shop in shops) {
+      if (shop.isPlayerNearby) {
+        nearestShop = shop;
+        break;
+      }
+    }
+    if (nearbyShopNotifier.value != nearestShop) {
+      nearbyShopNotifier.value = nearestShop;
+    }
+  }
+
   /// Get the water body the player can cast into, if any
   WaterBodyData? getNearbyWaterBody() {
     final player = _player;
@@ -604,6 +637,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     castPowerNotifier.dispose();
     fishingStateNotifier.dispose();
     hookedFishNotifier.dispose();
+    nearbyShopNotifier.dispose();
     super.onRemove();
   }
 }

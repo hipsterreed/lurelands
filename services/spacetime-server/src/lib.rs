@@ -40,6 +40,7 @@ pub struct Player {
     pub is_online: bool,
     
     /// Player's gold currency
+    #[sats(default)]
     pub gold: u32,
     
     /// Timestamp of last update
