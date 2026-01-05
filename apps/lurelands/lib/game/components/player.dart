@@ -11,6 +11,7 @@ import 'cast_line.dart';
 import 'player_name_label.dart';
 import 'pond.dart';
 import 'power_meter.dart';
+import 'quest_sign.dart';
 import 'shop.dart';
 import 'tree.dart';
 
@@ -48,6 +49,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   final Set<Tree> _collidingTrees = {};
   final Set<Pond> _collidingPonds = {};
   final Set<Shop> _collidingShops = {};
+  final Set<QuestSign> _collidingQuestSigns = {};
 
   // Casting state
   bool _isCasting = false;
@@ -195,7 +197,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   bool _wouldCollide(Vector2 newPos) {
     return _wouldCollideWithWater(newPos) ||
         _wouldCollideWithTree(newPos) ||
-        _wouldCollideWithShop(newPos);
+        _wouldCollideWithShop(newPos) ||
+        _wouldCollideWithQuestSign(newPos);
   }
 
   /// Calculate tangential slide position when colliding with a tree
@@ -338,6 +341,34 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     return false;
   }
 
+  bool _wouldCollideWithQuestSign(Vector2 newPos) {
+    const playerHitboxRadius = 25.0;
+    
+    for (final sign in game.questSigns) {
+      // Get the quest sign's hitbox position and size in world space
+      final hitboxCenter = sign.hitboxWorldPosition;
+      final hitboxSize = sign.hitboxSize;
+      
+      // Calculate the half-extents of the sign hitbox
+      final halfWidth = hitboxSize.x / 2;
+      final halfHeight = hitboxSize.y / 2;
+      
+      // Find the closest point on the rectangle to the player
+      final closestX = (newPos.x).clamp(hitboxCenter.x - halfWidth, hitboxCenter.x + halfWidth);
+      final closestY = (newPos.y).clamp(hitboxCenter.y - halfHeight, hitboxCenter.y + halfHeight);
+      
+      // Calculate distance from player to closest point on rectangle
+      final dx = newPos.x - closestX;
+      final dy = newPos.y - closestY;
+      final distance = sqrt(dx * dx + dy * dy);
+      
+      // Check if player would overlap with quest sign hitbox
+      if (distance < playerHitboxRadius) {
+        return true;
+      }
+    }
+    return false;
+  }
 
   /// Start casting into water
   /// [power] is a value from 0.0 to 1.0 representing the charge level
@@ -393,6 +424,9 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     if (other is Shop) {
       _collidingShops.add(other);
     }
+    if (other is QuestSign) {
+      _collidingQuestSigns.add(other);
+    }
   }
 
   @override
@@ -406,6 +440,9 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     }
     if (other is Shop) {
       _collidingShops.remove(other);
+    }
+    if (other is QuestSign) {
+      _collidingQuestSigns.remove(other);
     }
   }
 

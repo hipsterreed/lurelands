@@ -651,47 +651,8 @@ export class StdbClient {
       const parts = itemId.split('_');
       const fishType = parts.length >= 2 ? parts[1] : 'unknown';
       
-      // Get or create player inventory (optimistic update)
-      let playerInv = this.inventory.get(playerId);
-      if (!playerInv) {
-        playerInv = new Map();
-        this.inventory.set(playerId, playerInv);
-      }
-      
-      // Add fish to local inventory (optimistic update)
-      // Respect stack size limits: fish max at 5, poles at 1
-      const maxStackSize = itemId.startsWith('fish_') ? 5 : 1;
-      
-      // Find an existing stack with space (using same key format as cacheInventoryItem - database ID)
-      let foundStack = false;
-      for (const [key, invItem] of playerInv) {
-        if (invItem.itemId === itemId && invItem.rarity === rarity && invItem.quantity < maxStackSize) {
-          invItem.quantity += 1;
-          playerInv.set(key, invItem);
-          foundStack = true;
-          break;
-        }
-      }
-      
-      // Create new stack if no existing stack has space
-      if (!foundStack) {
-        const tempId = Date.now();
-        const newItem: import('./types').InventoryItem = {
-          id: tempId,
-          playerId,
-          itemId,
-          rarity,
-          quantity: 1,
-        };
-        playerInv.set(String(tempId), newItem);
-      }
-      
-      // Notify inventory update immediately (optimistic)
-      if (this.onInventoryUpdate) {
-        this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
-      }
-      
-      // Persist to SpacetimeDB
+      // Persist to SpacetimeDB - the onInsert callback will update the cache
+      // We don't do optimistic updates here to avoid duplicate entries
       this.conn.reducers.catchFish({
         playerId,
         itemId,
@@ -710,55 +671,9 @@ export class StdbClient {
     if (!this.conn || !this.isConnected) return;
     
     try {
-      // Get the player's inventory for optimistic update
-      const playerInv = this.inventory.get(playerId);
-      if (!playerInv) {
-        stdbLogger.warn({ playerId }, 'No inventory found for player');
-        return;
-      }
-      
-      // Calculate total owned quantity across all matching stacks
-      let totalOwned = 0;
-      for (const [, invItem] of playerInv) {
-        if (invItem.itemId === itemId && invItem.rarity === rarity) {
-          totalOwned += invItem.quantity;
-        }
-      }
-      
-      if (totalOwned < quantity) {
-        stdbLogger.warn({ playerId, itemId, rarity, quantity, available: totalOwned }, 'Not enough items to sell');
-        return;
-      }
-      
-      // Calculate sell price for optimistic update (server will calculate authoritatively)
-      const sellPrice = this.calculateSellPrice(itemId, rarity);
-      const totalGold = sellPrice * quantity;
-      
-      // Optimistic update: remove items from local inventory (distributed across stacks)
-      let remaining = quantity;
-      for (const [key, invItem] of playerInv) {
-        if (remaining === 0) break;
-        if (invItem.itemId === itemId && invItem.rarity === rarity) {
-          const toRemove = Math.min(remaining, invItem.quantity);
-          if (invItem.quantity <= toRemove) {
-            playerInv.delete(key);
-          } else {
-            invItem.quantity -= toRemove;
-            playerInv.set(key, invItem);
-          }
-          remaining -= toRemove;
-        }
-      }
-      
-      // Optimistic update: add gold to local player
-      const player = this.players.get(playerId);
-      if (player) {
-        player.gold += totalGold;
-        this.players.set(playerId, player);
-        this.broadcastPlayersUpdate();
-      }
-      
       // Call atomic sell_item reducer (handles gold, inventory, and logging atomically)
+      // The onUpdate/onDelete callbacks will update the inventory cache
+      // The player update callback will update gold
       this.conn.reducers.sellItem({
         playerId,
         itemId,
@@ -766,12 +681,7 @@ export class StdbClient {
         quantity,
       });
       
-      // Notify inventory update
-      if (this.onInventoryUpdate) {
-        this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
-      }
-      
-      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item (atomic reducer)');
+      stdbLogger.info({ playerId, itemId, rarity, quantity }, 'Selling item (atomic reducer)');
       
     } catch (error) {
       stdbLogger.error({ err: error, playerId, itemId, quantity }, 'Failed to sell item');
@@ -789,96 +699,24 @@ export class StdbClient {
         return;
       }
       
-      // Optimistic update: deduct gold locally
+      // Optimistic update: deduct gold locally (will be corrected by server if needed)
       player.gold -= price;
       this.players.set(playerId, player);
       this.broadcastPlayersUpdate();
       
-      // Get or create player inventory for optimistic update
-      let playerInv = this.inventory.get(playerId);
-      if (!playerInv) {
-        playerInv = new Map();
-        this.inventory.set(playerId, playerInv);
-      }
-      
-      // Optimistic update: add item to local inventory
-      const isPole = itemId.startsWith('pole_');
-      const isFish = itemId.startsWith('fish_');
-      const maxStackSize = isPole ? 1 : (isFish ? 5 : Infinity);
-      
-      if (maxStackSize === 1) {
-        // Poles don't stack - create a new entry with temporary ID
-        const tempId = Date.now();
-        const newItem: import('./types').InventoryItem = {
-          id: tempId,
-          playerId,
-          itemId,
-          rarity: 0,
-          quantity: 1,
-        };
-        playerInv.set(String(tempId), newItem);
-      } else {
-        // For stackable items, try to find an existing stack with space
-        let foundStack = false;
-        for (const [key, item] of playerInv) {
-          if (item.itemId === itemId && item.rarity === 0 && item.quantity < maxStackSize) {
-            item.quantity += 1;
-            playerInv.set(key, item);
-            foundStack = true;
-            break;
-          }
-        }
-        if (!foundStack) {
-          const tempId = Date.now();
-          const newItem: import('./types').InventoryItem = {
-            id: tempId,
-            playerId,
-            itemId,
-            rarity: 0,
-            quantity: 1,
-          };
-          playerInv.set(String(tempId), newItem);
-        }
-      }
-      
       // Call atomic buy_item reducer (handles gold, inventory, and logging atomically)
       // Server will validate gold and calculate price authoritatively
+      // The onInsert callback will update the inventory cache
       this.conn.reducers.buyItem({
         playerId,
         itemId,
       });
-      
-      // Notify inventory update
-      if (this.onInventoryUpdate) {
-        this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
-      }
       
       stdbLogger.info({ playerId, itemId, price }, 'Bought item (atomic reducer)');
       
     } catch (error) {
       stdbLogger.error({ err: error, playerId, itemId, price }, 'Failed to buy item');
     }
-  }
-
-  private calculateSellPrice(itemId: string, rarity: number): number {
-    // Base prices for different item types
-    const basePrices: Record<string, number> = {
-      // Fish prices by water type and tier
-      'fish_pond_1': 10, 'fish_pond_2': 25, 'fish_pond_3': 50, 'fish_pond_4': 150,
-      'fish_river_1': 12, 'fish_river_2': 30, 'fish_river_3': 60, 'fish_river_4': 180,
-      'fish_ocean_1': 15, 'fish_ocean_2': 40, 'fish_ocean_3': 80, 'fish_ocean_4': 250,
-      'fish_night_1': 20, 'fish_night_2': 45, 'fish_night_3': 90, 'fish_night_4': 300,
-      // Poles (pole_1 is free/worthless)
-      'pole_1': 0, 'pole_2': 200, 'pole_3': 500, 'pole_4': 1500,
-      // Lures
-      'lure_1': 10, 'lure_2': 30, 'lure_3': 80, 'lure_4': 250,
-    };
-    
-    const basePrice = basePrices[itemId] ?? 10;
-    
-    // Apply rarity multiplier for fish
-    const multiplier = rarity <= 1 ? 1.0 : (rarity === 2 ? 2.0 : 4.0);
-    return Math.round(basePrice * multiplier);
   }
 
   private broadcastPlayersUpdate(): void {

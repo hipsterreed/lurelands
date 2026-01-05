@@ -457,9 +457,9 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
     
     // Pond 1 dock: centered on pond at (980, 450) with width 10*48
     // Dock y is around 546 (450 + 8*48 - 6*48), extends down 4 tiles
-    // Place sign to the right of the dock, on the shore
+    // Place sign to the right of the dock, on the shore (moved up 6 tiles to avoid lake)
     final pond1DockX = 980.0 + (10 * tileSize) / 2 + tileSize * 2; // Right of dock
-    final pond1DockY = 450.0 + 8 * tileSize - 6 * tileSize + tileSize * 5; // Below dock, on shore
+    final pond1DockY = 450.0 + 8 * tileSize - 6 * tileSize + tileSize * 5 - tileSize * 6; // Moved up 6 tiles
     
     // Quest signs with their associated storylines
     final questSignPositions = [
