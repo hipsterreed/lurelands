@@ -7,6 +7,13 @@ import 'package:flutter/painting.dart';
 
 import '../lurelands_game.dart';
 
+/// Quest indicator state for the sign
+enum QuestIndicatorState {
+  none,       // No quests available
+  available,  // New quest(s) available - yellow !
+  completable, // Quest ready to turn in - green ?
+}
+
 /// A quest sign component that players can interact with to view/accept quests
 class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
   /// Unique identifier for this sign
@@ -14,6 +21,10 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
   
   /// Display name of the sign
   final String name;
+  
+  /// Which storyline(s) this sign offers quests for
+  /// If null, shows all quests. Otherwise only shows quests matching these storylines.
+  final List<String>? storylines;
   
   /// Interaction radius - how close player needs to be to interact
   static const double interactionRadius = 60.0;
@@ -28,8 +39,23 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
   bool _playerNearby = false;
   bool get isPlayerNearby => _playerNearby;
   
+  // Quest indicator state (updated by game based on quest data)
+  // Default to none - will be updated when quest data is available
+  QuestIndicatorState _indicatorState = QuestIndicatorState.none;
+  
+  /// Update the indicator state (called by game when quest data changes)
+  void setIndicatorState(QuestIndicatorState state) {
+    _indicatorState = state;
+  }
+  
   // Hitbox for collision detection
   late RectangleHitbox _hitbox;
+  
+  // Sign sprite
+  late Sprite _signSprite;
+  
+  // Scale factor for the sprite
+  static const double _spriteScale = 3.0;
   
   // Getters for collision checking
   Vector2 get hitboxWorldPosition => _hitbox.absoluteCenter;
@@ -39,6 +65,7 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
     required Vector2 position,
     required this.id,
     this.name = 'Quest Board',
+    this.storylines,
   }) : super(
          position: position,
          anchor: Anchor.bottomCenter,
@@ -48,12 +75,17 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
   Future<void> onLoad() async {
     await super.onLoad();
     
-    // Set size for the sign (wooden post style) - larger for visibility
-    size = Vector2(48, 80);
+    // Load the sign sprite
+    _signSprite = await game.loadSprite('structures/sign.png');
+    
+    // Set size based on sprite dimensions scaled up
+    final spriteWidth = _signSprite.srcSize.x * _spriteScale;
+    final spriteHeight = _signSprite.srcSize.y * _spriteScale;
+    size = Vector2(spriteWidth, spriteHeight);
     
     // Add rectangular hitbox at the base
-    final hitboxWidth = size.x * 0.8;
-    final hitboxHeight = size.y * 0.3;
+    final hitboxWidth = size.x * 0.6;
+    final hitboxHeight = size.y * 0.25;
     _hitbox = RectangleHitbox(
       size: Vector2(hitboxWidth, hitboxHeight),
       position: Vector2((size.x - hitboxWidth) / 2, size.y - hitboxHeight - 4),
@@ -104,45 +136,76 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
   void render(Canvas canvas) {
     super.render(canvas);
 
-    // Draw sign post
-    _drawSignPost(canvas);
+    // Draw sign sprite
+    _signSprite.render(
+      canvas,
+      size: size,
+    );
     
-    // Draw interaction indicator when player is nearby
-    if (_playerNearby) {
-      _drawInteractionIndicator(canvas);
+    // Only draw quest indicator if there's something to show (WoW style)
+    if (_indicatorState != QuestIndicatorState.none) {
+      _drawQuestIndicator(canvas);
+      
+      // Draw interaction hint when player is nearby and there's a quest
+      if (_playerNearby) {
+        _drawInteractionHint(canvas);
+      }
     }
   }
 
-  void _drawSignPost(Canvas canvas) {
-    // Wooden post
-    final postPaint = Paint()..color = const Color(0xFF8B4513);
-    canvas.drawRect(
-      Rect.fromLTWH(size.x / 2 - 5, size.y - 50, 10, 50),
-      postPaint,
+  void _drawQuestIndicator(Canvas canvas) {
+    // Floating indicator above the sign - WoW style !/?
+    final bobAmount = sin(game.currentTime() * 3) * 3;
+    final indicatorY = -20.0 + bobAmount;
+    
+    // Colors based on state
+    final Color indicatorColor;
+    final String symbol;
+    
+    if (_indicatorState == QuestIndicatorState.completable) {
+      indicatorColor = const Color(0xFF4CAF50); // Green for turn-in
+      symbol = '?';
+    } else {
+      indicatorColor = const Color(0xFFFFD700); // Yellow/gold for new quest
+      symbol = '!';
+    }
+    
+    // Glow effect
+    final glowPaint = Paint()
+      ..color = indicatorColor.withAlpha(60)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+    canvas.drawCircle(
+      Offset(size.x / 2, indicatorY),
+      16,
+      glowPaint,
     );
     
-    // Sign board background
-    final boardPaint = Paint()..color = const Color(0xFFA0724B);
-    final boardRect = RRect.fromRectAndRadius(
-      Rect.fromLTWH(0, 0, size.x, size.y * 0.55),
-      const Radius.circular(6),
+    // Background circle
+    final bgPaint = Paint()..color = const Color(0xDD000000);
+    canvas.drawCircle(
+      Offset(size.x / 2, indicatorY),
+      14,
+      bgPaint,
     );
-    canvas.drawRRect(boardRect, boardPaint);
     
-    // Sign board border
+    // Border
     final borderPaint = Paint()
-      ..color = const Color(0xFF5D3A1A)
+      ..color = indicatorColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 3;
-    canvas.drawRRect(boardRect, borderPaint);
+      ..strokeWidth = 2;
+    canvas.drawCircle(
+      Offset(size.x / 2, indicatorY),
+      14,
+      borderPaint,
+    );
     
-    // Question mark icon on sign
+    // Draw the symbol (! or ?)
     final textPainter = TextPainter(
       text: TextSpan(
-        text: '?',
+        text: symbol,
         style: TextStyle(
-          color: const Color(0xFFFFD700),
-          fontSize: 28,
+          color: indicatorColor,
+          fontSize: 18,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -153,41 +216,47 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
       canvas,
       Offset(
         (size.x - textPainter.width) / 2,
-        (size.y * 0.55 - textPainter.height) / 2,
+        indicatorY - textPainter.height / 2,
       ),
     );
   }
 
-  void _drawInteractionIndicator(Canvas canvas) {
-    // Draw a floating indicator above the sign
-    final indicatorY = -16.0 + sin(game.currentTime() * 3) * 4;
+  void _drawInteractionHint(Canvas canvas) {
+    // Small "Press to interact" hint below the main indicator
+    final hintY = -45.0 + sin(game.currentTime() * 2) * 2;
     
-    // Background circle
-    final bgPaint = Paint()..color = const Color(0xDD000000);
-    canvas.drawCircle(
-      Offset(size.x / 2, indicatorY),
-      12,
-      bgPaint,
-    );
-    
-    // Exclamation icon
-    final iconPaint = Paint()
-      ..color = const Color(0xFFFFD700)
-      ..style = PaintingStyle.fill;
-    
-    // Draw exclamation mark
-    canvas.drawCircle(
-      Offset(size.x / 2, indicatorY + 4),
-      2,
-      iconPaint,
-    );
-    canvas.drawRect(
-      Rect.fromCenter(
-        center: Offset(size.x / 2, indicatorY - 2),
-        width: 3,
-        height: 8,
+    final textPainter = TextPainter(
+      text: const TextSpan(
+        text: 'TAP',
+        style: TextStyle(
+          color: Color(0xAAFFFFFF),
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1,
+        ),
       ),
-      iconPaint,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+    
+    // Background pill
+    final bgRect = RRect.fromRectAndRadius(
+      Rect.fromCenter(
+        center: Offset(size.x / 2, hintY),
+        width: textPainter.width + 12,
+        height: textPainter.height + 6,
+      ),
+      const Radius.circular(8),
+    );
+    final bgPaint = Paint()..color = const Color(0xAA000000);
+    canvas.drawRRect(bgRect, bgPaint);
+    
+    textPainter.paint(
+      canvas,
+      Offset(
+        (size.x - textPainter.width) / 2,
+        hintY - textPainter.height / 2,
+      ),
     );
   }
   

@@ -1124,6 +1124,104 @@ export class StdbClient {
     }
   }
 
+  // --- Admin Quest Methods ---
+
+  async adminCreateQuest(quest: {
+    id: string;
+    title: string;
+    description: string;
+    questType: string;
+    storyline: string | null;
+    storyOrder: number | null;
+    prerequisiteQuestId: string | null;
+    requirements: string;
+    rewards: string;
+  }): Promise<boolean> {
+    if (!this.conn || !this.isConnected) return false;
+    
+    try {
+      this.conn.reducers.adminCreateQuest({
+        id: quest.id,
+        title: quest.title,
+        description: quest.description,
+        questType: quest.questType,
+        storyline: quest.storyline,
+        storyOrder: quest.storyOrder,
+        prerequisiteQuestId: quest.prerequisiteQuestId,
+        requirements: quest.requirements,
+        rewards: quest.rewards,
+      });
+      
+      stdbLogger.info({ questId: quest.id, title: quest.title }, 'Admin created quest');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error, quest }, 'Failed to create quest');
+      return false;
+    }
+  }
+
+  async adminUpdateQuest(quest: {
+    id: string;
+    title: string;
+    description: string;
+    questType: string;
+    storyline: string | null;
+    storyOrder: number | null;
+    prerequisiteQuestId: string | null;
+    requirements: string;
+    rewards: string;
+  }): Promise<boolean> {
+    if (!this.conn || !this.isConnected) return false;
+    
+    try {
+      this.conn.reducers.adminUpdateQuest({
+        id: quest.id,
+        title: quest.title,
+        description: quest.description,
+        questType: quest.questType,
+        storyline: quest.storyline,
+        storyOrder: quest.storyOrder,
+        prerequisiteQuestId: quest.prerequisiteQuestId,
+        requirements: quest.requirements,
+        rewards: quest.rewards,
+      });
+      
+      stdbLogger.info({ questId: quest.id, title: quest.title }, 'Admin updated quest');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error, quest }, 'Failed to update quest');
+      return false;
+    }
+  }
+
+  async adminDeleteQuest(questId: string): Promise<boolean> {
+    if (!this.conn || !this.isConnected) return false;
+    
+    try {
+      this.conn.reducers.adminDeleteQuest({ id: questId });
+      
+      stdbLogger.info({ questId }, 'Admin deleted quest');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error, questId }, 'Failed to delete quest');
+      return false;
+    }
+  }
+
+  async adminResetQuestProgress(questId: string): Promise<boolean> {
+    if (!this.conn || !this.isConnected) return false;
+    
+    try {
+      this.conn.reducers.adminResetQuestProgress({ questId });
+      
+      stdbLogger.info({ questId }, 'Admin reset quest progress');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error, questId }, 'Failed to reset quest progress');
+      return false;
+    }
+  }
+
   disconnect() {
     if (this.conn) {
       this.conn.disconnect();

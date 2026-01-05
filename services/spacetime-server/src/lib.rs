@@ -1814,6 +1814,118 @@ pub fn log_item_bought(
 }
 
 // =============================================================================
+// ADMIN: QUEST MANAGEMENT
+// =============================================================================
+
+/// Create a new quest (admin only)
+#[spacetimedb::reducer]
+pub fn admin_create_quest(
+    ctx: &ReducerContext,
+    id: String,
+    title: String,
+    description: String,
+    quest_type: String,
+    storyline: Option<String>,
+    story_order: Option<u32>,
+    prerequisite_quest_id: Option<String>,
+    requirements: String,
+    rewards: String,
+) {
+    // Check if quest already exists
+    if ctx.db.quest().id().find(&id).is_some() {
+        log::warn!("Quest {} already exists", id);
+        return;
+    }
+    
+    let quest = Quest {
+        id: id.clone(),
+        title: title.clone(),
+        description,
+        quest_type,
+        storyline,
+        story_order,
+        prerequisite_quest_id,
+        requirements,
+        rewards,
+    };
+    
+    ctx.db.quest().insert(quest);
+    log::info!("Created quest: {} - {}", id, title);
+}
+
+/// Update an existing quest (admin only)
+#[spacetimedb::reducer]
+pub fn admin_update_quest(
+    ctx: &ReducerContext,
+    id: String,
+    title: String,
+    description: String,
+    quest_type: String,
+    storyline: Option<String>,
+    story_order: Option<u32>,
+    prerequisite_quest_id: Option<String>,
+    requirements: String,
+    rewards: String,
+) {
+    // Find existing quest
+    if let Some(mut quest) = ctx.db.quest().id().find(&id) {
+        quest.title = title.clone();
+        quest.description = description;
+        quest.quest_type = quest_type;
+        quest.storyline = storyline;
+        quest.story_order = story_order;
+        quest.prerequisite_quest_id = prerequisite_quest_id;
+        quest.requirements = requirements;
+        quest.rewards = rewards;
+        
+        ctx.db.quest().id().update(quest);
+        log::info!("Updated quest: {} - {}", id, title);
+    } else {
+        log::warn!("Quest {} not found", id);
+    }
+}
+
+/// Delete a quest (admin only) - also removes all player progress for this quest
+#[spacetimedb::reducer]
+pub fn admin_delete_quest(ctx: &ReducerContext, id: String) {
+    // Delete the quest
+    if let Some(quest) = ctx.db.quest().id().find(&id) {
+        ctx.db.quest().id().delete(&id);
+        log::info!("Deleted quest: {} - {}", id, quest.title);
+        
+        // Also delete all player quest progress for this quest
+        let player_quests_to_delete: Vec<_> = ctx.db.player_quest()
+            .iter()
+            .filter(|pq| pq.quest_id == id)
+            .map(|pq| pq.id)
+            .collect();
+        
+        for pq_id in player_quests_to_delete {
+            ctx.db.player_quest().id().delete(&pq_id);
+        }
+    } else {
+        log::warn!("Quest {} not found", id);
+    }
+}
+
+/// Reset all player progress for a specific quest (admin only)
+#[spacetimedb::reducer]
+pub fn admin_reset_quest_progress(ctx: &ReducerContext, quest_id: String) {
+    let player_quests_to_delete: Vec<_> = ctx.db.player_quest()
+        .iter()
+        .filter(|pq| pq.quest_id == quest_id)
+        .map(|pq| pq.id)
+        .collect();
+    
+    let count = player_quests_to_delete.len();
+    for pq_id in player_quests_to_delete {
+        ctx.db.player_quest().id().delete(&pq_id);
+    }
+    
+    log::info!("Reset progress for quest {} ({} player entries deleted)", quest_id, count);
+}
+
+// =============================================================================
 // INITIALIZATION
 // =============================================================================
 

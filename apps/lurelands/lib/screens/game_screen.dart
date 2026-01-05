@@ -11,7 +11,7 @@ import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
-import '../widgets/quest_panel.dart';
+import '../widgets/quest_dialog.dart';
 import '../widgets/shop_panel.dart';
 import '../game/components/quest_sign.dart';
 import '../game/components/shop.dart';
@@ -195,6 +195,8 @@ class _GameScreenState extends State<GameScreen> {
           _quests = data.quests;
           _playerQuests = data.playerQuests;
         });
+        // Update quest sign indicators
+        _updateQuestSignIndicators();
       }
     });
     
@@ -205,6 +207,12 @@ class _GameScreenState extends State<GameScreen> {
     setState(() {
       _isConnecting = false;
       _game = game;
+    });
+    
+    // Update quest sign indicators with initial data
+    // Need to delay slightly to ensure game world is loaded
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _updateQuestSignIndicators();
     });
   }
 
@@ -322,17 +330,55 @@ class _GameScreenState extends State<GameScreen> {
           // Shop interaction button (when near shop)
           if (_nearbyShop != null && !_showShop && !_showInventory && !_showQuestPanel)
             _buildShopButton(),
-          // Quest panel overlay
+          // Quest dialog overlay (WoW-style)
           if (_showQuestPanel && _nearbyQuestSign != null)
-            QuestPanel(
-              quests: _quests,
-              playerQuests: _playerQuests,
-              onClose: () => setState(() => _showQuestPanel = false),
-              onAcceptQuest: _onAcceptQuest,
-              onCompleteQuest: _onCompleteQuest,
+            Builder(
+              builder: (context) {
+                final questToShow = QuestSignHelper.getQuestToShow(
+                  allQuests: _quests,
+                  playerQuests: _playerQuests,
+                  storylines: _nearbyQuestSign!.storylines,
+                );
+                
+                if (questToShow == null) {
+                  // No quests available - close dialog
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) setState(() => _showQuestPanel = false);
+                  });
+                  return const SizedBox.shrink();
+                }
+                
+                final playerQuest = _playerQuests
+                    .where((pq) => pq.questId == questToShow.id)
+                    .firstOrNull;
+                
+                return QuestOfferDialog(
+                  quest: questToShow,
+                  playerQuest: playerQuest,
+                  signName: _nearbyQuestSign!.name,
+                  onClose: () => setState(() => _showQuestPanel = false),
+                  onAccept: () {
+                    _onAcceptQuest(questToShow.id);
+                    // Close after accepting - player can view in backpack
+                    setState(() => _showQuestPanel = false);
+                  },
+                  onComplete: (playerQuest?.isActive ?? false) && 
+                              playerQuest!.areRequirementsMet(questToShow)
+                      ? () {
+                          _onCompleteQuest(questToShow.id);
+                          // Stay open to show next quest or close if none
+                        }
+                      : null,
+                );
+              },
             ),
-          // Quest sign interaction button (when near quest sign)
-          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop)
+          // Quest sign interaction button (when near quest sign with available quests)
+          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop &&
+              QuestSignHelper.hasAvailableOrCompletableQuests(
+                allQuests: _quests,
+                playerQuests: _playerQuests,
+                storylines: _nearbyQuestSign!.storylines,
+              ))
             _buildQuestSignButton(),
         ],
       ),
@@ -1297,6 +1343,35 @@ class _GameScreenState extends State<GameScreen> {
 
   /// Build the quest sign interaction button (appears when near a quest sign)
   Widget _buildQuestSignButton() {
+    // Check if there's a quest ready to turn in (filtered by this sign's storylines)
+    final hasCompletable = QuestSignHelper.hasCompletableQuest(
+      allQuests: _quests,
+      playerQuests: _playerQuests,
+      storylines: _nearbyQuestSign?.storylines,
+    );
+    final hasAvailable = QuestSignHelper.hasAvailableOrCompletableQuests(
+      allQuests: _quests,
+      playerQuests: _playerQuests,
+      storylines: _nearbyQuestSign?.storylines,
+    );
+    
+    // Colors based on quest state
+    final buttonColor = hasCompletable 
+        ? const Color(0xFF4CAF50)  // Green for turn-in
+        : const Color(0xFFFFD700); // Gold for new quest
+    
+    final buttonText = hasCompletable 
+        ? 'TURN IN QUEST'
+        : hasAvailable 
+            ? 'NEW QUEST!'
+            : 'VIEW QUESTS';
+    
+    final buttonIcon = hasCompletable 
+        ? Icons.check_circle
+        : hasAvailable 
+            ? Icons.priority_high
+            : Icons.assignment;
+    
     return Positioned(
       bottom: 160,
       left: 0,
@@ -1310,12 +1385,12 @@ class _GameScreenState extends State<GameScreen> {
               color: GameColors.menuBackground.withAlpha(230),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: const Color(0xFFFFD700),
+                color: buttonColor,
                 width: 3,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: const Color(0xFFFFD700).withAlpha(100),
+                  color: buttonColor.withAlpha(100),
                   blurRadius: 12,
                   spreadRadius: 0,
                 ),
@@ -1325,13 +1400,13 @@ class _GameScreenState extends State<GameScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.assignment,
-                  color: const Color(0xFFFFD700),
+                  buttonIcon,
+                  color: buttonColor,
                   size: 24,
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'VIEW QUESTS',
+                  buttonText,
                   style: TextStyle(
                     color: GameColors.textPrimary,
                     fontSize: 16,
@@ -1355,6 +1430,34 @@ class _GameScreenState extends State<GameScreen> {
   /// Handle completing a quest
   void _onCompleteQuest(String questId) {
     _stdbService.completeQuest(questId);
+  }
+
+  /// Update quest sign indicators based on current quest state
+  void _updateQuestSignIndicators() {
+    if (_game == null) return;
+    
+    _game!.updateQuestSignIndicators(
+      allQuests: _quests,
+      playerQuests: _playerQuests,
+      hasCompletableCheck: ({
+        required List<dynamic> allQuests,
+        required List<dynamic> playerQuests,
+        List<String>? storylines,
+      }) => QuestSignHelper.hasCompletableQuest(
+        allQuests: allQuests.cast<Quest>(),
+        playerQuests: playerQuests.cast<PlayerQuest>(),
+        storylines: storylines,
+      ),
+      hasAvailableCheck: ({
+        required List<dynamic> allQuests,
+        required List<dynamic> playerQuests,
+        List<String>? storylines,
+      }) => QuestSignHelper.hasAvailableOrCompletableQuests(
+        allQuests: allQuests.cast<Quest>(),
+        playerQuests: playerQuests.cast<PlayerQuest>(),
+        storylines: storylines,
+      ),
+    );
   }
 
   /// Handle selling an item

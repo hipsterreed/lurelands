@@ -694,6 +694,618 @@ const eventsPageHtml = `<!DOCTYPE html>
 </html>`;
 
 // =============================================================================
+// Quest Admin Page HTML
+// =============================================================================
+
+const questAdminPageHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lurelands - Quest Admin</title>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-dark: #0a0e14;
+      --bg-card: #151b24;
+      --bg-hover: #1e2732;
+      --bg-input: #0d1117;
+      --text-primary: #e6edf3;
+      --text-muted: #7d8590;
+      --accent-blue: #58a6ff;
+      --accent-green: #3fb950;
+      --accent-yellow: #d29922;
+      --accent-orange: #db6d28;
+      --accent-purple: #a371f7;
+      --accent-red: #f85149;
+      --border-color: #30363d;
+    }
+    
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    
+    .container { max-width: 1400px; margin: 0 auto; }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 2rem;
+      padding-bottom: 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+    
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    
+    h1::before { content: '📜'; font-size: 1.5rem; }
+    
+    .nav-links {
+      display: flex;
+      gap: 1rem;
+    }
+    
+    .nav-link {
+      color: var(--text-muted);
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      transition: all 0.2s;
+    }
+    
+    .nav-link:hover {
+      background: var(--bg-card);
+      color: var(--text-primary);
+    }
+    
+    .layout {
+      display: grid;
+      grid-template-columns: 400px 1fr;
+      gap: 2rem;
+    }
+    
+    @media (max-width: 1000px) {
+      .layout { grid-template-columns: 1fr; }
+    }
+    
+    .panel {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    
+    .panel-header {
+      padding: 1rem 1.5rem;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .panel-header h2 {
+      font-size: 1rem;
+      font-weight: 600;
+    }
+    
+    .panel-content {
+      padding: 1.5rem;
+      max-height: calc(100vh - 200px);
+      overflow-y: auto;
+    }
+    
+    .quest-list { display: flex; flex-direction: column; gap: 0.5rem; }
+    
+    .storyline-group {
+      margin-bottom: 1.5rem;
+    }
+    
+    .storyline-header {
+      font-size: 0.75rem;
+      color: var(--accent-purple);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
+      padding-left: 0.5rem;
+    }
+    
+    .quest-item {
+      padding: 0.75rem 1rem;
+      background: var(--bg-hover);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s;
+      border: 2px solid transparent;
+    }
+    
+    .quest-item:hover { border-color: var(--border-color); }
+    .quest-item.selected { border-color: var(--accent-blue); background: rgba(88, 166, 255, 0.1); }
+    
+    .quest-item-title {
+      font-weight: 500;
+      margin-bottom: 0.25rem;
+    }
+    
+    .quest-item-meta {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      display: flex;
+      gap: 0.75rem;
+    }
+    
+    .badge {
+      padding: 0.125rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    
+    .badge-story { background: rgba(163, 113, 247, 0.2); color: var(--accent-purple); }
+    .badge-daily { background: rgba(210, 153, 34, 0.2); color: var(--accent-yellow); }
+    
+    .form-group {
+      margin-bottom: 1.25rem;
+    }
+    
+    label {
+      display: block;
+      font-size: 0.875rem;
+      color: var(--text-muted);
+      margin-bottom: 0.5rem;
+    }
+    
+    input, textarea, select {
+      width: 100%;
+      padding: 0.75rem 1rem;
+      background: var(--bg-input);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.875rem;
+    }
+    
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+    }
+    
+    textarea {
+      min-height: 80px;
+      resize: vertical;
+    }
+    
+    .form-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    
+    .btn {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 8px;
+      font-family: inherit;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .btn-primary {
+      background: var(--accent-blue);
+      color: white;
+    }
+    
+    .btn-primary:hover { background: #4393e6; }
+    
+    .btn-success {
+      background: var(--accent-green);
+      color: white;
+    }
+    
+    .btn-success:hover { background: #36a146; }
+    
+    .btn-danger {
+      background: var(--accent-red);
+      color: white;
+    }
+    
+    .btn-danger:hover { background: #e04040; }
+    
+    .btn-secondary {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .btn-secondary:hover { background: var(--border-color); }
+    
+    .btn-group {
+      display: flex;
+      gap: 0.75rem;
+      margin-top: 1.5rem;
+    }
+    
+    .json-editor {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.8rem;
+    }
+    
+    .help-text {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-top: 0.25rem;
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: 2rem;
+      right: 2rem;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      color: white;
+      font-weight: 500;
+      z-index: 1000;
+      animation: slideIn 0.3s ease;
+    }
+    
+    .toast-success { background: var(--accent-green); }
+    .toast-error { background: var(--accent-red); }
+    
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 3rem;
+      color: var(--text-muted);
+    }
+    
+    .section-title {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border-color);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Quest Admin</h1>
+      <div class="nav-links">
+        <a href="/" class="nav-link">Status</a>
+        <a href="/events" class="nav-link">Events</a>
+        <a href="/admin/quests" class="nav-link" style="background: var(--bg-card); color: var(--accent-blue);">Quests</a>
+      </div>
+    </header>
+    
+    <div class="layout">
+      <!-- Quest List Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2>Quests</h2>
+          <button class="btn btn-primary" onclick="newQuest()">+ New Quest</button>
+        </div>
+        <div class="panel-content">
+          <div id="quest-list" class="quest-list">
+            <div class="empty-state">Loading quests...</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Quest Editor Panel -->
+      <div class="panel">
+        <div class="panel-header">
+          <h2 id="editor-title">Quest Editor</h2>
+          <span id="editor-mode" class="badge badge-story"></span>
+        </div>
+        <div class="panel-content">
+          <form id="quest-form" onsubmit="saveQuest(event)">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Quest ID</label>
+                <input type="text" id="quest-id" required placeholder="e.g., guild_4">
+                <div class="help-text">Unique identifier (lowercase, underscores)</div>
+              </div>
+              <div class="form-group">
+                <label>Quest Type</label>
+                <select id="quest-type" onchange="updateTypeFields()">
+                  <option value="story">Story Quest</option>
+                  <option value="daily">Daily Quest</option>
+                </select>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label>Title</label>
+              <input type="text" id="quest-title" required placeholder="Quest display name">
+            </div>
+            
+            <div class="form-group">
+              <label>Description</label>
+              <textarea id="quest-description" required placeholder="Flavor text shown to players..."></textarea>
+            </div>
+            
+            <div id="story-fields">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Storyline</label>
+                  <input type="text" id="quest-storyline" placeholder="e.g., fishermans_guild">
+                </div>
+                <div class="form-group">
+                  <label>Order in Storyline</label>
+                  <input type="number" id="quest-order" min="1" placeholder="1, 2, 3...">
+                </div>
+              </div>
+              
+              <div class="form-group">
+                <label>Prerequisite Quest ID</label>
+                <input type="text" id="quest-prereq" placeholder="Quest that must be completed first">
+              </div>
+            </div>
+            
+            <div class="section-title">Requirements</div>
+            
+            <div class="form-group">
+              <label>Requirements (JSON)</label>
+              <textarea id="quest-requirements" class="json-editor" placeholder='{"total_fish": 5}'></textarea>
+              <div class="help-text">
+                Examples: {"total_fish": 5}, {"fish": {"fish_pond_1": 2}}, {"min_rarity": 3}
+              </div>
+            </div>
+            
+            <div class="section-title">Rewards</div>
+            
+            <div class="form-group">
+              <label>Rewards (JSON)</label>
+              <textarea id="quest-rewards" class="json-editor" placeholder='{"gold": 100}'></textarea>
+              <div class="help-text">
+                Examples: {"gold": 100}, {"gold": 50, "items": [{"item_id": "pole_2", "quantity": 1}]}
+              </div>
+            </div>
+            
+            <div class="btn-group">
+              <button type="submit" class="btn btn-success" id="save-btn">Save Quest</button>
+              <button type="button" class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
+              <button type="button" class="btn btn-danger" id="delete-btn" onclick="deleteQuest()" style="margin-left: auto; display: none;">Delete</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+    let quests = [];
+    let selectedQuestId = null;
+    let isEditing = false;
+    
+    async function loadQuests() {
+      try {
+        const res = await fetch('/api/quests');
+        quests = await res.json();
+        renderQuestList();
+      } catch (error) {
+        showToast('Failed to load quests', 'error');
+      }
+    }
+    
+    function renderQuestList() {
+      const container = document.getElementById('quest-list');
+      
+      if (quests.length === 0) {
+        container.innerHTML = '<div class="empty-state">No quests yet. Create one!</div>';
+        return;
+      }
+      
+      // Group by storyline
+      const groups = {};
+      const dailies = [];
+      
+      for (const quest of quests) {
+        if (quest.questType === 'daily') {
+          dailies.push(quest);
+        } else {
+          const storyline = quest.storyline || 'Uncategorized';
+          if (!groups[storyline]) groups[storyline] = [];
+          groups[storyline].push(quest);
+        }
+      }
+      
+      // Sort each group by story order
+      for (const key of Object.keys(groups)) {
+        groups[key].sort((a, b) => (a.storyOrder || 0) - (b.storyOrder || 0));
+      }
+      
+      let html = '';
+      
+      // Render storyline groups
+      for (const [storyline, groupQuests] of Object.entries(groups)) {
+        html += \`<div class="storyline-group">
+          <div class="storyline-header">\${storyline.replace(/_/g, ' ')}</div>
+          \${groupQuests.map(q => renderQuestItem(q)).join('')}
+        </div>\`;
+      }
+      
+      // Render daily quests
+      if (dailies.length > 0) {
+        html += \`<div class="storyline-group">
+          <div class="storyline-header">Daily Quests</div>
+          \${dailies.map(q => renderQuestItem(q)).join('')}
+        </div>\`;
+      }
+      
+      container.innerHTML = html;
+    }
+    
+    function renderQuestItem(quest) {
+      const isSelected = selectedQuestId === quest.id;
+      const badgeClass = quest.questType === 'story' ? 'badge-story' : 'badge-daily';
+      return \`
+        <div class="quest-item \${isSelected ? 'selected' : ''}" onclick="selectQuest('\${quest.id}')">
+          <div class="quest-item-title">\${quest.title}</div>
+          <div class="quest-item-meta">
+            <span class="badge \${badgeClass}">\${quest.questType}</span>
+            <span>\${quest.id}</span>
+          </div>
+        </div>
+      \`;
+    }
+    
+    function selectQuest(id) {
+      selectedQuestId = id;
+      isEditing = true;
+      const quest = quests.find(q => q.id === id);
+      if (!quest) return;
+      
+      document.getElementById('quest-id').value = quest.id;
+      document.getElementById('quest-id').disabled = true;
+      document.getElementById('quest-title').value = quest.title;
+      document.getElementById('quest-description').value = quest.description;
+      document.getElementById('quest-type').value = quest.questType;
+      document.getElementById('quest-storyline').value = quest.storyline || '';
+      document.getElementById('quest-order').value = quest.storyOrder || '';
+      document.getElementById('quest-prereq').value = quest.prerequisiteQuestId || '';
+      document.getElementById('quest-requirements').value = quest.requirements;
+      document.getElementById('quest-rewards').value = quest.rewards;
+      
+      document.getElementById('editor-title').textContent = 'Edit Quest';
+      document.getElementById('save-btn').textContent = 'Update Quest';
+      document.getElementById('delete-btn').style.display = 'block';
+      
+      updateTypeFields();
+      renderQuestList();
+    }
+    
+    function newQuest() {
+      selectedQuestId = null;
+      isEditing = false;
+      
+      document.getElementById('quest-form').reset();
+      document.getElementById('quest-id').disabled = false;
+      document.getElementById('editor-title').textContent = 'New Quest';
+      document.getElementById('save-btn').textContent = 'Create Quest';
+      document.getElementById('delete-btn').style.display = 'none';
+      
+      updateTypeFields();
+      renderQuestList();
+    }
+    
+    function cancelEdit() {
+      newQuest();
+    }
+    
+    function updateTypeFields() {
+      const type = document.getElementById('quest-type').value;
+      const storyFields = document.getElementById('story-fields');
+      storyFields.style.display = type === 'story' ? 'block' : 'none';
+    }
+    
+    async function saveQuest(e) {
+      e.preventDefault();
+      
+      const quest = {
+        id: document.getElementById('quest-id').value,
+        title: document.getElementById('quest-title').value,
+        description: document.getElementById('quest-description').value,
+        questType: document.getElementById('quest-type').value,
+        storyline: document.getElementById('quest-storyline').value || null,
+        storyOrder: parseInt(document.getElementById('quest-order').value) || null,
+        prerequisiteQuestId: document.getElementById('quest-prereq').value || null,
+        requirements: document.getElementById('quest-requirements').value,
+        rewards: document.getElementById('quest-rewards').value,
+      };
+      
+      // Validate JSON
+      try {
+        JSON.parse(quest.requirements);
+        JSON.parse(quest.rewards);
+      } catch (err) {
+        showToast('Invalid JSON in requirements or rewards', 'error');
+        return;
+      }
+      
+      try {
+        const method = isEditing ? 'PUT' : 'POST';
+        const url = isEditing ? '/api/quests/' + quest.id : '/api/quests';
+        
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(quest),
+        });
+        
+        const data = await res.json();
+        
+        if (data.success) {
+          showToast(isEditing ? 'Quest updated!' : 'Quest created!', 'success');
+          await loadQuests();
+          if (!isEditing) {
+            selectQuest(quest.id);
+          }
+        } else {
+          showToast('Failed to save quest', 'error');
+        }
+      } catch (error) {
+        showToast('Error saving quest', 'error');
+      }
+    }
+    
+    async function deleteQuest() {
+      if (!selectedQuestId) return;
+      if (!confirm('Delete this quest? This will also remove all player progress.')) return;
+      
+      try {
+        const res = await fetch('/api/quests/' + selectedQuestId, { method: 'DELETE' });
+        const data = await res.json();
+        
+        if (data.success) {
+          showToast('Quest deleted', 'success');
+          newQuest();
+          await loadQuests();
+        } else {
+          showToast('Failed to delete quest', 'error');
+        }
+      } catch (error) {
+        showToast('Error deleting quest', 'error');
+      }
+    }
+    
+    function showToast(message, type) {
+      const toast = document.createElement('div');
+      toast.className = 'toast toast-' + type;
+      toast.textContent = message;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+    
+    // Initial load
+    loadQuests();
+    updateTypeFields();
+  </script>
+</body>
+</html>`;
+
+// =============================================================================
 // Elysia Server
 // =============================================================================
 
@@ -727,6 +1339,60 @@ const app = new Elysia()
   // Events viewer page
   .get('/events', () => {
     return new Response(eventsPageHtml, {
+      headers: { 'Content-Type': 'text/html' },
+    });
+  })
+
+  // Quest Admin API endpoints
+  .get('/api/quests', () => {
+    return stdb.getQuests();
+  })
+
+  .post('/api/quests', async ({ body }) => {
+    const quest = body as any;
+    const success = await stdb.adminCreateQuest({
+      id: quest.id,
+      title: quest.title,
+      description: quest.description,
+      questType: quest.questType,
+      storyline: quest.storyline || null,
+      storyOrder: quest.storyOrder || null,
+      prerequisiteQuestId: quest.prerequisiteQuestId || null,
+      requirements: quest.requirements,
+      rewards: quest.rewards,
+    });
+    return { success };
+  })
+
+  .put('/api/quests/:id', async ({ params, body }) => {
+    const quest = body as any;
+    const success = await stdb.adminUpdateQuest({
+      id: params.id,
+      title: quest.title,
+      description: quest.description,
+      questType: quest.questType,
+      storyline: quest.storyline || null,
+      storyOrder: quest.storyOrder || null,
+      prerequisiteQuestId: quest.prerequisiteQuestId || null,
+      requirements: quest.requirements,
+      rewards: quest.rewards,
+    });
+    return { success };
+  })
+
+  .delete('/api/quests/:id', async ({ params }) => {
+    const success = await stdb.adminDeleteQuest(params.id);
+    return { success };
+  })
+
+  .post('/api/quests/:id/reset-progress', async ({ params }) => {
+    const success = await stdb.adminResetQuestProgress(params.id);
+    return { success };
+  })
+
+  // Quest Admin page
+  .get('/admin/quests', () => {
+    return new Response(questAdminPageHtml, {
       headers: { 'Content-Type': 'text/html' },
     });
   })

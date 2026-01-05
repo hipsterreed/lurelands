@@ -596,6 +596,45 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
+  /// Update quest sign indicators based on quest data
+  /// Called from UI when quest data changes
+  /// Each sign is updated based on its own storyline filter
+  void updateQuestSignIndicators({
+    required List<dynamic> allQuests,
+    required List<dynamic> playerQuests,
+    required bool Function({
+      required List<dynamic> allQuests,
+      required List<dynamic> playerQuests,
+      List<String>? storylines,
+    }) hasCompletableCheck,
+    required bool Function({
+      required List<dynamic> allQuests,
+      required List<dynamic> playerQuests,
+      List<String>? storylines,
+    }) hasAvailableCheck,
+  }) {
+    for (final sign in questSigns) {
+      final hasCompletable = hasCompletableCheck(
+        allQuests: allQuests,
+        playerQuests: playerQuests,
+        storylines: sign.storylines,
+      );
+      final hasAvailable = hasAvailableCheck(
+        allQuests: allQuests,
+        playerQuests: playerQuests,
+        storylines: sign.storylines,
+      );
+      
+      if (hasCompletable) {
+        sign.setIndicatorState(QuestIndicatorState.completable);
+      } else if (hasAvailable) {
+        sign.setIndicatorState(QuestIndicatorState.available);
+      } else {
+        sign.setIndicatorState(QuestIndicatorState.none);
+      }
+    }
+  }
+
   /// Get info about nearby water the player can cast into
   /// Returns (waterType, id) if near water, null otherwise
   ({WaterType waterType, String id})? getNearbyWaterInfo() {

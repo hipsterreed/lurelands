@@ -37,6 +37,14 @@ import AddGoldReducer from "./add_gold_reducer";
 export { AddGoldReducer };
 import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
+import AdminCreateQuestReducer from "./admin_create_quest_reducer";
+export { AdminCreateQuestReducer };
+import AdminDeleteQuestReducer from "./admin_delete_quest_reducer";
+export { AdminDeleteQuestReducer };
+import AdminResetQuestProgressReducer from "./admin_reset_quest_progress_reducer";
+export { AdminResetQuestProgressReducer };
+import AdminUpdateQuestReducer from "./admin_update_quest_reducer";
+export { AdminUpdateQuestReducer };
 import BuyItemReducer from "./buy_item_reducer";
 export { BuyItemReducer };
 import CatchFishReducer from "./catch_fish_reducer";
@@ -281,6 +289,10 @@ const reducersSchema = __reducers(
   __reducerSchema("accept_quest", AcceptQuestReducer),
   __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
+  __reducerSchema("admin_create_quest", AdminCreateQuestReducer),
+  __reducerSchema("admin_delete_quest", AdminDeleteQuestReducer),
+  __reducerSchema("admin_reset_quest_progress", AdminResetQuestProgressReducer),
+  __reducerSchema("admin_update_quest", AdminUpdateQuestReducer),
   __reducerSchema("buy_item", BuyItemReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
   __reducerSchema("complete_quest", CompleteQuestReducer),

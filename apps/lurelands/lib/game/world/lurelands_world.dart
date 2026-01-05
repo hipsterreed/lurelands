@@ -448,29 +448,49 @@ class LurelandsWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Spawn quest signs at fixed locations on the map
   Future<void> _spawnQuestSigns() async {
-    // Place quest signs at strategic locations (away from water bodies)
-    // Shop is at (800, 800), so place sign near it but not overlapping
-    // Ocean is on left (up to ~576px), ponds at (980,450) and (1780,900)
+    final tileSize = NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+    
+    // Ocean dock is at: startX = 528 - 96 = 432, y = 500
+    // Place sign just to the right of the dock on the grass
+    final oceanDockSignX = 432.0 + tileSize * 4;  // Right of dock
+    final oceanDockSignY = 500.0 + tileSize;      // Centered on dock y
+    
+    // Pond 1 dock: centered on pond at (980, 450) with width 10*48
+    // Dock y is around 546 (450 + 8*48 - 6*48), extends down 4 tiles
+    // Place sign to the right of the dock, on the shore
+    final pond1DockX = 980.0 + (10 * tileSize) / 2 + tileSize * 2; // Right of dock
+    final pond1DockY = 450.0 + 8 * tileSize - 6 * tileSize + tileSize * 5; // Below dock, on shore
+    
+    // Quest signs with their associated storylines
     final questSignPositions = [
-      (x: 700.0, y: 700.0, id: 'quest_board_1', name: 'Quest Board'),  // Near shop
-      (x: 1600.0, y: 600.0, id: 'quest_board_2', name: 'Quest Board'), // Right side of map
+      (
+        x: oceanDockSignX, 
+        y: oceanDockSignY, 
+        id: 'ocean_quest_board', 
+        name: "Sailor's Board",
+        storylines: ['ocean_mysteries'],
+      ),
+      (
+        x: pond1DockX, 
+        y: pond1DockY, 
+        id: 'guild_quest_board', 
+        name: "Fisher's Guild",
+        storylines: ['fishermans_guild'],
+      ),
     ];
 
     for (final signData in questSignPositions) {
-      // Make sure sign is not inside water or on a dock
-      final isValid = _isValidPlacement(signData.x, signData.y);
-      debugPrint('[World] QuestSign ${signData.id} at (${signData.x}, ${signData.y}): valid=$isValid');
+      debugPrint('[World] QuestSign ${signData.id} at (${signData.x}, ${signData.y})');
       
-      if (isValid) {
-        final questSign = QuestSign(
-          position: Vector2(signData.x, signData.y),
-          id: signData.id,
-          name: signData.name,
-        );
-        _questSignComponents.add(questSign);
-        await add(questSign);
-        debugPrint('[World] Added quest sign: ${signData.id}');
-      }
+      final questSign = QuestSign(
+        position: Vector2(signData.x, signData.y),
+        id: signData.id,
+        name: signData.name,
+        storylines: signData.storylines,
+      );
+      _questSignComponents.add(questSign);
+      await add(questSign);
+      debugPrint('[World] Added quest sign: ${signData.id} for storylines: ${signData.storylines}');
     }
     debugPrint('[World] Total quest signs added: ${_questSignComponents.length}');
   }
