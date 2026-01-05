@@ -309,7 +309,10 @@ class _GameScreenState extends State<GameScreen> {
           // Shop panel overlay
           if (_showShop && _nearbyShop != null)
             ShopPanel(
-              playerItems: _inventoryItems,
+              // Filter out equipped items - they shouldn't be sellable while equipped
+              playerItems: _equippedPoleId == null
+                  ? _inventoryItems
+                  : _inventoryItems.where((item) => item.itemId != _equippedPoleId).toList(),
               playerGold: _playerGold,
               shopName: _nearbyShop!.name,
               onClose: () => setState(() => _showShop = false),

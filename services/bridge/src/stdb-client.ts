@@ -222,10 +222,13 @@ export class StdbClient {
       // Load game events (most recent ones)
       this.gameEvents = [];
       try {
+        let eventCount = 0;
         for (const event of ctx.db.gameEvent.iter()) {
           const mapped = this.cacheGameEvent(event);
           this.gameEvents.push(mapped);
+          eventCount++;
         }
+        stdbLogger.info({ count: eventCount }, 'Loaded game events from SpacetimeDB');
         // Sort by createdAt descending (newest first)
         this.gameEvents.sort((a, b) => Number(b.createdAt) - Number(a.createdAt));
         // Keep only the most recent events
@@ -343,7 +346,7 @@ export class StdbClient {
 
     // Game event callback
     this.conn.db.gameEvent.onInsert((ctx: EventContext, event) => {
-      stdbLogger.debug({ eventType: event.eventType, playerId: event.playerId }, 'Game event logged');
+      stdbLogger.info({ eventType: event.eventType, playerId: event.playerId, id: Number(event.id) }, 'Game event received from SpacetimeDB');
       const mapped = this.cacheGameEvent(event);
       this.addGameEvent(mapped);
     });
@@ -759,16 +762,13 @@ export class StdbClient {
       });
       
       // Log the sell event to SpacetimeDB
-      // Note: This reducer is added in the new schema - regenerate types after deploying
-      if ('logItemSold' in this.conn.reducers) {
-        (this.conn.reducers as any).logItemSold({
-          playerId,
-          itemId,
-          rarity,
-          quantity,
-          goldAmount: totalGold,
-        });
-      }
+      this.conn.reducers.logItemSold({
+        playerId,
+        itemId,
+        rarity,
+        quantity,
+        goldAmount: totalGold,
+      });
       
       // Notify inventory update
       if (this.onInventoryUpdate) {
@@ -862,15 +862,12 @@ export class StdbClient {
       });
       
       // Log the buy event to SpacetimeDB
-      // Note: This reducer is added in the new schema - regenerate types after deploying
-      if ('logItemBought' in this.conn.reducers) {
-        (this.conn.reducers as any).logItemBought({
-          playerId,
-          itemId,
-          quantity: 1,
-          goldAmount: price,
-        });
-      }
+      this.conn.reducers.logItemBought({
+        playerId,
+        itemId,
+        quantity: 1,
+        goldAmount: price,
+      });
       
       // Notify inventory update
       if (this.onInventoryUpdate) {
