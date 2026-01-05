@@ -1457,6 +1457,15 @@ class _GameScreenState extends State<GameScreen> {
         playerQuests: playerQuests.cast<PlayerQuest>(),
         storylines: storylines,
       ),
+      hasActiveCheck: ({
+        required List<dynamic> allQuests,
+        required List<dynamic> playerQuests,
+        List<String>? storylines,
+      }) => QuestSignHelper.hasActiveQuest(
+        allQuests: allQuests.cast<Quest>(),
+        playerQuests: playerQuests.cast<PlayerQuest>(),
+        storylines: storylines,
+      ),
     );
   }
 

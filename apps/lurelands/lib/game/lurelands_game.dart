@@ -612,6 +612,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       required List<dynamic> playerQuests,
       List<String>? storylines,
     }) hasAvailableCheck,
+    required bool Function({
+      required List<dynamic> allQuests,
+      required List<dynamic> playerQuests,
+      List<String>? storylines,
+    }) hasActiveCheck,
   }) {
     for (final sign in questSigns) {
       final hasCompletable = hasCompletableCheck(
@@ -624,11 +629,18 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         playerQuests: playerQuests,
         storylines: sign.storylines,
       );
+      final hasActive = hasActiveCheck(
+        allQuests: allQuests,
+        playerQuests: playerQuests,
+        storylines: sign.storylines,
+      );
       
       if (hasCompletable) {
         sign.setIndicatorState(QuestIndicatorState.completable);
       } else if (hasAvailable) {
         sign.setIndicatorState(QuestIndicatorState.available);
+      } else if (hasActive) {
+        sign.setIndicatorState(QuestIndicatorState.inProgress);
       } else {
         sign.setIndicatorState(QuestIndicatorState.none);
       }

@@ -682,5 +682,24 @@ class QuestSignHelper {
     }
     return false;
   }
+
+  /// Check if there's an active quest in progress (not complete)
+  /// If storylines is provided, only checks quests matching those storylines
+  static bool hasActiveQuest({
+    required List<Quest> allQuests,
+    required List<PlayerQuest> playerQuests,
+    List<String>? storylines,
+  }) {
+    final filteredQuests = _filterByStoryline(allQuests, storylines);
+    
+    for (final quest in filteredQuests) {
+      final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
+      // Active but not complete
+      if (pq != null && pq.isActive && !pq.areRequirementsMet(quest)) {
+        return true;
+      }
+    }
+    return false;
+  }
 }
 

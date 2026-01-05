@@ -12,6 +12,7 @@ enum QuestIndicatorState {
   none,       // No quests available
   available,  // New quest(s) available - yellow !
   completable, // Quest ready to turn in - green ?
+  inProgress, // Quest active but not complete - grayed out !
 }
 
 /// A quest sign component that players can interact with to view/accept quests
@@ -165,6 +166,9 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
     if (_indicatorState == QuestIndicatorState.completable) {
       indicatorColor = const Color(0xFF4CAF50); // Green for turn-in
       symbol = '?';
+    } else if (_indicatorState == QuestIndicatorState.inProgress) {
+      indicatorColor = const Color(0xFF888888); // Gray for in-progress
+      symbol = '!';
     } else {
       indicatorColor = const Color(0xFFFFD700); // Yellow/gold for new quest
       symbol = '!';
@@ -225,10 +229,13 @@ class QuestSign extends PositionComponent with HasGameReference<LurelandsGame>, 
     // Small "Press to interact" hint below the main indicator
     final hintY = -45.0 + sin(game.currentTime() * 2) * 2;
     
+    // Show "VIEW" for in-progress quests, "TAP" otherwise
+    final hintText = _indicatorState == QuestIndicatorState.inProgress ? 'VIEW' : 'TAP';
+    
     final textPainter = TextPainter(
-      text: const TextSpan(
-        text: 'TAP',
-        style: TextStyle(
+      text: TextSpan(
+        text: hintText,
+        style: const TextStyle(
           color: Color(0xAAFFFFFF),
           fontSize: 10,
           fontWeight: FontWeight.bold,
