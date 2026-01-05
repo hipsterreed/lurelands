@@ -1363,6 +1363,15 @@ const app = new Elysia()
     });
   })
 
+  // Debug endpoint to check bridge state
+  .get('/api/debug', () => {
+    return {
+      connected: stdb.isConnected,
+      questCount: stdb.getQuests().length,
+      quests: stdb.getQuests(),
+    };
+  })
+
   // Quest Admin API endpoints
   .get('/api/quests', () => {
     return stdb.getQuests();

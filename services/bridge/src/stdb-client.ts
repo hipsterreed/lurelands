@@ -242,11 +242,15 @@ export class StdbClient {
       // Load quests
       this.quests.clear();
       try {
+        let questCount = 0;
         for (const quest of ctx.db.quest.iter()) {
+          stdbLogger.debug({ questId: quest.id, title: quest.title }, 'Loading quest from DB');
           this.cacheQuest(quest);
+          questCount++;
         }
+        stdbLogger.info({ questCount }, 'Finished loading quests from DB');
       } catch (error: any) {
-        stdbLogger.warn({ err: error }, 'Error loading quests - table may not exist yet');
+        stdbLogger.error({ err: error, errMessage: error?.message, errStack: error?.stack }, 'Error loading quests - table may not exist yet');
       }
 
       // Load player quests
