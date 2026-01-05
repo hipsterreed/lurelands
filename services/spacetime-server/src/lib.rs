@@ -6,6 +6,7 @@
 use spacetimedb::{ReducerContext, Table, Timestamp};
 
 /// Player table - tracks all connected players in the game world
+#[derive(Clone)]
 #[spacetimedb::table(name = player, public)]
 pub struct Player {
     /// Unique player identifier (from authentication)
@@ -86,6 +87,7 @@ pub struct FishCatch {
 }
 
 /// Player inventory - tracks items owned by players (stacked by item_id + rarity)
+#[derive(Clone)]
 #[spacetimedb::table(name = inventory, public)]
 pub struct Inventory {
     /// Unique row identifier
@@ -408,6 +410,75 @@ fn get_max_stack_size(item_id: &str) -> u32 {
 }
 
 // =============================================================================
+// ITEM PRICING (Server-Authoritative)
+// =============================================================================
+
+/// Get the base sell price for an item (before rarity multiplier)
+fn get_item_base_sell_price(item_id: &str) -> u32 {
+    match item_id {
+        // Fish prices by water type and tier
+        "fish_pond_1" => 10,
+        "fish_pond_2" => 25,
+        "fish_pond_3" => 50,
+        "fish_pond_4" => 150,
+        "fish_river_1" => 12,
+        "fish_river_2" => 30,
+        "fish_river_3" => 60,
+        "fish_river_4" => 180,
+        "fish_ocean_1" => 15,
+        "fish_ocean_2" => 40,
+        "fish_ocean_3" => 80,
+        "fish_ocean_4" => 250,
+        "fish_night_1" => 20,
+        "fish_night_2" => 45,
+        "fish_night_3" => 90,
+        "fish_night_4" => 300,
+        // Poles (pole_1 is worthless)
+        "pole_1" => 0,
+        "pole_2" => 200,
+        "pole_3" => 500,
+        "pole_4" => 1500,
+        // Lures
+        "lure_1" => 10,
+        "lure_2" => 30,
+        "lure_3" => 80,
+        "lure_4" => 250,
+        // Default
+        _ => 5,
+    }
+}
+
+/// Get the buy price for an item (what players pay in the shop)
+fn get_item_buy_price(item_id: &str) -> u32 {
+    match item_id {
+        // Poles - buy prices
+        "pole_1" => 0,   // Free starter pole
+        "pole_2" => 200,
+        "pole_3" => 500,
+        "pole_4" => 1500,
+        // Lures
+        "lure_1" => 20,
+        "lure_2" => 60,
+        "lure_3" => 160,
+        "lure_4" => 500,
+        // Default (shouldn't happen for purchasable items)
+        _ => 0,
+    }
+}
+
+/// Calculate sell price with rarity multiplier
+fn calculate_sell_price(item_id: &str, rarity: u8) -> u32 {
+    let base_price = get_item_base_sell_price(item_id);
+    let multiplier = match rarity {
+        0 | 1 => 1.0,  // Common / 1-star
+        2 => 2.0,      // 2-star
+        3 => 4.0,      // 3-star
+        _ => 1.0,
+    };
+    (base_price as f32 * multiplier).round() as u32
+}
+
+// =============================================================================
 // REDUCERS - Actions that clients can call to modify state
 // =============================================================================
 
@@ -671,6 +742,7 @@ pub fn get_player_inventory(ctx: &ReducerContext, player_id: String) {
 }
 
 /// Remove items from a player's inventory (for selling/using)
+/// Handles removal across multiple stacks when quantity exceeds a single stack
 #[spacetimedb::reducer]
 pub fn remove_from_inventory(
     ctx: &ReducerContext,
@@ -679,35 +751,69 @@ pub fn remove_from_inventory(
     rarity: u8,
     quantity: u32,
 ) {
-    // Find the inventory stack
-    let existing = ctx.db.inventory().iter().find(|inv| {
-        inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity
-    });
+    if quantity == 0 {
+        return;
+    }
+
+    // Find all matching inventory stacks
+    let matching_stacks: Vec<Inventory> = ctx.db.inventory().iter()
+        .filter(|inv| inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity)
+        .collect();
     
-    if let Some(mut inv) = existing {
-        if inv.quantity <= quantity {
-            // Remove the entire stack
-            ctx.db.inventory().id().delete(&inv.id);
+    if matching_stacks.is_empty() {
+        log::warn!(
+            "No inventory stack found for player {} item {} (rarity {})",
+            player_id, item_id, rarity
+        );
+        return;
+    }
+
+    // Calculate total owned
+    let total_owned: u32 = matching_stacks.iter().map(|inv| inv.quantity).sum();
+    
+    if total_owned < quantity {
+        log::warn!(
+            "Player {} only has {} of {} (rarity {}) but tried to remove {}",
+            player_id, total_owned, item_id, rarity, quantity
+        );
+        return;
+    }
+
+    // Remove items across stacks
+    let mut remaining = quantity;
+    for stack in matching_stacks {
+        if remaining == 0 {
+            break;
+        }
+        
+        let to_remove = remaining.min(stack.quantity);
+        
+        if stack.quantity <= to_remove {
+            // Remove entire stack
+            ctx.db.inventory().id().delete(&stack.id);
             log::info!(
                 "Removed entire stack from inventory for player {}: {} (rarity {})",
                 player_id, item_id, rarity
             );
         } else {
-            // Reduce the quantity
-            inv.quantity -= quantity;
-            let new_quantity = inv.quantity;
-            ctx.db.inventory().id().update(inv);
+            // Reduce quantity
+            let mut updated_stack = stack.clone();
+            updated_stack.quantity -= to_remove;
+            let new_quantity = updated_stack.quantity;
+            ctx.db.inventory().id().update(updated_stack);
             log::info!(
                 "Removed {} from inventory for player {}: {} x{} (rarity {})",
-                quantity, player_id, item_id, new_quantity, rarity
+                to_remove, player_id, item_id, new_quantity, rarity
             );
         }
-    } else {
-        log::warn!(
-            "No inventory stack found for player {} item {} (rarity {})",
-            player_id, item_id, rarity
-        );
+        
+        remaining -= to_remove;
     }
+
+    log::info!(
+        "Successfully removed {} of {} (rarity {}) from player {}",
+        quantity, item_id, rarity, player_id
+    );
 }
 
 /// Called when a player updates their display name
@@ -807,6 +913,197 @@ pub fn set_gold(ctx: &ReducerContext, player_id: String, amount: u32) {
         ctx.db.player().id().update(player);
         log::info!("Player {} gold set from {}g to {}g", player_id, old_gold, amount);
     }
+}
+
+/// Atomic sell item reducer - validates ownership, calculates price server-side, removes items, adds gold
+#[spacetimedb::reducer]
+pub fn sell_item(
+    ctx: &ReducerContext,
+    player_id: String,
+    item_id: String,
+    rarity: u8,
+    quantity: u32,
+) {
+    // Validate quantity
+    if quantity == 0 {
+        log::warn!("Player {} tried to sell 0 items", player_id);
+        return;
+    }
+
+    // Check if trying to sell an equipped pole
+    if is_pole_item(&item_id) {
+        if let Some(player) = ctx.db.player().id().find(&player_id) {
+            if player.equipped_pole_id.as_deref() == Some(&item_id) {
+                log::warn!("Player {} tried to sell equipped pole {}", player_id, item_id);
+                return;
+            }
+        }
+    }
+
+    // Find all matching inventory stacks and calculate total owned
+    let matching_stacks: Vec<Inventory> = ctx.db.inventory().iter()
+        .filter(|inv| inv.player_id == player_id && inv.item_id == item_id && inv.rarity == rarity)
+        .collect();
+    
+    let total_owned: u32 = matching_stacks.iter().map(|inv| inv.quantity).sum();
+    
+    if total_owned < quantity {
+        log::warn!(
+            "Player {} tried to sell {} of {} but only owns {}",
+            player_id, quantity, item_id, total_owned
+        );
+        return;
+    }
+
+    // Calculate sell price (server-authoritative)
+    let unit_price = calculate_sell_price(&item_id, rarity);
+    let total_gold = unit_price * quantity;
+
+    // Remove items from inventory (distributed across stacks)
+    let mut remaining = quantity;
+    for stack in matching_stacks {
+        if remaining == 0 {
+            break;
+        }
+        
+        let to_remove = remaining.min(stack.quantity);
+        
+        if stack.quantity <= to_remove {
+            // Remove entire stack
+            ctx.db.inventory().id().delete(&stack.id);
+        } else {
+            // Reduce quantity
+            let mut updated_stack = stack.clone();
+            updated_stack.quantity -= to_remove;
+            ctx.db.inventory().id().update(updated_stack);
+        }
+        
+        remaining -= to_remove;
+    }
+
+    // Add gold to player
+    if let Some(mut player) = ctx.db.player().id().find(&player_id) {
+        player.gold += total_gold;
+        player.last_updated = ctx.timestamp;
+        ctx.db.player().id().update(player);
+        
+        // Update player stats
+        if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id) {
+            stats.total_gold_earned += total_gold as u64;
+            ctx.db.player_stats().player_id().update(stats);
+        }
+    }
+
+    // Log the event
+    log_event_internal(
+        ctx,
+        player_id.clone(),
+        "item_sold".to_string(),
+        Some(item_id.clone()),
+        Some(quantity),
+        Some(total_gold),
+        Some(rarity),
+        None,
+        None,
+    );
+
+    log::info!(
+        "Player {} sold {}x {} (rarity {}) for {}g",
+        player_id, quantity, item_id, rarity, total_gold
+    );
+}
+
+/// Atomic buy item reducer - validates gold, calculates price server-side, deducts gold, adds item
+#[spacetimedb::reducer]
+pub fn buy_item(ctx: &ReducerContext, player_id: String, item_id: String) {
+    // Get buy price (server-authoritative)
+    let price = get_item_buy_price(&item_id);
+    
+    // Validate the item is purchasable
+    if price == 0 && item_id != "pole_1" {
+        log::warn!("Player {} tried to buy non-purchasable item {}", player_id, item_id);
+        return;
+    }
+
+    // Check player exists and has enough gold
+    let player = match ctx.db.player().id().find(&player_id) {
+        Some(p) => p,
+        None => {
+            log::warn!("Player {} not found for buy_item", player_id);
+            return;
+        }
+    };
+
+    if player.gold < price {
+        log::warn!(
+            "Player {} cannot afford {} (price: {}, gold: {})",
+            player_id, item_id, price, player.gold
+        );
+        return;
+    }
+
+    // Deduct gold
+    let mut updated_player = player.clone();
+    updated_player.gold -= price;
+    updated_player.last_updated = ctx.timestamp;
+    ctx.db.player().id().update(updated_player);
+
+    // Update player stats for gold spent
+    if price > 0 {
+        if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id) {
+            stats.total_gold_spent += price as u64;
+            ctx.db.player_stats().player_id().update(stats);
+        }
+    }
+
+    // Add item to inventory using the existing add_to_inventory logic
+    let max_stack = get_max_stack_size(&item_id);
+    
+    // For non-stackable items (poles), always create a new entry
+    if max_stack == 1 {
+        let inv = Inventory {
+            id: 0,
+            player_id: player_id.clone(),
+            item_id: item_id.clone(),
+            rarity: 0, // Purchased items have rarity 0
+            quantity: 1,
+        };
+        ctx.db.inventory().insert(inv);
+    } else {
+        // For stackable items, try to fill existing stacks first
+        let existing = ctx.db.inventory().iter().find(|inv| {
+            inv.player_id == player_id && inv.item_id == item_id && inv.rarity == 0 && inv.quantity < max_stack
+        });
+        
+        if let Some(mut inv) = existing {
+            inv.quantity += 1;
+            ctx.db.inventory().id().update(inv);
+        } else {
+            let inv = Inventory {
+                id: 0,
+                player_id: player_id.clone(),
+                item_id: item_id.clone(),
+                rarity: 0,
+                quantity: 1,
+            };
+            ctx.db.inventory().insert(inv);
+        }
+    }
+
+    // Log the event
+    log_event_internal(
+        ctx,
+        player_id.clone(),
+        "item_bought".to_string(),
+        Some(item_id.clone()),
+        Some(1),
+        Some(price),
+        Some(0),
+        None,
+        None,
+    );
+
+    log::info!("Player {} bought {} for {}g", player_id, item_id, price);
 }
 
 /// Equip a fishing pole from inventory

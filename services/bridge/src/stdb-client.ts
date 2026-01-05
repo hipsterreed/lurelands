@@ -655,20 +655,31 @@ export class StdbClient {
       }
       
       // Add fish to local inventory (optimistic update)
-      const stackKey = `${itemId}:${rarity}`;
-      const existingItem = playerInv.get(stackKey);
-      if (existingItem) {
-        existingItem.quantity += 1;
-        playerInv.set(stackKey, existingItem);
-      } else {
+      // Respect stack size limits: fish max at 5, poles at 1
+      const maxStackSize = itemId.startsWith('fish_') ? 5 : 1;
+      
+      // Find an existing stack with space (using same key format as cacheInventoryItem - database ID)
+      let foundStack = false;
+      for (const [key, invItem] of playerInv) {
+        if (invItem.itemId === itemId && invItem.rarity === rarity && invItem.quantity < maxStackSize) {
+          invItem.quantity += 1;
+          playerInv.set(key, invItem);
+          foundStack = true;
+          break;
+        }
+      }
+      
+      // Create new stack if no existing stack has space
+      if (!foundStack) {
+        const tempId = Date.now();
         const newItem: import('./types').InventoryItem = {
-          id: Date.now(), // Temporary ID until server confirms
+          id: tempId,
           playerId,
           itemId,
           rarity,
           quantity: 1,
         };
-        playerInv.set(stackKey, newItem);
+        playerInv.set(String(tempId), newItem);
       }
       
       // Notify inventory update immediately (optimistic)
@@ -695,51 +706,47 @@ export class StdbClient {
     if (!this.conn || !this.isConnected) return;
     
     try {
-      // Get the player's inventory
+      // Get the player's inventory for optimistic update
       const playerInv = this.inventory.get(playerId);
       if (!playerInv) {
         stdbLogger.warn({ playerId }, 'No inventory found for player');
         return;
       }
       
-      // Find the item - prefer by inventoryId if provided, otherwise find first matching itemId:rarity
-      let item: InventoryItem | undefined;
-      let itemKey: string | undefined;
-      
-      if (inventoryId !== undefined) {
-        // Find by specific inventory ID
-        itemKey = String(inventoryId);
-        item = playerInv.get(itemKey);
-      } else {
-        // Find first item matching itemId and rarity
-        for (const [key, invItem] of playerInv) {
-          if (invItem.itemId === itemId && invItem.rarity === rarity && invItem.quantity >= quantity) {
-            item = invItem;
-            itemKey = key;
-            break;
-          }
+      // Calculate total owned quantity across all matching stacks
+      let totalOwned = 0;
+      for (const [, invItem] of playerInv) {
+        if (invItem.itemId === itemId && invItem.rarity === rarity) {
+          totalOwned += invItem.quantity;
         }
       }
       
-      if (!item || !itemKey || item.quantity < quantity) {
-        stdbLogger.warn({ playerId, itemId, rarity, quantity, available: item?.quantity ?? 0 }, 'Not enough items to sell');
+      if (totalOwned < quantity) {
+        stdbLogger.warn({ playerId, itemId, rarity, quantity, available: totalOwned }, 'Not enough items to sell');
         return;
       }
       
-      // Calculate sell price based on item type
+      // Calculate sell price for optimistic update (server will calculate authoritatively)
       const sellPrice = this.calculateSellPrice(itemId, rarity);
       const totalGold = sellPrice * quantity;
       
-      // Update local inventory
-      const newQuantity = item.quantity - quantity;
-      if (newQuantity <= 0) {
-        playerInv.delete(itemKey);
-      } else {
-        item.quantity = newQuantity;
-        playerInv.set(itemKey, item);
+      // Optimistic update: remove items from local inventory (distributed across stacks)
+      let remaining = quantity;
+      for (const [key, invItem] of playerInv) {
+        if (remaining === 0) break;
+        if (invItem.itemId === itemId && invItem.rarity === rarity) {
+          const toRemove = Math.min(remaining, invItem.quantity);
+          if (invItem.quantity <= toRemove) {
+            playerInv.delete(key);
+          } else {
+            invItem.quantity -= toRemove;
+            playerInv.set(key, invItem);
+          }
+          remaining -= toRemove;
+        }
       }
       
-      // Update local player gold (optimistic update)
+      // Optimistic update: add gold to local player
       const player = this.players.get(playerId);
       if (player) {
         player.gold += totalGold;
@@ -747,27 +754,12 @@ export class StdbClient {
         this.broadcastPlayersUpdate();
       }
       
-      // Persist gold change to SpacetimeDB
-      this.conn.reducers.addGold({
-        playerId,
-        amount: totalGold,
-      });
-      
-      // Remove items from inventory in SpacetimeDB
-      this.conn.reducers.removeFromInventory({
+      // Call atomic sell_item reducer (handles gold, inventory, and logging atomically)
+      this.conn.reducers.sellItem({
         playerId,
         itemId,
         rarity,
         quantity,
-      });
-      
-      // Log the sell event to SpacetimeDB
-      this.conn.reducers.logItemSold({
-        playerId,
-        itemId,
-        rarity,
-        quantity,
-        goldAmount: totalGold,
       });
       
       // Notify inventory update
@@ -775,7 +767,7 @@ export class StdbClient {
         this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
       }
       
-      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item, updated gold and inventory');
+      stdbLogger.info({ playerId, itemId, rarity, quantity, totalGold }, 'Sold item (atomic reducer)');
       
     } catch (error) {
       stdbLogger.error({ err: error, playerId, itemId, quantity }, 'Failed to sell item');
@@ -786,32 +778,30 @@ export class StdbClient {
     if (!this.conn || !this.isConnected) return;
     
     try {
-      // Check if player has enough gold
+      // Check if player has enough gold (client-side validation for UX)
       const player = this.players.get(playerId);
       if (!player || player.gold < price) {
         stdbLogger.warn({ playerId, itemId, price, gold: player?.gold ?? 0 }, 'Not enough gold to buy item');
         return;
       }
       
-      // Deduct gold locally (optimistic update)
+      // Optimistic update: deduct gold locally
       player.gold -= price;
       this.players.set(playerId, player);
       this.broadcastPlayersUpdate();
       
-      // Get or create player inventory
+      // Get or create player inventory for optimistic update
       let playerInv = this.inventory.get(playerId);
       if (!playerInv) {
         playerInv = new Map();
         this.inventory.set(playerId, playerInv);
       }
       
-      // Determine if this item can stack
+      // Optimistic update: add item to local inventory
       const isPole = itemId.startsWith('pole_');
       const isFish = itemId.startsWith('fish_');
       const maxStackSize = isPole ? 1 : (isFish ? 5 : Infinity);
       
-      // Add item to local inventory (rarity 0 for non-fish items like poles)
-      // For non-stackable items (poles), always create a new entry
       if (maxStackSize === 1) {
         // Poles don't stack - create a new entry with temporary ID
         const tempId = Date.now();
@@ -847,26 +837,11 @@ export class StdbClient {
         }
       }
       
-      // Persist to SpacetimeDB - add item to inventory
-      this.conn.reducers.addToInventory({
+      // Call atomic buy_item reducer (handles gold, inventory, and logging atomically)
+      // Server will validate gold and calculate price authoritatively
+      this.conn.reducers.buyItem({
         playerId,
         itemId,
-        rarity: 0,
-        quantity: 1,
-      });
-      
-      // Deduct gold from player's balance
-      this.conn.reducers.spendGold({
-        playerId,
-        amount: price,
-      });
-      
-      // Log the buy event to SpacetimeDB
-      this.conn.reducers.logItemBought({
-        playerId,
-        itemId,
-        quantity: 1,
-        goldAmount: price,
       });
       
       // Notify inventory update
@@ -874,7 +849,7 @@ export class StdbClient {
         this.onInventoryUpdate(playerId, Array.from(playerInv.values()));
       }
       
-      stdbLogger.info({ playerId, itemId, price }, 'Bought item');
+      stdbLogger.info({ playerId, itemId, price }, 'Bought item (atomic reducer)');
       
     } catch (error) {
       stdbLogger.error({ err: error, playerId, itemId, price }, 'Failed to buy item');

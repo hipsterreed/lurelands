@@ -37,6 +37,8 @@ import AddGoldReducer from "./add_gold_reducer";
 export { AddGoldReducer };
 import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
+import BuyItemReducer from "./buy_item_reducer";
+export { BuyItemReducer };
 import CatchFishReducer from "./catch_fish_reducer";
 export { CatchFishReducer };
 import CompleteQuestReducer from "./complete_quest_reducer";
@@ -65,6 +67,8 @@ import ReleaseFishReducer from "./release_fish_reducer";
 export { ReleaseFishReducer };
 import RemoveFromInventoryReducer from "./remove_from_inventory_reducer";
 export { RemoveFromInventoryReducer };
+import SellItemReducer from "./sell_item_reducer";
+export { SellItemReducer };
 import SetGoldReducer from "./set_gold_reducer";
 export { SetGoldReducer };
 import SpendGoldReducer from "./spend_gold_reducer";
@@ -277,6 +281,7 @@ const reducersSchema = __reducers(
   __reducerSchema("accept_quest", AcceptQuestReducer),
   __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
+  __reducerSchema("buy_item", BuyItemReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
   __reducerSchema("complete_quest", CompleteQuestReducer),
   __reducerSchema("end_session", EndSessionReducer),
@@ -291,6 +296,7 @@ const reducersSchema = __reducers(
   __reducerSchema("log_item_sold", LogItemSoldReducer),
   __reducerSchema("release_fish", ReleaseFishReducer),
   __reducerSchema("remove_from_inventory", RemoveFromInventoryReducer),
+  __reducerSchema("sell_item", SellItemReducer),
   __reducerSchema("set_gold", SetGoldReducer),
   __reducerSchema("spend_gold", SpendGoldReducer),
   __reducerSchema("start_casting", StartCastingReducer),
