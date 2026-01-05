@@ -1222,6 +1222,22 @@ export class StdbClient {
     }
   }
 
+  async adminSeedQuests(): Promise<boolean> {
+    if (!this.conn || !this.isConnected) {
+      stdbLogger.warn('Not connected to SpacetimeDB, cannot seed quests');
+      return false;
+    }
+
+    try {
+      this.conn.reducers.adminSeedQuests({});
+      stdbLogger.info('Admin triggered quest seeding');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error }, 'Failed to seed quests');
+      return false;
+    }
+  }
+
   disconnect() {
     if (this.conn) {
       this.conn.disconnect();

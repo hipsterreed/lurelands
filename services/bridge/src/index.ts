@@ -1003,7 +1003,10 @@ const questAdminPageHtml = `<!DOCTYPE html>
       <div class="panel">
         <div class="panel-header">
           <h2>Quests</h2>
-          <button class="btn btn-primary" onclick="newQuest()">+ New Quest</button>
+          <div style="display: flex; gap: 0.5rem;">
+            <button class="btn btn-secondary" onclick="seedQuests()">Seed Defaults</button>
+            <button class="btn btn-primary" onclick="newQuest()">+ New Quest</button>
+          </div>
         </div>
         <div class="panel-content">
           <div id="quest-list" class="quest-list">
@@ -1210,6 +1213,23 @@ const questAdminPageHtml = `<!DOCTYPE html>
       renderQuestList();
     }
     
+    async function seedQuests() {
+      if (!confirm('This will add the default quests (if they don\\'t already exist). Continue?')) return;
+      
+      try {
+        const res = await fetch('/api/quests/seed', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Default quests seeded!', 'success');
+          loadQuests();
+        } else {
+          showToast('Failed to seed quests', 'error');
+        }
+      } catch (error) {
+        showToast('Error seeding quests', 'error');
+      }
+    }
+    
     function cancelEdit() {
       newQuest();
     }
@@ -1388,6 +1408,11 @@ const app = new Elysia()
   .post('/api/quests/:id/reset-progress', async ({ params }) => {
     const success = await stdb.adminResetQuestProgress(params.id);
     return { success };
+  })
+
+  .post('/api/quests/seed', async () => {
+    const success = await stdb.adminSeedQuests();
+    return { success, message: success ? 'Default quests seeded' : 'Failed to seed quests' };
   })
 
   // Quest Admin page

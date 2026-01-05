@@ -43,6 +43,8 @@ import AdminDeleteQuestReducer from "./admin_delete_quest_reducer";
 export { AdminDeleteQuestReducer };
 import AdminResetQuestProgressReducer from "./admin_reset_quest_progress_reducer";
 export { AdminResetQuestProgressReducer };
+import AdminSeedQuestsReducer from "./admin_seed_quests_reducer";
+export { AdminSeedQuestsReducer };
 import AdminUpdateQuestReducer from "./admin_update_quest_reducer";
 export { AdminUpdateQuestReducer };
 import BuyItemReducer from "./buy_item_reducer";
@@ -292,6 +294,7 @@ const reducersSchema = __reducers(
   __reducerSchema("admin_create_quest", AdminCreateQuestReducer),
   __reducerSchema("admin_delete_quest", AdminDeleteQuestReducer),
   __reducerSchema("admin_reset_quest_progress", AdminResetQuestProgressReducer),
+  __reducerSchema("admin_seed_quests", AdminSeedQuestsReducer),
   __reducerSchema("admin_update_quest", AdminUpdateQuestReducer),
   __reducerSchema("buy_item", BuyItemReducer),
   __reducerSchema("catch_fish", CatchFishReducer),

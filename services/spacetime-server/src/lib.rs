@@ -2084,3 +2084,117 @@ pub fn init(ctx: &ReducerContext) {
     
     log::info!("Lurelands server initialization complete");
 }
+
+/// Admin reducer to seed default quests (can be called anytime to add missing quests)
+#[spacetimedb::reducer]
+pub fn admin_seed_quests(ctx: &ReducerContext) {
+    let mut added = 0;
+    let mut skipped = 0;
+    
+    // Fisherman's Guild Storyline
+    let guild_quests = vec![
+        Quest {
+            id: "guild_1".to_string(),
+            title: "Guild Initiation".to_string(),
+            description: "Prove your worth to the Fisherman's Guild by catching any 2 fish.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("fishermans_guild".to_string()),
+            story_order: Some(1),
+            prerequisite_quest_id: None,
+            requirements: r#"{"total_fish": 2}"#.to_string(),
+            rewards: r#"{"gold": 50}"#.to_string(),
+        },
+        Quest {
+            id: "guild_2".to_string(),
+            title: "Freshwater Mastery".to_string(),
+            description: "Master the art of freshwater fishing. Catch 3 pond fish and 2 river fish.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("fishermans_guild".to_string()),
+            story_order: Some(2),
+            prerequisite_quest_id: Some("guild_1".to_string()),
+            requirements: r#"{"fish": {"fish_pond_1": 1, "fish_pond_2": 1, "fish_pond_3": 1, "fish_river_1": 1, "fish_river_2": 1}}"#.to_string(),
+            rewards: r#"{"gold": 100, "items": [{"item_id": "pole_2", "quantity": 1}]}"#.to_string(),
+        },
+        Quest {
+            id: "guild_3".to_string(),
+            title: "Guild Champion".to_string(),
+            description: "Become a true champion! Catch a rare 3-star fish of any type.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("fishermans_guild".to_string()),
+            story_order: Some(3),
+            prerequisite_quest_id: Some("guild_2".to_string()),
+            requirements: r#"{"min_rarity": 3}"#.to_string(),
+            rewards: r#"{"gold": 300, "items": [{"item_id": "pole_3", "quantity": 1}]}"#.to_string(),
+        },
+    ];
+    
+    for quest in guild_quests {
+        if ctx.db.quest().id().find(&quest.id).is_none() {
+            ctx.db.quest().insert(quest);
+            added += 1;
+        } else {
+            skipped += 1;
+        }
+    }
+    
+    // Ocean Mysteries Storyline
+    let ocean_quests = vec![
+        Quest {
+            id: "ocean_1".to_string(),
+            title: "Coastal Curiosity".to_string(),
+            description: "The ocean holds many secrets. Start by catching 3 ocean fish.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("ocean_mysteries".to_string()),
+            story_order: Some(1),
+            prerequisite_quest_id: None,
+            requirements: r#"{"fish": {"fish_ocean_1": 1, "fish_ocean_2": 1, "fish_ocean_3": 1}}"#.to_string(),
+            rewards: r#"{"gold": 75}"#.to_string(),
+        },
+        Quest {
+            id: "ocean_2".to_string(),
+            title: "Deep Waters".to_string(),
+            description: "Venture deeper into the ocean's mysteries. Catch 5 ocean fish including at least one 2-star.".to_string(),
+            quest_type: "story".to_string(),
+            storyline: Some("ocean_mysteries".to_string()),
+            story_order: Some(2),
+            prerequisite_quest_id: Some("ocean_1".to_string()),
+            requirements: r#"{"total_fish": 5, "min_rarity": 2}"#.to_string(),
+            rewards: r#"{"gold": 200, "items": [{"item_id": "lure_2", "quantity": 1}]}"#.to_string(),
+        },
+    ];
+    
+    for quest in ocean_quests {
+        if ctx.db.quest().id().find(&quest.id).is_none() {
+            ctx.db.quest().insert(quest);
+            added += 1;
+        } else {
+            skipped += 1;
+        }
+    }
+    
+    // Daily Quests
+    let daily_quests = vec![
+        Quest {
+            id: "daily_haul".to_string(),
+            title: "Daily Haul".to_string(),
+            description: "A simple task for any fisher. Catch 5 fish of any type today.".to_string(),
+            quest_type: "daily".to_string(),
+            storyline: None,
+            story_order: None,
+            prerequisite_quest_id: None,
+            requirements: r#"{"total_fish": 5}"#.to_string(),
+            rewards: r#"{"gold": 25}"#.to_string(),
+        },
+    ];
+    
+    for quest in daily_quests {
+        if ctx.db.quest().id().find(&quest.id).is_none() {
+            ctx.db.quest().insert(quest);
+            added += 1;
+        } else {
+            skipped += 1;
+        }
+    }
+    
+    log::info!("Admin seeded quests: {} added, {} already existed", added, skipped);
+}
