@@ -745,28 +745,30 @@ class _ShopPanelState extends State<ShopPanel> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'BUY',
+                  item.price == 0 ? 'GET FREE' : 'BUY',
                   style: TextStyle(
                     color: canAfford ? Colors.white : _ShopColors.textMuted,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 8),
-                Icon(
-                  Icons.monetization_on,
-                  color: canAfford ? _ShopColors.textGold : _ShopColors.textMuted,
-                  size: 18,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${item.price}g',
-                  style: TextStyle(
+                if (item.price > 0) ...[
+                  const SizedBox(width: 8),
+                  Icon(
+                    Icons.monetization_on,
                     color: canAfford ? _ShopColors.textGold : _ShopColors.textMuted,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                    size: 18,
                   ),
-                ),
+                  const SizedBox(width: 4),
+                  Text(
+                    '${item.price}g',
+                    style: TextStyle(
+                      color: canAfford ? _ShopColors.textGold : _ShopColors.textMuted,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -1029,20 +1031,24 @@ class _MerchantSlot extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        Icon(
-                          Icons.monetization_on,
-                          color: canAfford
-                              ? _ShopColors.textGold
-                              : _ShopColors.textMuted,
-                          size: 14,
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          '${item.price}g',
-                          style: TextStyle(
+                        if (item.price > 0) ...[
+                          Icon(
+                            Icons.monetization_on,
                             color: canAfford
                                 ? _ShopColors.textGold
                                 : _ShopColors.textMuted,
+                            size: 14,
+                          ),
+                          const SizedBox(width: 2),
+                        ],
+                        Text(
+                          item.price == 0 ? 'Free' : '${item.price}g',
+                          style: TextStyle(
+                            color: item.price == 0
+                                ? const Color(0xFF4CAF50) // Green for free
+                                : (canAfford
+                                    ? _ShopColors.textGold
+                                    : _ShopColors.textMuted),
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),

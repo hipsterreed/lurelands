@@ -309,6 +309,10 @@ class _GameScreenState extends State<GameScreen> {
                 _game?.resetPlayerPosition();
                 setState(() => _showInventory = false);
               },
+              onExitToMenu: () {
+                setState(() => _showInventory = false);
+                Navigator.of(context).pushReplacementNamed('/');
+              },
               quests: _quests,
               playerQuests: _playerQuests,
               onAcceptQuest: _onAcceptQuest,
@@ -372,13 +376,18 @@ class _GameScreenState extends State<GameScreen> {
                 );
               },
             ),
-          // Quest sign interaction button (when near quest sign with available quests)
+          // Quest sign interaction button (when near quest sign with available, completable, or active quests)
           if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop &&
-              QuestSignHelper.hasAvailableOrCompletableQuests(
+              (QuestSignHelper.hasAvailableOrCompletableQuests(
                 allQuests: _quests,
                 playerQuests: _playerQuests,
                 storylines: _nearbyQuestSign!.storylines,
-              ))
+              ) ||
+              QuestSignHelper.hasActiveQuest(
+                allQuests: _quests,
+                playerQuests: _playerQuests,
+                storylines: _nearbyQuestSign!.storylines,
+              )))
             _buildQuestSignButton(),
         ],
       ),
@@ -680,68 +689,6 @@ class _GameScreenState extends State<GameScreen> {
     return SafeArea(
       child: Stack(
         children: [
-          // Menu button (top left)
-          Positioned(
-            top: 16,
-            left: 16,
-            child: PopupMenuButton<String>(
-              color: GameColors.menuBackground,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: BorderSide(
-                  color: GameColors.pondBlue.withAlpha(80),
-                  width: 1,
-                ),
-              ),
-              onSelected: (value) {
-                if (value == 'settings') {
-                  _showSettingsDialog();
-                } else if (value == 'exit') {
-                  _showExitDialog();
-                }
-              },
-              itemBuilder: (context) => [
-                PopupMenuItem(
-                  value: 'settings',
-                  child: Row(
-                    children: [
-                      Icon(Icons.settings, color: GameColors.textPrimary, size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Settings',
-                        style: TextStyle(color: GameColors.textPrimary),
-                      ),
-                    ],
-                  ),
-                ),
-                PopupMenuItem(
-                  value: 'exit',
-                  child: Row(
-                    children: [
-                      Icon(Icons.exit_to_app, color: GameColors.textPrimary, size: 20),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Exit',
-                        style: TextStyle(color: GameColors.textPrimary),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-              child: Container(
-                decoration: BoxDecoration(
-                  color: GameColors.menuBackground.withAlpha(179),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Icon(
-                  Icons.menu,
-                  color: GameColors.textPrimary.withAlpha(204),
-                  size: 28,
-                ),
-              ),
-            ),
-          ),
           // Inventory/Backpack button (top right)
           Positioned(
             top: 16,
@@ -1140,155 +1087,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  void _showSettingsDialog() {
-    // Get current player name from game
-    final currentName = _game?.playerName ?? widget.playerName;
-    _nameController.text = currentName;
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: GameColors.menuBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: GameColors.pondBlue.withAlpha(80),
-            width: 2,
-          ),
-        ),
-        title: Row(
-          children: [
-            Icon(Icons.settings, color: GameColors.pondBlue, size: 24),
-            const SizedBox(width: 12),
-            Text(
-              'Settings',
-              style: TextStyle(
-                color: GameColors.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Player Name',
-              style: TextStyle(
-                color: GameColors.textSecondary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _nameController,
-              maxLength: 16,
-              style: TextStyle(color: GameColors.textPrimary),
-              decoration: InputDecoration(
-                hintText: 'Enter your name...',
-                hintStyle: TextStyle(
-                  color: GameColors.textSecondary.withAlpha(128),
-                ),
-                counterStyle: TextStyle(
-                  color: GameColors.textSecondary.withAlpha(128),
-                  fontSize: 10,
-                ),
-                filled: true,
-                fillColor: GameColors.menuAccent,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: GameColors.pondBlue,
-                    width: 2,
-                  ),
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Cancel',
-              style: TextStyle(color: GameColors.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newName = _nameController.text.trim();
-              if (newName.isNotEmpty && _game != null) {
-                // Save to local settings
-                await GameSettings.instance.setPlayerName(newName);
-                // Update name in database
-                _stdbService.updatePlayerName(newName);
-                debugPrint('[GameScreen] Updated player name to: "$newName"');
-              }
-              Navigator.of(context).pop();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: GameColors.pondBlue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showExitDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: GameColors.menuBackground,
-        title: Text(
-          'Leave World?',
-          style: TextStyle(color: GameColors.textPrimary),
-        ),
-        content: Text(
-          'Return to the main menu?',
-          style: TextStyle(color: GameColors.textSecondary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
-              'Stay',
-              style: TextStyle(color: GameColors.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              Navigator.of(context).pushReplacementNamed('/');
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: GameColors.buttonPrimary,
-            ),
-            child: Text(
-              'Leave',
-              style: TextStyle(color: GameColors.textPrimary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// Build the shop interaction button (appears when near a shop)
   Widget _buildShopButton() {
     return Positioned(
@@ -1354,23 +1152,34 @@ class _GameScreenState extends State<GameScreen> {
       playerQuests: _playerQuests,
       storylines: _nearbyQuestSign?.storylines,
     );
+    final hasActive = QuestSignHelper.hasActiveQuest(
+      allQuests: _quests,
+      playerQuests: _playerQuests,
+      storylines: _nearbyQuestSign?.storylines,
+    );
     
-    // Colors based on quest state
-    final buttonColor = hasCompletable 
-        ? const Color(0xFF4CAF50)  // Green for turn-in
-        : const Color(0xFFFFD700); // Gold for new quest
+    // Colors based on quest state (priority: completable > available > active)
+    final Color buttonColor;
+    final String buttonText;
+    final IconData buttonIcon;
     
-    final buttonText = hasCompletable 
-        ? 'TURN IN QUEST'
-        : hasAvailable 
-            ? 'NEW QUEST!'
-            : 'VIEW QUESTS';
-    
-    final buttonIcon = hasCompletable 
-        ? Icons.check_circle
-        : hasAvailable 
-            ? Icons.priority_high
-            : Icons.assignment;
+    if (hasCompletable) {
+      buttonColor = const Color(0xFF4CAF50);  // Green for turn-in
+      buttonText = 'TURN IN QUEST';
+      buttonIcon = Icons.check_circle;
+    } else if (hasAvailable) {
+      buttonColor = const Color(0xFFFFD700); // Gold for new quest
+      buttonText = 'NEW QUEST!';
+      buttonIcon = Icons.priority_high;
+    } else if (hasActive) {
+      buttonColor = const Color(0xFF888888); // Gray for in-progress
+      buttonText = 'VIEW QUEST';
+      buttonIcon = Icons.assignment;
+    } else {
+      buttonColor = const Color(0xFF888888);
+      buttonText = 'VIEW QUESTS';
+      buttonIcon = Icons.assignment;
+    }
     
     return Positioned(
       bottom: 160,

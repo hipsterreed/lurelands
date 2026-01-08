@@ -41,6 +41,7 @@ class InventoryPanel extends StatefulWidget {
   final VoidCallback? onUnequipPole; // Called when player unequips a pole
   final VoidCallback? onResetGold; // Called when player resets gold to 0 (debug)
   final VoidCallback? onResetPosition; // Called when player resets position (debug)
+  final VoidCallback? onExitToMenu; // Called when player wants to exit to main menu
   // Quest-related props
   final List<Quest> quests;
   final List<PlayerQuest> playerQuests;
@@ -61,6 +62,7 @@ class InventoryPanel extends StatefulWidget {
     this.onUnequipPole,
     this.onResetGold,
     this.onResetPosition,
+    this.onExitToMenu,
     this.quests = const [],
     this.playerQuests = const [],
     this.onAcceptQuest,
@@ -1257,6 +1259,72 @@ class _InventoryPanelState extends State<InventoryPanel> {
               ],
             ),
           ),
+          const SizedBox(height: 24),
+          // Game section header
+          Text(
+            'GAME',
+            style: TextStyle(
+              color: _BackpackColors.textGold,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          // Exit to Menu button
+          if (widget.onExitToMenu != null)
+            GestureDetector(
+              onTap: widget.onExitToMenu,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _BackpackColors.slotBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: const Color(0xFF8B4513).withAlpha(150),
+                    width: 2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.exit_to_app,
+                      color: const Color(0xFFCD853F),
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Exit to Menu',
+                            style: TextStyle(
+                              color: _BackpackColors.textLight,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Return to the main menu',
+                            style: TextStyle(
+                              color: _BackpackColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: const Color(0xFF8B4513).withAlpha(150),
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

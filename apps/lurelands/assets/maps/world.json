@@ -1,0 +1,94 @@
+{
+  "version": 1,
+  "worldWidth": 2000,
+  "worldHeight": 2000,
+  "tiles": [
+  ],
+  "waterBodies": [
+    {
+      "id": "ocean_1",
+      "type": "ocean",
+      "x": -48,
+      "y": 0,
+      "widthInTiles": 12,
+      "heightInTiles": 42
+    },
+    {
+      "id": "tiled_pond_1",
+      "type": "pond",
+      "x": 980,
+      "y": 450,
+      "widthInTiles": 10,
+      "heightInTiles": 8
+    },
+    {
+      "id": "tiled_pond_2",
+      "type": "pond",
+      "x": 1780,
+      "y": 900,
+      "widthInTiles": 7,
+      "heightInTiles": 5
+    },
+    {
+      "id": "tiled_river_1",
+      "type": "river",
+      "x": 1280,
+      "y": 252,
+      "widthInTiles": 10,
+      "heightInTiles": 3
+    }
+  ],
+  "trees": [],
+  "structures": [
+    {
+      "id": "main_shop",
+      "type": "shop",
+      "x": 800,
+      "y": 800,
+      "structureId": "main_shop",
+      "structureName": "Fish Market"
+    },
+    {
+      "id": "ocean_quest_board",
+      "type": "questSign",
+      "x": 624,
+      "y": 548,
+      "structureId": "ocean_quest_board",
+      "structureName": "Sailor's Board",
+      "storylines": ["ocean_mysteries"]
+    },
+    {
+      "id": "guild_quest_board",
+      "type": "questSign",
+      "x": 1316,
+      "y": 498,
+      "structureId": "guild_quest_board",
+      "structureName": "Fisher's Guild",
+      "storylines": ["fishermans_guild"]
+    }
+  ],
+  "decorations": [],
+  "walkableZones": [
+    {
+      "id": "ocean_dock",
+      "x": 432,
+      "y": 500,
+      "zoneWidth": 144,
+      "zoneHeight": 96
+    },
+    {
+      "id": "pond1_dock",
+      "x": 1172,
+      "y": 450,
+      "zoneWidth": 96,
+      "zoneHeight": 144
+    },
+    {
+      "id": "pond2_dock",
+      "x": 1900,
+      "y": 900,
+      "zoneWidth": 96,
+      "zoneHeight": 144
+    }
+  ]
+}
