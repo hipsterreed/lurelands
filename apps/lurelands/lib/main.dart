@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 
 import 'screens/main_menu_screen.dart';
 import 'screens/game_screen.dart';
-import 'screens/map_editor_screen.dart';
 import 'services/game_settings.dart';
 import 'utils/constants.dart';
 
@@ -56,7 +55,6 @@ class LurelandsApp extends StatelessWidget {
       routes: {
         '/': (context) => const MainMenuScreen(),
         '/game': (context) => const GameScreen(),
-        '/editor': (context) => const MapEditorScreen(),
       },
     );
   }
