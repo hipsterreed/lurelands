@@ -1484,12 +1484,8 @@ class _GameScreenState extends State<GameScreen> {
       child: Center(
         child: GestureDetector(
           onTap: () {
-            // Show dialog for new quests, panel for active/completed
-            if (hasAvailable && !hasCompletable && !hasActive) {
-              setState(() => _showQuestDialog = true);
-            } else {
-              setState(() => _showQuestPanel = true);
-            }
+            // Always show the panel (list → details view)
+            setState(() => _showQuestPanel = true);
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
