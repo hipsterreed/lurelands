@@ -1,4 +1,4 @@
-import { DbConnection, tables, reducers, type EventContext, type SubscriptionEventContext, type ErrorContext } from './generated';
+import { DbConnection, tables, reducers, type EventContext, type SubscriptionEventContext, type ErrorContext, type ReducerEventContext } from './generated';
 import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem, GameEvent, Quest, PlayerQuest, ItemDefinition } from './types';
 import { stdbLogger } from './logger';
 
@@ -136,6 +136,9 @@ export class StdbClient {
 
         // Set up table callbacks before any data arrives
         this.setupTableCallbacks();
+
+        // Set up reducer callbacks to monitor success/failure (best practice from docs)
+        this.setupReducerCallbacks();
 
       } catch (error) {
         stdbLogger.error({ err: error }, 'Connection failed');
@@ -425,6 +428,134 @@ export class StdbClient {
       stdbLogger.debug({ itemId: item.id }, 'Item definition deleted');
       this.itemDefinitions.delete(item.id);
     });
+  }
+
+  private setupReducerCallbacks() {
+    if (!this.conn) return;
+
+    // Monitor buyItem reducer for failures (has optimistic gold deduction)
+    this.conn.reducers.onBuyItem((ctx: ReducerEventContext, args) => {
+      const playerId = args.playerId;
+      const status = ctx.event.status;
+      if (status.tag === 'Failed') {
+        stdbLogger.error({ playerId, itemId: args.itemId, error: status.value }, 'buyItem reducer failed');
+        // Rollback: Server will have the correct gold, but we need to wait for the player update callback
+        // The player.onUpdate callback will correct the local state
+      } else if (status.tag === 'OutOfEnergy') {
+        stdbLogger.error({ playerId, itemId: args.itemId }, 'buyItem reducer out of energy');
+      } else {
+        stdbLogger.debug({ playerId, itemId: args.itemId }, 'buyItem reducer committed');
+      }
+    });
+
+    // Monitor sellItem reducer
+    this.conn.reducers.onSellItem((ctx: ReducerEventContext, args) => {
+      const playerId = args.playerId;
+      const status = ctx.event.status;
+      if (status.tag === 'Failed') {
+        stdbLogger.error({ playerId, itemId: args.itemId, error: status.value }, 'sellItem reducer failed');
+      } else if (status.tag === 'OutOfEnergy') {
+        stdbLogger.error({ playerId, itemId: args.itemId }, 'sellItem reducer out of energy');
+      } else {
+        stdbLogger.debug({ playerId, itemId: args.itemId, quantity: args.quantity }, 'sellItem reducer committed');
+      }
+    });
+
+    // Monitor equipPole reducer (has optimistic update)
+    this.conn.reducers.onEquipPole((ctx: ReducerEventContext, args) => {
+      const playerId = args.playerId;
+      const status = ctx.event.status;
+      if (status.tag === 'Failed') {
+        stdbLogger.error({ playerId, poleItemId: args.poleItemId, error: status.value }, 'equipPole reducer failed');
+        // Rollback: clear the optimistic equippedPoleId
+        const player = this.players.get(playerId);
+        if (player) {
+          player.equippedPoleId = null;
+          this.players.set(playerId, player);
+          this.broadcastPlayersUpdate();
+        }
+      } else if (status.tag === 'OutOfEnergy') {
+        stdbLogger.error({ playerId, poleItemId: args.poleItemId }, 'equipPole reducer out of energy');
+      } else {
+        stdbLogger.debug({ playerId, poleItemId: args.poleItemId }, 'equipPole reducer committed');
+      }
+    });
+
+    // Monitor unequipPole reducer (has optimistic update)
+    this.conn.reducers.onUnequipPole((ctx: ReducerEventContext, args) => {
+      const playerId = args.playerId;
+      const status = ctx.event.status;
+      if (status.tag === 'Failed') {
+        stdbLogger.error({ playerId, error: status.value }, 'unequipPole reducer failed');
+        // Note: Hard to rollback since we don't know what the previous pole was
+        // The player.onUpdate callback will correct the state
+      } else if (status.tag === 'OutOfEnergy') {
+        stdbLogger.error({ playerId }, 'unequipPole reducer out of energy');
+      } else {
+        stdbLogger.debug({ playerId }, 'unequipPole reducer committed');
+      }
+    });
+
+    // Monitor setGold reducer (has optimistic update)
+    this.conn.reducers.onSetGold((ctx: ReducerEventContext, args) => {
+      const playerId = args.playerId;
+      const status = ctx.event.status;
+      if (status.tag === 'Failed') {
+        stdbLogger.error({ playerId, amount: args.amount, error: status.value }, 'setGold reducer failed');
+        // The player.onUpdate callback will correct the state
+      } else if (status.tag === 'OutOfEnergy') {
+        stdbLogger.error({ playerId, amount: args.amount }, 'setGold reducer out of energy');
+      } else {
+        stdbLogger.debug({ playerId, amount: args.amount }, 'setGold reducer committed');
+      }
+    });
+
+    // Monitor acceptQuest reducer (has optimistic update)
+    this.conn.reducers.onAcceptQuest((ctx: ReducerEventContext, args) => {
+      const playerId = args.playerId;
+      const questId = args.questId;
+      const status = ctx.event.status;
+      if (status.tag === 'Failed') {
+        stdbLogger.error({ playerId, questId, error: status.value }, 'acceptQuest reducer failed');
+        // Rollback: remove the optimistically added quest
+        const playerQs = this.playerQuests.get(playerId);
+        if (playerQs) {
+          playerQs.delete(questId);
+          this.emitQuestUpdate(playerId);
+        }
+      } else if (status.tag === 'OutOfEnergy') {
+        stdbLogger.error({ playerId, questId }, 'acceptQuest reducer out of energy');
+      } else {
+        stdbLogger.debug({ playerId, questId }, 'acceptQuest reducer committed');
+      }
+    });
+
+    // Monitor completeQuest reducer (has optimistic update)
+    this.conn.reducers.onCompleteQuest((ctx: ReducerEventContext, args) => {
+      const playerId = args.playerId;
+      const questId = args.questId;
+      const status = ctx.event.status;
+      if (status.tag === 'Failed') {
+        stdbLogger.error({ playerId, questId, error: status.value }, 'completeQuest reducer failed');
+        // Rollback: revert the quest status to active
+        const playerQs = this.playerQuests.get(playerId);
+        if (playerQs) {
+          const pq = playerQs.get(questId);
+          if (pq) {
+            pq.status = 'active';
+            pq.completedAt = null;
+            playerQs.set(questId, pq);
+            this.emitQuestUpdate(playerId);
+          }
+        }
+      } else if (status.tag === 'OutOfEnergy') {
+        stdbLogger.error({ playerId, questId }, 'completeQuest reducer out of energy');
+      } else {
+        stdbLogger.debug({ playerId, questId }, 'completeQuest reducer committed');
+      }
+    });
+
+    stdbLogger.info('Reducer callbacks initialized');
   }
 
   // --- Inventory helpers ---
