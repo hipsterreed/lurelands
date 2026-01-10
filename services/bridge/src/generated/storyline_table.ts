@@ -10,16 +10,14 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default {
-  id: __t.string(),
-  title: __t.string(),
+export default __t.row({
+  id: __t.string().primaryKey(),
+  name: __t.string(),
   description: __t.string(),
-  questType: __t.string(),
-  storyline: __t.option(__t.string()),
-  storyOrder: __t.option(__t.u32()),
-  prerequisiteQuestId: __t.option(__t.string()),
-  requirements: __t.string(),
-  rewards: __t.string(),
-  questGiverType: __t.option(__t.string()),
-  questGiverId: __t.option(__t.string()),
-};
+  icon: __t.option(__t.string()),
+  category: __t.string(),
+  displayOrder: __t.u32().name("display_order"),
+  unlockConditions: __t.option(__t.string()).name("unlock_conditions"),
+  isActive: __t.bool().name("is_active"),
+  totalQuests: __t.u32().name("total_quests"),
+});

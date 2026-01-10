@@ -20,4 +20,6 @@ export default __t.row({
   prerequisiteQuestId: __t.option(__t.string()).name("prerequisite_quest_id"),
   requirements: __t.string(),
   rewards: __t.string(),
+  questGiverType: __t.option(__t.string()).name("quest_giver_type"),
+  questGiverId: __t.option(__t.string()).name("quest_giver_id"),
 });

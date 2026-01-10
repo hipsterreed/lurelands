@@ -12,14 +12,4 @@ import {
 
 export default {
   id: __t.string(),
-  title: __t.string(),
-  description: __t.string(),
-  questType: __t.string(),
-  storyline: __t.option(__t.string()),
-  storyOrder: __t.option(__t.u32()),
-  prerequisiteQuestId: __t.option(__t.string()),
-  requirements: __t.string(),
-  rewards: __t.string(),
-  questGiverType: __t.option(__t.string()),
-  questGiverId: __t.option(__t.string()),
 };

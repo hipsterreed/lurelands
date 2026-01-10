@@ -20,4 +20,6 @@ export default {
   prerequisiteQuestId: __t.option(__t.string()),
   requirements: __t.string(),
   rewards: __t.string(),
+  questGiverType: __t.option(__t.string()),
+  questGiverId: __t.option(__t.string()),
 };

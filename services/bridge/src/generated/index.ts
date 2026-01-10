@@ -37,16 +37,30 @@ import AddGoldReducer from "./add_gold_reducer";
 export { AddGoldReducer };
 import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
+import AddXpReducer from "./add_xp_reducer";
+export { AddXpReducer };
+import AdminCreateNpcReducer from "./admin_create_npc_reducer";
+export { AdminCreateNpcReducer };
 import AdminCreateQuestReducer from "./admin_create_quest_reducer";
 export { AdminCreateQuestReducer };
+import AdminCreateStorylineReducer from "./admin_create_storyline_reducer";
+export { AdminCreateStorylineReducer };
+import AdminDeleteNpcReducer from "./admin_delete_npc_reducer";
+export { AdminDeleteNpcReducer };
 import AdminDeleteQuestReducer from "./admin_delete_quest_reducer";
 export { AdminDeleteQuestReducer };
+import AdminDeleteStorylineReducer from "./admin_delete_storyline_reducer";
+export { AdminDeleteStorylineReducer };
 import AdminResetQuestProgressReducer from "./admin_reset_quest_progress_reducer";
 export { AdminResetQuestProgressReducer };
 import AdminSeedQuestsReducer from "./admin_seed_quests_reducer";
 export { AdminSeedQuestsReducer };
+import AdminUpdateNpcReducer from "./admin_update_npc_reducer";
+export { AdminUpdateNpcReducer };
 import AdminUpdateQuestReducer from "./admin_update_quest_reducer";
 export { AdminUpdateQuestReducer };
+import AdminUpdateStorylineReducer from "./admin_update_storyline_reducer";
+export { AdminUpdateStorylineReducer };
 import BuyItemReducer from "./buy_item_reducer";
 export { BuyItemReducer };
 import CatchFishReducer from "./catch_fish_reducer";
@@ -73,6 +87,8 @@ import LogItemBoughtReducer from "./log_item_bought_reducer";
 export { LogItemBoughtReducer };
 import LogItemSoldReducer from "./log_item_sold_reducer";
 export { LogItemSoldReducer };
+import RecordNpcInteractionReducer from "./record_npc_interaction_reducer";
+export { RecordNpcInteractionReducer };
 import ReleaseFishReducer from "./release_fish_reducer";
 export { ReleaseFishReducer };
 import RemoveFromInventoryReducer from "./remove_from_inventory_reducer";
@@ -105,16 +121,22 @@ import GameEventRow from "./game_event_table";
 export { GameEventRow };
 import InventoryRow from "./inventory_table";
 export { InventoryRow };
+import NpcRow from "./npc_table";
+export { NpcRow };
 import OceanRow from "./ocean_table";
 export { OceanRow };
 import PlayerRow from "./player_table";
 export { PlayerRow };
+import PlayerNpcInteractionRow from "./player_npc_interaction_table";
+export { PlayerNpcInteractionRow };
 import PlayerQuestRow from "./player_quest_table";
 export { PlayerQuestRow };
 import PlayerSessionRow from "./player_session_table";
 export { PlayerSessionRow };
 import PlayerStatsRow from "./player_stats_table";
 export { PlayerStatsRow };
+import PlayerStorylineRow from "./player_storyline_table";
+export { PlayerStorylineRow };
 import PondRow from "./pond_table";
 export { PondRow };
 import QuestRow from "./quest_table";
@@ -123,6 +145,8 @@ import RiverRow from "./river_table";
 export { RiverRow };
 import SpawnPointRow from "./spawn_point_table";
 export { SpawnPointRow };
+import StorylineRow from "./storyline_table";
+export { StorylineRow };
 
 // Import and reexport all types
 import FishCatch from "./fish_catch_type";
@@ -131,16 +155,22 @@ import GameEvent from "./game_event_type";
 export { GameEvent };
 import Inventory from "./inventory_type";
 export { Inventory };
+import Npc from "./npc_type";
+export { Npc };
 import Ocean from "./ocean_type";
 export { Ocean };
 import Player from "./player_type";
 export { Player };
+import PlayerNpcInteraction from "./player_npc_interaction_type";
+export { PlayerNpcInteraction };
 import PlayerQuest from "./player_quest_type";
 export { PlayerQuest };
 import PlayerSession from "./player_session_type";
 export { PlayerSession };
 import PlayerStats from "./player_stats_type";
 export { PlayerStats };
+import PlayerStoryline from "./player_storyline_type";
+export { PlayerStoryline };
 import Pond from "./pond_type";
 export { Pond };
 import Quest from "./quest_type";
@@ -149,6 +179,8 @@ import River from "./river_type";
 export { River };
 import SpawnPoint from "./spawn_point_type";
 export { SpawnPoint };
+import Storyline from "./storyline_type";
+export { Storyline };
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema(
@@ -186,6 +218,17 @@ const tablesSchema = __schema(
     ],
   }, InventoryRow),
   __table({
+    name: 'npc',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'npc_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, NpcRow),
+  __table({
     name: 'ocean',
     indexes: [
       { name: 'id', algorithm: 'btree', columns: [
@@ -207,6 +250,17 @@ const tablesSchema = __schema(
       { name: 'player_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PlayerRow),
+  __table({
+    name: 'player_npc_interaction',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_npc_interaction_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, PlayerNpcInteractionRow),
   __table({
     name: 'player_quest',
     indexes: [
@@ -240,6 +294,17 @@ const tablesSchema = __schema(
       { name: 'player_stats_player_id_key', constraint: 'unique', columns: ['playerId'] },
     ],
   }, PlayerStatsRow),
+  __table({
+    name: 'player_storyline',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'player_storyline_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, PlayerStorylineRow),
   __table({
     name: 'pond',
     indexes: [
@@ -284,6 +349,17 @@ const tablesSchema = __schema(
       { name: 'spawn_point_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, SpawnPointRow),
+  __table({
+    name: 'storyline',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'storyline_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, StorylineRow),
 );
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
@@ -291,11 +367,18 @@ const reducersSchema = __reducers(
   __reducerSchema("accept_quest", AcceptQuestReducer),
   __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
+  __reducerSchema("add_xp", AddXpReducer),
+  __reducerSchema("admin_create_npc", AdminCreateNpcReducer),
   __reducerSchema("admin_create_quest", AdminCreateQuestReducer),
+  __reducerSchema("admin_create_storyline", AdminCreateStorylineReducer),
+  __reducerSchema("admin_delete_npc", AdminDeleteNpcReducer),
   __reducerSchema("admin_delete_quest", AdminDeleteQuestReducer),
+  __reducerSchema("admin_delete_storyline", AdminDeleteStorylineReducer),
   __reducerSchema("admin_reset_quest_progress", AdminResetQuestProgressReducer),
   __reducerSchema("admin_seed_quests", AdminSeedQuestsReducer),
+  __reducerSchema("admin_update_npc", AdminUpdateNpcReducer),
   __reducerSchema("admin_update_quest", AdminUpdateQuestReducer),
+  __reducerSchema("admin_update_storyline", AdminUpdateStorylineReducer),
   __reducerSchema("buy_item", BuyItemReducer),
   __reducerSchema("catch_fish", CatchFishReducer),
   __reducerSchema("complete_quest", CompleteQuestReducer),
@@ -309,6 +392,7 @@ const reducersSchema = __reducers(
   __reducerSchema("log_game_event", LogGameEventReducer),
   __reducerSchema("log_item_bought", LogItemBoughtReducer),
   __reducerSchema("log_item_sold", LogItemSoldReducer),
+  __reducerSchema("record_npc_interaction", RecordNpcInteractionReducer),
   __reducerSchema("release_fish", ReleaseFishReducer),
   __reducerSchema("remove_from_inventory", RemoveFromInventoryReducer),
   __reducerSchema("sell_item", SellItemReducer),

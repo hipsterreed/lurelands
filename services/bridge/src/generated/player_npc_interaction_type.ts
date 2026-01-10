@@ -10,18 +10,16 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.object("PlayerStats", {
+export default __t.object("PlayerNpcInteraction", {
+  id: __t.u64(),
   playerId: __t.string(),
-  totalPlaytimeSeconds: __t.u64(),
-  totalSessions: __t.u32(),
-  totalFishCaught: __t.u32(),
-  totalGoldEarned: __t.u64(),
-  totalGoldSpent: __t.u64(),
-  firstSeenAt: __t.timestamp(),
-  lastSeenAt: __t.timestamp(),
-  level: __t.u32(),
-  xp: __t.u64(),
-  xpToNextLevel: __t.u64(),
+  npcId: __t.string(),
+  hasTalked: __t.bool(),
+  hasTraded: __t.bool(),
+  talkCount: __t.u32(),
+  reputation: __t.i32(),
+  firstInteractionAt: __t.timestamp(),
+  lastInteractionAt: __t.timestamp(),
 });
 
 

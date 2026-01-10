@@ -10,18 +10,15 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
-export default __t.object("PlayerStats", {
+export default __t.object("PlayerStoryline", {
+  id: __t.u64(),
   playerId: __t.string(),
-  totalPlaytimeSeconds: __t.u64(),
-  totalSessions: __t.u32(),
-  totalFishCaught: __t.u32(),
-  totalGoldEarned: __t.u64(),
-  totalGoldSpent: __t.u64(),
-  firstSeenAt: __t.timestamp(),
-  lastSeenAt: __t.timestamp(),
-  level: __t.u32(),
-  xp: __t.u64(),
-  xpToNextLevel: __t.u64(),
+  storylineId: __t.string(),
+  status: __t.string(),
+  questsCompleted: __t.u32(),
+  currentQuestId: __t.option(__t.string()),
+  unlockedAt: __t.option(__t.timestamp()),
+  completedAt: __t.option(__t.timestamp()),
 });
 
 

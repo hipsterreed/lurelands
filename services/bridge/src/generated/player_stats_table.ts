@@ -19,4 +19,7 @@ export default __t.row({
   totalGoldSpent: __t.u64().name("total_gold_spent"),
   firstSeenAt: __t.timestamp().name("first_seen_at"),
   lastSeenAt: __t.timestamp().name("last_seen_at"),
+  level: __t.u32(),
+  xp: __t.u64(),
+  xpToNextLevel: __t.u64().name("xp_to_next_level"),
 });

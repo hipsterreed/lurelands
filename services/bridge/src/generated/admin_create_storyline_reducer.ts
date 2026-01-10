@@ -12,14 +12,12 @@ import {
 
 export default {
   id: __t.string(),
-  title: __t.string(),
+  name: __t.string(),
   description: __t.string(),
-  questType: __t.string(),
-  storyline: __t.option(__t.string()),
-  storyOrder: __t.option(__t.u32()),
-  prerequisiteQuestId: __t.option(__t.string()),
-  requirements: __t.string(),
-  rewards: __t.string(),
-  questGiverType: __t.option(__t.string()),
-  questGiverId: __t.option(__t.string()),
+  icon: __t.option(__t.string()),
+  category: __t.string(),
+  displayOrder: __t.u32(),
+  unlockConditions: __t.option(__t.string()),
+  isActive: __t.bool(),
+  totalQuests: __t.u32(),
 };
