@@ -41,6 +41,7 @@ class InventoryPanel extends StatefulWidget {
   final VoidCallback? onUnequipPole; // Called when player unequips a pole
   final VoidCallback? onResetGold; // Called when player resets gold to 0 (debug)
   final VoidCallback? onResetPosition; // Called when player resets position (debug)
+  final VoidCallback? onResetQuests; // Called when player resets all quests (debug)
   final VoidCallback? onExitToMenu; // Called when player wants to exit to main menu
   // Quest-related props
   final List<Quest> quests;
@@ -62,6 +63,7 @@ class InventoryPanel extends StatefulWidget {
     this.onUnequipPole,
     this.onResetGold,
     this.onResetPosition,
+    this.onResetQuests,
     this.onExitToMenu,
     this.quests = const [],
     this.playerQuests = const [],
@@ -763,30 +765,17 @@ class _InventoryPanelState extends State<InventoryPanel> {
   // ============== QUESTS TAB ==============
 
   Widget _buildQuestsTab() {
-    // Separate quests by status
+    // Separate quests by status (Active and Completed only - Available quests are found at signs)
     final activeQuests = <Quest>[];
-    final availableQuests = <Quest>[];
     final completedQuests = <Quest>[];
 
     for (final quest in widget.quests) {
       final pq = widget.playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-      
+
       if (pq != null && pq.isActive) {
         activeQuests.add(quest);
       } else if (pq != null && pq.isCompleted) {
         completedQuests.add(quest);
-      } else if (pq == null) {
-        // Check prerequisites
-        if (quest.prerequisiteQuestId != null) {
-          final prereqDone = widget.playerQuests.any(
-            (p) => p.questId == quest.prerequisiteQuestId && p.isCompleted,
-          );
-          if (prereqDone) {
-            availableQuests.add(quest);
-          }
-        } else {
-          availableQuests.add(quest);
-        }
       }
     }
 
@@ -802,15 +791,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
             ...activeQuests.map((q) => _buildQuestCard(q, isActive: true)),
             const SizedBox(height: 16),
           ],
-          
-          // Available quests section
-          if (availableQuests.isNotEmpty) ...[
-            _buildQuestSectionHeader('AVAILABLE QUESTS', availableQuests.length),
-            const SizedBox(height: 8),
-            ...availableQuests.map((q) => _buildQuestCard(q, isAvailable: true)),
-            const SizedBox(height: 16),
-          ],
-          
+
           // Completed quests section
           if (completedQuests.isNotEmpty) ...[
             _buildQuestSectionHeader('COMPLETED', completedQuests.length),
@@ -819,7 +800,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
           ],
 
           // Empty state
-          if (activeQuests.isEmpty && availableQuests.isEmpty && completedQuests.isEmpty)
+          if (activeQuests.isEmpty && completedQuests.isEmpty)
             Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -840,7 +821,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Visit a quest board to accept quests',
+                    'Visit a quest board to find available quests',
                     style: TextStyle(
                       color: _BackpackColors.textMuted.withAlpha(150),
                       fontSize: 12,
@@ -886,7 +867,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
     );
   }
 
-  Widget _buildQuestCard(Quest quest, {bool isActive = false, bool isAvailable = false, bool isCompleted = false}) {
+  Widget _buildQuestCard(Quest quest, {bool isActive = false, bool isCompleted = false}) {
     final pq = widget.playerQuests.where((p) => p.questId == quest.id).firstOrNull;
     final canComplete = isActive && pq != null && pq.areRequirementsMet(quest);
 
@@ -894,12 +875,12 @@ class _InventoryPanelState extends State<InventoryPanel> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: isActive 
+        color: isActive
             ? (canComplete ? const Color(0xFF2D4A2D) : _BackpackColors.slotBg)
             : (isCompleted ? _BackpackColors.slotBg.withAlpha(150) : _BackpackColors.slotBg),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isActive 
+          color: isActive
               ? (canComplete ? const Color(0xFF4CAF50) : _BackpackColors.slotHighlight)
               : (isCompleted ? _BackpackColors.slotBorder.withAlpha(100) : _BackpackColors.slotBorder),
           width: 2,
@@ -990,26 +971,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
             ),
           ],
           
-          // Action buttons
-          if (isAvailable && widget.onAcceptQuest != null) ...[
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => widget.onAcceptQuest!(quest.id),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: _BackpackColors.slotHighlight,
-                  foregroundColor: _BackpackColors.textGold,
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                    side: BorderSide(color: _BackpackColors.textGold, width: 1),
-                  ),
-                ),
-                child: const Text('ACCEPT', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
-              ),
-            ),
-          ],
+          // Complete button for active quests that are completable
           if (canComplete && widget.onCompleteQuest != null) ...[
             const SizedBox(height: 10),
             SizedBox(
@@ -1538,6 +1500,61 @@ class _InventoryPanelState extends State<InventoryPanel> {
                     Icon(
                       Icons.chevron_right,
                       color: Colors.blue.withAlpha(150),
+                      size: 24,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 16),
+          // Reset Quests button
+          if (widget.onResetQuests != null)
+            GestureDetector(
+              onTap: widget.onResetQuests,
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _BackpackColors.slotBg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.orange.withAlpha(150),
+                    width: 2,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.assignment_return,
+                      color: Colors.orange,
+                      size: 28,
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Reset Quests',
+                            style: TextStyle(
+                              color: _BackpackColors.textLight,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Remove all quest progress (${widget.playerQuests.length} quests)',
+                            style: TextStyle(
+                              color: _BackpackColors.textMuted,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(
+                      Icons.chevron_right,
+                      color: Colors.orange.withAlpha(150),
                       size: 24,
                     ),
                   ],

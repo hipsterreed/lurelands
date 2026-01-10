@@ -101,6 +101,8 @@ import ReleaseFishReducer from "./release_fish_reducer";
 export { ReleaseFishReducer };
 import RemoveFromInventoryReducer from "./remove_from_inventory_reducer";
 export { RemoveFromInventoryReducer };
+import ResetPlayerQuestsReducer from "./reset_player_quests_reducer";
+export { ResetPlayerQuestsReducer };
 import SellItemReducer from "./sell_item_reducer";
 export { SellItemReducer };
 import SetGoldReducer from "./set_gold_reducer";
@@ -422,6 +424,7 @@ const reducersSchema = __reducers(
   __reducerSchema("record_npc_interaction", RecordNpcInteractionReducer),
   __reducerSchema("release_fish", ReleaseFishReducer),
   __reducerSchema("remove_from_inventory", RemoveFromInventoryReducer),
+  __reducerSchema("reset_player_quests", ResetPlayerQuestsReducer),
   __reducerSchema("sell_item", SellItemReducer),
   __reducerSchema("set_gold", SetGoldReducer),
   __reducerSchema("spend_gold", SpendGoldReducer),

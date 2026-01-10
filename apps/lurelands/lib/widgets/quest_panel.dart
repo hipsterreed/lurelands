@@ -13,6 +13,11 @@ class QuestPanel extends StatefulWidget {
   final void Function(String questId) onAcceptQuest;
   final void Function(String questId) onCompleteQuest;
 
+  // Sign filtering parameters (optional) - when provided, filters to this sign's quests
+  final String? signId;
+  final String? signName;
+  final List<String>? storylines;
+
   const QuestPanel({
     super.key,
     required this.quests,
@@ -20,7 +25,13 @@ class QuestPanel extends StatefulWidget {
     required this.onClose,
     required this.onAcceptQuest,
     required this.onCompleteQuest,
+    this.signId,
+    this.signName,
+    this.storylines,
   });
+
+  /// Returns true if showing sign-filtered view (section-based, no tabs)
+  bool get isSignMode => signId != null;
 
   @override
   State<QuestPanel> createState() => _QuestPanelState();
@@ -36,6 +47,45 @@ class _QuestPanelState extends State<QuestPanel> {
   PlayerQuest? get _selectedPlayerQuest => _selectedQuestId == null
       ? null
       : widget.playerQuests.where((pq) => pq.questId == _selectedQuestId).firstOrNull;
+
+  /// Filter quests to only those belonging to the current sign
+  List<Quest> _filterQuestsForSign(List<Quest> quests) {
+    if (widget.signId == null) return quests;
+    return quests.where((q) {
+      if (q.questGiverType == 'npc') return false;
+      if (q.questGiverType == 'sign') return q.questGiverId == widget.signId;
+      if (widget.storylines == null || widget.storylines!.isEmpty) return true;
+      return q.storyline != null && widget.storylines!.contains(q.storyline);
+    }).toList();
+  }
+
+  /// Get filtered quests based on mode
+  List<Quest> get _filteredQuests =>
+      widget.isSignMode ? _filterQuestsForSign(widget.quests) : widget.quests;
+
+  /// Available quests (not started, prerequisites met)
+  List<Quest> get _availableQuests {
+    return _filteredQuests.where((q) {
+      final pq = widget.playerQuests.where((p) => p.questId == q.id).firstOrNull;
+      if (pq != null) return false;
+      if (q.prerequisiteQuestId != null) {
+        final prereqDone = widget.playerQuests.any(
+          (p) => p.questId == q.prerequisiteQuestId && p.isCompleted,
+        );
+        if (!prereqDone) return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  /// Active quests (in progress)
+  List<Quest> get _activeQuests {
+    final activeIds = widget.playerQuests
+        .where((pq) => pq.isActive)
+        .map((pq) => pq.questId)
+        .toSet();
+    return _filteredQuests.where((q) => activeIds.contains(q.id)).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -68,10 +118,11 @@ class _QuestPanelState extends State<QuestPanel> {
               child: Column(
                 children: [
                   _buildHeader(),
-                  _buildTabs(),
+                  // Only show tabs in non-sign mode (backpack access)
+                  if (!widget.isSignMode) _buildTabs(),
                   Expanded(
                     child: _selectedQuestId == null
-                        ? _buildQuestList()
+                        ? (widget.isSignMode ? _buildSignSectionsView() : _buildQuestList())
                         : _buildQuestDetails(),
                   ),
                   _buildFooter(),
@@ -85,6 +136,14 @@ class _QuestPanelState extends State<QuestPanel> {
   }
 
   Widget _buildHeader() {
+    // Determine title and icon based on mode
+    final title = widget.isSignMode
+        ? (widget.signName?.toUpperCase() ?? 'QUEST BOARD')
+        : 'QUEST JOURNAL';
+    final icon = widget.isSignMode
+        ? Icons.assignment_outlined
+        : Icons.menu_book_rounded;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
@@ -109,17 +168,17 @@ class _QuestPanelState extends State<QuestPanel> {
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: PanelColors.slotBorder, width: 2),
             ),
-            child: const Icon(
-              Icons.menu_book_rounded,
+            child: Icon(
+              icon,
               color: PanelColors.textGold,
               size: 18,
             ),
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: const Text(
-              'QUEST JOURNAL',
-              style: TextStyle(
+            child: Text(
+              title,
+              style: const TextStyle(
                 color: PanelColors.textLight,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
@@ -261,6 +320,157 @@ class _QuestPanelState extends State<QuestPanel> {
       default:
         return [];
     }
+  }
+
+  /// Section-based view for sign mode (Available + Active sections, no tabs)
+  Widget _buildSignSectionsView() {
+    final available = _availableQuests;
+    final active = _activeQuests;
+
+    // Empty state if no quests at this sign
+    if (available.isEmpty && active.isEmpty) {
+      return Container(
+        color: PanelColors.woodDark.withAlpha(150),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.inbox_outlined,
+                color: PanelColors.textMuted.withAlpha(120),
+                size: 40,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'No quests at this sign',
+                style: TextStyle(
+                  color: PanelColors.textMuted,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Container(
+      color: PanelColors.woodDark.withAlpha(150),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Available Quests Section
+            if (available.isNotEmpty) ...[
+              _buildSignSectionHeader('AVAILABLE QUESTS', available.length),
+              const SizedBox(height: 10),
+              ...available.map((q) => _buildQuestListItem(q)),
+              const SizedBox(height: 20),
+            ],
+
+            // Active Quests Section
+            if (active.isNotEmpty) ...[
+              _buildSignSectionHeader('ACTIVE QUESTS', active.length),
+              const SizedBox(height: 10),
+              ...active.map((q) => _buildQuestListItem(q)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSignSectionHeader(String title, int count) {
+    return Row(
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: PanelColors.textGold,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.5,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(
+            color: PanelColors.slotBg,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            '$count',
+            style: const TextStyle(
+              color: PanelColors.textLight,
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQuestListItem(Quest quest) {
+    final playerQuest = widget.playerQuests
+        .where((pq) => pq.questId == quest.id)
+        .firstOrNull;
+    final canComplete = playerQuest != null &&
+        playerQuest.isActive &&
+        playerQuest.areRequirementsMet(quest);
+    final isActive = playerQuest?.isActive == true;
+    final isCompleted = playerQuest?.isCompleted == true;
+
+    // Determine icon and color
+    IconData icon;
+    Color iconColor;
+    if (isCompleted) {
+      icon = Icons.check_circle;
+      iconColor = PanelColors.textMuted;
+    } else if (canComplete) {
+      icon = Icons.help_outline;
+      iconColor = PanelColors.textGold;
+    } else if (isActive) {
+      icon = Icons.priority_high;
+      iconColor = PanelColors.textGold;
+    } else {
+      icon = Icons.priority_high;
+      iconColor = PanelColors.textGold;
+    }
+
+    return GestureDetector(
+      onTap: () => setState(() => _selectedQuestId = quest.id),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: PanelColors.slotBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: PanelColors.slotBorder,
+            width: 2,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: iconColor, size: 24),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                quest.title,
+                style: const TextStyle(
+                  color: PanelColors.textLight,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildQuestList() {

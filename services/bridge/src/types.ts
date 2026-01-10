@@ -258,6 +258,7 @@ export type ClientMessage =
   | { type: 'get_quests' }
   | { type: 'accept_quest'; questId: string }
   | { type: 'complete_quest'; questId: string }
+  | { type: 'reset_quests' }
   // NPC interaction messages
   | { type: 'npc_talk'; npcId: string }
   | { type: 'npc_trade'; npcId: string }

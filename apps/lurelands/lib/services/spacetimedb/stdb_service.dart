@@ -528,6 +528,9 @@ abstract class SpacetimeDBService {
   /// Request quest refresh
   void requestQuests();
 
+  /// Reset all quests for the player (debug feature)
+  void resetAllQuests();
+
   // Player stats methods
 
   /// Current player stats (null if not yet received)
@@ -1430,6 +1433,21 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     }
 
     _sendMessage({'type': 'get_quests'});
+  }
+
+  @override
+  void resetAllQuests() {
+    if (!isConnected) {
+      debugPrint('[Bridge] Cannot reset quests - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Resetting all quests');
+    _sendMessage({'type': 'reset_quests'});
+
+    // Optimistic update: clear local quest state
+    _playerQuests.clear();
+    _questController.add((quests: _quests, playerQuests: _playerQuests));
   }
 
   @override

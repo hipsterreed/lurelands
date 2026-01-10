@@ -1155,9 +1155,30 @@ export class StdbClient {
       this.conn.reducers.completeQuest({ playerId, questId });
       
       stdbLogger.info({ playerId, questId }, 'Completed quest');
-      
+
     } catch (error) {
       stdbLogger.error({ err: error, playerId, questId }, 'Failed to complete quest');
+    }
+  }
+
+  async resetPlayerQuests(playerId: string): Promise<void> {
+    if (!this.conn || !this.isConnected) return;
+
+    try {
+      // Clear local cache for this player's quests
+      const playerQs = this.playerQuests.get(playerId);
+      if (playerQs) {
+        playerQs.clear();
+        this.emitQuestUpdate(playerId);
+      }
+
+      // Call SpacetimeDB reducer
+      this.conn.reducers.resetPlayerQuests({ playerId });
+
+      stdbLogger.info({ playerId }, 'Reset all quests for player');
+
+    } catch (error) {
+      stdbLogger.error({ err: error, playerId }, 'Failed to reset player quests');
     }
   }
 

@@ -371,6 +371,12 @@ class _GameScreenState extends State<GameScreen> {
                 _game?.resetPlayerPosition();
                 setState(() => _showInventory = false);
               },
+              onResetQuests: () {
+                _stdbService.resetAllQuests();
+                setState(() {
+                  _playerQuests = [];
+                });
+              },
               onExitToMenu: () {
                 setState(() => _showInventory = false);
                 Navigator.of(context).pushReplacementNamed('/');
@@ -396,7 +402,7 @@ class _GameScreenState extends State<GameScreen> {
           // Shop interaction button (when near shop)
           if (_nearbyShop != null && !_showShop && !_showInventory && !_showQuestPanel)
             _buildShopButton(),
-          // Quest panel overlay (full quest journal)
+          // Quest panel overlay (full quest journal or sign-filtered view)
           if (_showQuestPanel)
             QuestPanel(
               quests: _quests,
@@ -404,6 +410,9 @@ class _GameScreenState extends State<GameScreen> {
               onClose: () => setState(() => _showQuestPanel = false),
               onAcceptQuest: _onAcceptQuest,
               onCompleteQuest: _onCompleteQuest,
+              signId: _nearbyQuestSign?.id,
+              signName: _nearbyQuestSign?.name,
+              storylines: _nearbyQuestSign?.storylines,
             ),
           // Quest dialog overlay (WoW-style) - only for new quests
           if (_showQuestDialog && _nearbyQuestSign != null)

@@ -308,6 +308,18 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
       break;
     }
 
+    case 'reset_quests': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId }, 'Player resetting all quests');
+        await stdb.resetPlayerQuests(session.playerId);
+        // Send updated quests (should now be empty for this player)
+        const quests = stdb.getQuests();
+        const playerQuests = stdb.getPlayerQuests(session.playerId);
+        send(ws, { type: 'quests', quests, playerQuests });
+      }
+      break;
+    }
+
     default:
       wsLogger.warn({ type: (message as any).type }, 'Unknown message type');
   }

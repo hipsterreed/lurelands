@@ -2671,13 +2671,30 @@ pub fn admin_reset_quest_progress(ctx: &ReducerContext, quest_id: String) {
         .filter(|pq| pq.quest_id == quest_id)
         .map(|pq| pq.id)
         .collect();
-    
+
     let count = player_quests_to_delete.len();
     for pq_id in player_quests_to_delete {
         ctx.db.player_quest().id().delete(&pq_id);
     }
-    
+
     log::info!("Reset progress for quest {} ({} player entries deleted)", quest_id, count);
+}
+
+/// Reset all quests for a specific player (debug feature)
+#[spacetimedb::reducer]
+pub fn reset_player_quests(ctx: &ReducerContext, player_id: String) {
+    let player_quests_to_delete: Vec<_> = ctx.db.player_quest()
+        .iter()
+        .filter(|pq| pq.player_id == player_id)
+        .map(|pq| pq.id)
+        .collect();
+
+    let count = player_quests_to_delete.len();
+    for pq_id in player_quests_to_delete {
+        ctx.db.player_quest().id().delete(&pq_id);
+    }
+
+    log::info!("Reset all quests for player {} ({} entries deleted)", player_id, count);
 }
 
 // =============================================================================
