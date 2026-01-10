@@ -15,6 +15,17 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Asset sync configuration
+type assetMapping struct {
+	srcSubdir  string
+	destSubdir string
+}
+
+var assetMappings = []assetMapping{
+	{"images/fish", "fish"},
+	{"items", "items"},
+}
+
 // Styles
 var (
 	titleStyle = lipgloss.NewStyle().
@@ -415,6 +426,15 @@ func initialModel() model {
 			args:        []string{"run", "generate"},
 			workDir:     bridgeDir,
 		},
+		item{title: "─── Assets ───", description: "", category: "header", command: "", args: nil, workDir: ""},
+		item{
+			title:       "Sync Assets to Admin",
+			description: "Copy images from Flutter to Admin",
+			category:    "assets",
+			command:     "assets:sync",
+			args:        []string{},
+			workDir:     rootDir,
+		},
 	}
 
 	l := list.New(items, itemDelegate{}, 50, 18)
@@ -440,6 +460,95 @@ func runCommand(cmd string, args []string, workDir string) error {
 	return c.Run()
 }
 
+// syncAssets copies image files from Flutter assets to admin public folder
+func syncAssets(rootDir string) error {
+	flutterAssetsDir := filepath.Join(rootDir, "apps", "lurelands", "assets")
+	adminAssetsDir := filepath.Join(rootDir, "apps", "admin", "public", "assets")
+
+	var totalCopied, totalReplaced int
+
+	for _, mapping := range assetMappings {
+		srcDir := filepath.Join(flutterAssetsDir, mapping.srcSubdir)
+		destDir := filepath.Join(adminAssetsDir, mapping.destSubdir)
+
+		// Check if source directory exists
+		if _, err := os.Stat(srcDir); os.IsNotExist(err) {
+			fmt.Printf("  %s Skipping %s (not found)\n",
+				lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Render("○"),
+				mapping.srcSubdir)
+			continue
+		}
+
+		// Ensure destination directory exists
+		if err := os.MkdirAll(destDir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", destDir, err)
+		}
+
+		// Find all image files in source
+		entries, err := os.ReadDir(srcDir)
+		if err != nil {
+			return fmt.Errorf("failed to read directory %s: %w", srcDir, err)
+		}
+
+		copied, replaced := 0, 0
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+
+			name := entry.Name()
+			ext := strings.ToLower(filepath.Ext(name))
+			if ext != ".png" && ext != ".jpg" && ext != ".jpeg" && ext != ".svg" && ext != ".gif" && ext != ".webp" {
+				continue
+			}
+
+			srcPath := filepath.Join(srcDir, name)
+			destPath := filepath.Join(destDir, name)
+
+			// Check if destination exists (for replaced count)
+			_, destExists := os.Stat(destPath)
+			isReplacing := destExists == nil
+
+			// Read source file
+			data, err := os.ReadFile(srcPath)
+			if err != nil {
+				return fmt.Errorf("failed to read %s: %w", srcPath, err)
+			}
+
+			// Write to destination
+			if err := os.WriteFile(destPath, data, 0644); err != nil {
+				return fmt.Errorf("failed to write %s: %w", destPath, err)
+			}
+
+			if isReplacing {
+				replaced++
+			} else {
+				copied++
+			}
+		}
+
+		totalCopied += copied
+		totalReplaced += replaced
+
+		if copied > 0 || replaced > 0 {
+			fmt.Printf("  %s %s: %d copied, %d replaced\n",
+				successStyle.Render("✓"),
+				mapping.destSubdir,
+				copied, replaced)
+		} else {
+			fmt.Printf("  %s %s: no changes\n",
+				lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Render("○"),
+				mapping.destSubdir)
+		}
+	}
+
+	fmt.Printf("\n  %s Total: %d new, %d replaced\n",
+		lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Render("▸"),
+		totalCopied, totalReplaced)
+
+	return nil
+}
+
 func main() {
 	// Check for direct command-line arguments
 	if len(os.Args) > 1 {
@@ -463,6 +572,12 @@ func main() {
 		if ok && i.command != "" {
 			// Handle multi-step deploy commands
 			if i.command == "deploy:full" || i.command == "deploy:full:local" {
+				handleDirectCommand([]string{i.command})
+				return
+			}
+
+			// Handle assets:sync command
+			if i.command == "assets:sync" {
 				handleDirectCommand([]string{i.command})
 				return
 			}
@@ -595,6 +710,22 @@ func handleDirectCommand(args []string) {
 		return
 	}
 
+	// Handle assets:sync command
+	if args[0] == "assets:sync" {
+		fmt.Printf("\n%s %s\n",
+			lipgloss.NewStyle().Foreground(lipgloss.Color("#00CED1")).Bold(true).Render("📦"),
+			lipgloss.NewStyle().Bold(true).Render("Syncing Assets"))
+		fmt.Println(lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Render("  Copying images from Flutter app to Admin dashboard\n"))
+
+		err := syncAssets(rootDir)
+		if err != nil {
+			fmt.Printf("\n%s\n", errorStyle.Render(fmt.Sprintf("✗ Sync failed: %v", err)))
+			os.Exit(1)
+		}
+		fmt.Printf("\n%s\n", successStyle.Render("✓ Assets synced successfully!"))
+		return
+	}
+
 	cmd, exists := commands[args[0]]
 	if !exists {
 		fmt.Printf("%s Unknown command: %s\n\n", errorStyle.Render("✗"), args[0])
@@ -655,6 +786,10 @@ func printHelp(commands map[string]struct {
 	fmt.Printf("\n  %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Italic(true).Render("─── Full Deploy ───"))
 	fmt.Printf("  %s %s\n", highlightStyle.Render("deploy:full"), descStyle.Render("🚀 Publish + Generate + Build (maincloud)"))
 	fmt.Printf("  %s %s\n", highlightStyle.Render("deploy:full:local"), descStyle.Render("🚀 Publish + Generate + Build (local)"))
+
+	// Assets commands
+	fmt.Printf("\n  %s\n", lipgloss.NewStyle().Foreground(lipgloss.Color("#666666")).Italic(true).Render("─── Assets ───"))
+	fmt.Printf("  %s %s\n", cmdStyle.Render("assets:sync"), descStyle.Render("Copy images from Flutter to Admin"))
 
 	orderedCmds := []string{
 		"run", "run:ios", "run:android", "run:web",
