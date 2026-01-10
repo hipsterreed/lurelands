@@ -39,12 +39,16 @@ import AddToInventoryReducer from "./add_to_inventory_reducer";
 export { AddToInventoryReducer };
 import AddXpReducer from "./add_xp_reducer";
 export { AddXpReducer };
+import AdminCreateItemReducer from "./admin_create_item_reducer";
+export { AdminCreateItemReducer };
 import AdminCreateNpcReducer from "./admin_create_npc_reducer";
 export { AdminCreateNpcReducer };
 import AdminCreateQuestReducer from "./admin_create_quest_reducer";
 export { AdminCreateQuestReducer };
 import AdminCreateStorylineReducer from "./admin_create_storyline_reducer";
 export { AdminCreateStorylineReducer };
+import AdminDeleteItemReducer from "./admin_delete_item_reducer";
+export { AdminDeleteItemReducer };
 import AdminDeleteNpcReducer from "./admin_delete_npc_reducer";
 export { AdminDeleteNpcReducer };
 import AdminDeleteQuestReducer from "./admin_delete_quest_reducer";
@@ -53,8 +57,12 @@ import AdminDeleteStorylineReducer from "./admin_delete_storyline_reducer";
 export { AdminDeleteStorylineReducer };
 import AdminResetQuestProgressReducer from "./admin_reset_quest_progress_reducer";
 export { AdminResetQuestProgressReducer };
+import AdminSeedItemsReducer from "./admin_seed_items_reducer";
+export { AdminSeedItemsReducer };
 import AdminSeedQuestsReducer from "./admin_seed_quests_reducer";
 export { AdminSeedQuestsReducer };
+import AdminUpdateItemReducer from "./admin_update_item_reducer";
+export { AdminUpdateItemReducer };
 import AdminUpdateNpcReducer from "./admin_update_npc_reducer";
 export { AdminUpdateNpcReducer };
 import AdminUpdateQuestReducer from "./admin_update_quest_reducer";
@@ -121,6 +129,8 @@ import GameEventRow from "./game_event_table";
 export { GameEventRow };
 import InventoryRow from "./inventory_table";
 export { InventoryRow };
+import ItemDefinitionRow from "./item_definition_table";
+export { ItemDefinitionRow };
 import NpcRow from "./npc_table";
 export { NpcRow };
 import OceanRow from "./ocean_table";
@@ -155,6 +165,8 @@ import GameEvent from "./game_event_type";
 export { GameEvent };
 import Inventory from "./inventory_type";
 export { Inventory };
+import ItemDefinition from "./item_definition_type";
+export { ItemDefinition };
 import Npc from "./npc_type";
 export { Npc };
 import Ocean from "./ocean_type";
@@ -217,6 +229,17 @@ const tablesSchema = __schema(
       { name: 'inventory_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, InventoryRow),
+  __table({
+    name: 'item_definition',
+    indexes: [
+      { name: 'id', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'item_definition_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, ItemDefinitionRow),
   __table({
     name: 'npc',
     indexes: [
@@ -368,14 +391,18 @@ const reducersSchema = __reducers(
   __reducerSchema("add_gold", AddGoldReducer),
   __reducerSchema("add_to_inventory", AddToInventoryReducer),
   __reducerSchema("add_xp", AddXpReducer),
+  __reducerSchema("admin_create_item", AdminCreateItemReducer),
   __reducerSchema("admin_create_npc", AdminCreateNpcReducer),
   __reducerSchema("admin_create_quest", AdminCreateQuestReducer),
   __reducerSchema("admin_create_storyline", AdminCreateStorylineReducer),
+  __reducerSchema("admin_delete_item", AdminDeleteItemReducer),
   __reducerSchema("admin_delete_npc", AdminDeleteNpcReducer),
   __reducerSchema("admin_delete_quest", AdminDeleteQuestReducer),
   __reducerSchema("admin_delete_storyline", AdminDeleteStorylineReducer),
   __reducerSchema("admin_reset_quest_progress", AdminResetQuestProgressReducer),
+  __reducerSchema("admin_seed_items", AdminSeedItemsReducer),
   __reducerSchema("admin_seed_quests", AdminSeedQuestsReducer),
+  __reducerSchema("admin_update_item", AdminUpdateItemReducer),
   __reducerSchema("admin_update_npc", AdminUpdateNpcReducer),
   __reducerSchema("admin_update_quest", AdminUpdateQuestReducer),
   __reducerSchema("admin_update_storyline", AdminUpdateStorylineReducer),

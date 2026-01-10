@@ -41,6 +41,8 @@ The `cli/` folder contains a Go-based command-line tool used locally for develop
 
 ## CLI Usage
 
+**IMPORTANT:** Always use the `lurelands` CLI for all deployment and build operations. Do NOT use `spacetime` or `cargo` commands directly - the CLI handles everything properly.
+
 The `lurelands` CLI provides all common development commands. Run without arguments for interactive TUI mode.
 
 ### Full Deployment (Recommended)
@@ -80,6 +82,8 @@ lurelands bridge:start     # Run bridge in production mode
 lurelands bridge:generate  # Regenerate TypeScript types from SpacetimeDB
 ```
 
+**Note:** Never use `spacetime build`, `spacetime publish`, or `spacetime generate` directly. Always use the equivalent `lurelands` CLI commands instead.
+
 ## Architecture
 
 ### SpacetimeDB Module (Rust)
@@ -89,6 +93,7 @@ Located at `services/spacetime-server/src/lib.rs`. Contains:
 **Core Tables:**
 - `Player` - Player state, position, gold, equipped items
 - `Inventory` - Player item stacks (fish, poles, lures)
+- `ItemDefinition` - Database-driven item definitions (fish, poles, lures with prices, tiers, sprites)
 - `FishCatch` - Historical log of caught fish
 - `SpawnPoint`, `Pond`, `River`, `Ocean` - World data
 
@@ -171,6 +176,9 @@ Key files:
 Located at `apps/admin/`. Used for content management.
 
 Key pages:
+- `/items` - Item list with tabs (Fish, Poles, Lures) and sprite display
+- `/items/new` - Create new item with sprite selector
+- `/items/[id]/edit` - Edit existing item
 - `/quests` - Quest list and management
 - `/quests/new` - Create new quest with quest giver configuration
 - `/quests/[id]/edit` - Edit existing quest
@@ -180,6 +188,9 @@ Key pages:
 Key files:
 - `src/lib/api.ts` - API functions for CRUD operations
 - `src/lib/types.ts` - TypeScript interfaces matching SpacetimeDB schema
+- `src/lib/assets.ts` - Sprite path utilities for item images
+- `src/components/item-sprite.tsx` - Item sprite display component
+- `public/assets/` - Shared sprites copied from Flutter app
 
 ## Development Workflow
 
