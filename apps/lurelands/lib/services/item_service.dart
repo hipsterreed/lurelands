@@ -19,12 +19,23 @@ class ItemService {
   /// Whether we're using fallback data
   bool _usingFallback = false;
 
+  /// Error message if loading failed or items are missing
+  String? _errorMessage;
+
+  /// List of missing item IDs (if any)
+  List<String> _missingItems = [];
+
   bool get isLoaded => _isLoaded;
   bool get usingFallback => _usingFallback;
+  String? get errorMessage => _errorMessage;
+  List<String> get missingItems => List.unmodifiable(_missingItems);
 
   /// Load items from Bridge API.
-  /// Returns true if loaded from API, false if using fallback.
+  /// Returns true if loaded from API with all items, false if using fallback.
   Future<bool> loadItems(String bridgeUrl) async {
+    _errorMessage = null;
+    _missingItems = [];
+
     try {
       final uri = Uri.parse('$bridgeUrl/api/items');
       debugPrint('[ItemService] Fetching items from: $uri');
@@ -47,21 +58,53 @@ class ItemService {
           }
         }
 
+        debugPrint('[ItemService] Loaded ${_items.length} items from API');
+
+        // Validate all required items are present
+        final validationResult = _validateItems();
+        if (!validationResult) {
+          // Missing items - use fallback
+          _loadFallbackItems();
+          return false;
+        }
+
         _isLoaded = true;
         _usingFallback = false;
-        debugPrint('[ItemService] Loaded ${_items.length} items from API');
         return true;
       } else {
-        debugPrint(
-            '[ItemService] API returned status ${response.statusCode}');
+        _errorMessage = 'API returned status ${response.statusCode}';
+        debugPrint('[ItemService] $_errorMessage');
       }
     } catch (e) {
-      debugPrint('[ItemService] Failed to load items: $e');
+      _errorMessage = 'Failed to load items: $e';
+      debugPrint('[ItemService] $_errorMessage');
     }
 
     // Fallback to hardcoded items
     _loadFallbackItems();
     return false;
+  }
+
+  /// Validate that all required items from GameItems.all are present.
+  /// Returns true if all items present, false if any missing.
+  bool _validateItems() {
+    final requiredIds = GameItems.all.keys.toSet();
+    final loadedIds = _items.keys.toSet();
+    final missing = requiredIds.difference(loadedIds);
+
+    if (missing.isNotEmpty) {
+      _missingItems = missing.toList()..sort();
+      _errorMessage =
+          'Missing ${missing.length} items from database: ${_missingItems.join(", ")}';
+      debugPrint('[ItemService] ERROR: $_errorMessage');
+      for (final id in _missingItems) {
+        debugPrint('[ItemService]   Missing item: $id');
+      }
+      return false;
+    }
+
+    debugPrint('[ItemService] All ${requiredIds.length} required items present');
+    return true;
   }
 
   void _loadFallbackItems() {

@@ -84,7 +84,17 @@ class _GameScreenState extends State<GameScreen> {
 
     // Load item definitions from API before connecting
     final httpUrl = _wsUrlToHttpUrl(_bridgeUrl);
-    await ItemService.instance.loadItems(httpUrl);
+    final itemsLoaded = await ItemService.instance.loadItems(httpUrl);
+
+    // Check if items loaded successfully - show error if items are missing
+    if (!itemsLoaded && ItemService.instance.missingItems.isNotEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _isConnecting = false;
+        _connectionError = 'Missing items in database:\n${ItemService.instance.missingItems.join(", ")}';
+      });
+      return;
+    }
 
     // Use BridgeSpacetimeDBService to connect via Bun/Elysia bridge
     _stdbService = BridgeSpacetimeDBService();
