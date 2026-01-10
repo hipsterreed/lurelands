@@ -64,6 +64,7 @@ function validateServiceKey(request: Request): Response | null {
 interface ClientSession {
   ws: any;
   playerId: string | null;
+  lastPing: number;  // Timestamp of last ping for heartbeat timeout detection
 }
 
 // Use ws.id as key instead of ws object (Elysia may use different wrapper objects)
@@ -313,6 +314,35 @@ async function handleMessage(ws: any, session: ClientSession, message: ClientMes
         wsLogger.info({ playerId: session.playerId }, 'Player resetting all quests');
         await stdb.resetPlayerQuests(session.playerId);
         // Send updated quests (should now be empty for this player)
+        const quests = stdb.getQuests();
+        const playerQuests = stdb.getPlayerQuests(session.playerId);
+        send(ws, { type: 'quests', quests, playerQuests });
+      }
+      break;
+    }
+
+    // --- Connection Health ---
+
+    case 'ping': {
+      // Update last ping timestamp for heartbeat tracking
+      session.lastPing = Date.now();
+      // Respond with pong immediately
+      send(ws, {
+        type: 'pong',
+        timestamp: message.timestamp,
+        serverTime: Date.now(),
+      });
+      break;
+    }
+
+    case 'request_resync': {
+      if (session.playerId) {
+        wsLogger.info({ playerId: session.playerId }, 'Player requested state resync');
+        // Send full state refresh
+        send(ws, { type: 'world_state', data: stdb.getWorldState() });
+        send(ws, { type: 'players', players: stdb.getPlayers() });
+        const inventory = stdb.getPlayerInventory(session.playerId);
+        send(ws, { type: 'inventory', items: inventory });
         const quests = stdb.getQuests();
         const playerQuests = stdb.getPlayerQuests(session.playerId);
         send(ws, { type: 'quests', quests, playerQuests });
@@ -1576,7 +1606,7 @@ const app = new Elysia()
       const wsId = getWsId(ws);
       const stdbConnected = stdb.getIsConnected();
       wsLogger.info({ wsId, clientCount: clients.size + 1, stdbConnected }, 'Client connected');
-      clients.set(wsId, { ws, playerId: null });
+      clients.set(wsId, { ws, playerId: null, lastPing: Date.now() });
 
       // Send initial state if available
       if (stdbConnected) {
@@ -1640,22 +1670,54 @@ const app = new Elysia()
 // Startup
 // =============================================================================
 
+// Heartbeat configuration
+const HEARTBEAT_CHECK_INTERVAL = 30000;  // Check every 30 seconds
+const HEARTBEAT_TIMEOUT = 45000;         // Client is dead if no ping for 45 seconds
+
 async function main() {
   logger.info({
     bridge: `http://${HOST}:${PORT}`,
     websocket: `ws://${HOST}:${PORT}/ws`,
     spacetimedb: `${SPACETIMEDB_URI}/${SPACETIMEDB_MODULE}`,
   }, 'Lurelands Bridge Service starting');
-  
+
   // Connect to SpacetimeDB
   const connected = await stdb.connect();
-  
+
   if (connected) {
     stdbLogger.info('Successfully connected to SpacetimeDB');
   } else {
     stdbLogger.warn('Failed to connect to SpacetimeDB - running in offline mode');
   }
-  
+
+  // Start heartbeat cleanup interval - detect and remove stale connections
+  setInterval(() => {
+    const now = Date.now();
+    for (const [wsId, session] of clients) {
+      const timeSinceLastPing = now - session.lastPing;
+      if (timeSinceLastPing > HEARTBEAT_TIMEOUT) {
+        wsLogger.warn({
+          wsId,
+          playerId: session.playerId,
+          lastPingAgo: Math.round(timeSinceLastPing / 1000)
+        }, 'Client timed out (no heartbeat)');
+
+        // Mark player as offline
+        if (session.playerId) {
+          stdb.leaveWorld(session.playerId);
+        }
+
+        // Close connection and remove session
+        try {
+          session.ws.close(4000, 'Heartbeat timeout');
+        } catch (e) {
+          // Connection may already be closed
+        }
+        clients.delete(wsId);
+      }
+    }
+  }, HEARTBEAT_CHECK_INTERVAL);
+
   serverLogger.info({ host: HOST, port: PORT }, 'Server listening');
 }
 

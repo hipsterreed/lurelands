@@ -382,6 +382,15 @@ enum StdbConnectionState {
   error,
 }
 
+/// Connection quality based on latency
+enum ConnectionQuality {
+  excellent, // < 100ms
+  good,      // 100-200ms
+  fair,      // 200-500ms
+  poor,      // 500-1000ms
+  critical,  // > 1000ms or packet loss
+}
+
 /// Data received from SpacetimeDB containing world state
 class WorldState {
   final List<PondData> ponds;
@@ -564,6 +573,20 @@ abstract class SpacetimeDBService {
   /// Record talking to an NPC
   void talkToNpc(String npcId);
 
+  // Connection health methods
+
+  /// Current connection quality based on latency
+  ConnectionQuality get connectionQuality;
+
+  /// Stream of connection quality changes
+  Stream<ConnectionQuality> get connectionQualityStream;
+
+  /// Current latency in milliseconds
+  int get latencyMs;
+
+  /// Request a full state resync from server
+  void requestResync();
+
   /// Dispose resources
   void dispose();
 }
@@ -603,6 +626,24 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   // Throttle position updates to avoid flooding
   DateTime? _lastPositionUpdate;
   static const _positionUpdateInterval = Duration(milliseconds: 50); // 20 updates/sec max
+
+  // Heartbeat for connection health
+  Timer? _heartbeatTimer;
+  DateTime? _lastPong;
+  int _missedPongs = 0;
+  static const _heartbeatInterval = Duration(seconds: 15);
+  static const _maxMissedPongs = 2;
+
+  // Reconnection with exponential backoff
+  int _reconnectAttempts = 0;
+  static const _maxReconnectDelay = Duration(seconds: 60);
+  static const _baseReconnectDelay = Duration(seconds: 1);
+
+  // Connection quality tracking
+  ConnectionQuality _connectionQuality = ConnectionQuality.excellent;
+  int _latencyMs = 0;
+  final List<int> _recentLatencies = [];
+  final _connectionQualityController = StreamController<ConnectionQuality>.broadcast();
 
   @override
   StdbConnectionState get state => _state;
@@ -655,6 +696,15 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   @override
   Stream<({List<Npc> npcs, List<PlayerNpcInteraction> interactions})> get npcUpdates => _npcController.stream;
 
+  @override
+  ConnectionQuality get connectionQuality => _connectionQuality;
+
+  @override
+  Stream<ConnectionQuality> get connectionQualityStream => _connectionQualityController.stream;
+
+  @override
+  int get latencyMs => _latencyMs;
+
   void _setState(StdbConnectionState newState) {
     if (_state != newState) {
       _state = newState;
@@ -700,10 +750,12 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
       );
 
       _setState(StdbConnectionState.connected);
-      print('[Bridge] Connected successfully!');
+      _reconnectAttempts = 0; // Reset on successful connection
+      _startHeartbeat();
+      debugPrint('[Bridge] Connected successfully!');
       return true;
     } catch (e) {
-      print('[Bridge] Connection error: $e');
+      debugPrint('[Bridge] Connection error: $e');
       _setState(StdbConnectionState.error);
       await _cleanup();
       return false;
@@ -1019,6 +1071,17 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
           debugPrint('[Bridge] NPC interaction updated: ${updatedInteraction.npcId}');
         }
         break;
+
+      case 'pong':
+        _lastPong = DateTime.now();
+        _missedPongs = 0;
+        // Calculate round-trip latency
+        final sentAt = data['timestamp'] as int?;
+        if (sentAt != null) {
+          final latency = DateTime.now().millisecondsSinceEpoch - sentAt;
+          _updateConnectionQuality(latency);
+        }
+        break;
     }
   }
 
@@ -1048,10 +1111,11 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   }
 
   void _onError(Object error, StackTrace? stackTrace) {
-    print('[Bridge] WebSocket ERROR: $error');
+    debugPrint('[Bridge] WebSocket ERROR: $error');
     if (stackTrace != null) {
-      print('[Bridge] Stack trace: $stackTrace');
+      debugPrint('[Bridge] Stack trace: $stackTrace');
     }
+    _stopHeartbeat();
     _setState(StdbConnectionState.error);
     _scheduleReconnect();
   }
@@ -1059,7 +1123,8 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   void _onDone() {
     final closeCode = _channel?.closeCode;
     final closeReason = _channel?.closeReason;
-    print('[Bridge] WebSocket CLOSED - code: $closeCode, reason: $closeReason, wasConnected: ${_state == StdbConnectionState.connected}');
+    debugPrint('[Bridge] WebSocket CLOSED - code: $closeCode, reason: $closeReason, wasConnected: ${_state == StdbConnectionState.connected}');
+    _stopHeartbeat();
     if (_state == StdbConnectionState.connected) {
       _setState(StdbConnectionState.error);
       _scheduleReconnect();
@@ -1068,11 +1133,107 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
-    if (_serverUrl != null) {
-      _reconnectTimer = Timer(const Duration(seconds: 5), () {
-        connect(_serverUrl!);
+    if (_serverUrl == null) return;
+
+    // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s, 60s (max)
+    final exponentialDelay = _baseReconnectDelay * (1 << _reconnectAttempts.clamp(0, 6));
+    final delay = exponentialDelay > _maxReconnectDelay ? _maxReconnectDelay : exponentialDelay;
+
+    // Add jitter (0-25% of delay) to prevent thundering herd
+    final jitterMs = (delay.inMilliseconds * 0.25 * (DateTime.now().millisecond / 1000)).toInt();
+    final finalDelay = delay + Duration(milliseconds: jitterMs);
+
+    debugPrint('[Bridge] Scheduling reconnect in ${finalDelay.inSeconds}s (attempt $_reconnectAttempts)');
+
+    _reconnectTimer = Timer(finalDelay, () async {
+      _reconnectAttempts++;
+      await connect(_serverUrl!);
+    });
+  }
+
+  // --- Heartbeat Methods ---
+
+  void _startHeartbeat() {
+    _stopHeartbeat();
+    _lastPong = DateTime.now();
+    _missedPongs = 0;
+
+    _heartbeatTimer = Timer.periodic(_heartbeatInterval, (_) {
+      if (!isConnected) return;
+
+      // Check if we missed too many pongs
+      if (_lastPong != null) {
+        final timeSincePong = DateTime.now().difference(_lastPong!);
+        if (timeSincePong > _heartbeatInterval * 2) {
+          _missedPongs++;
+          debugPrint('[Bridge] Missed pong #$_missedPongs (${timeSincePong.inSeconds}s since last)');
+
+          if (_missedPongs >= _maxMissedPongs) {
+            debugPrint('[Bridge] Too many missed pongs, reconnecting...');
+            _handleDeadConnection();
+            return;
+          }
+        }
+      }
+
+      // Send ping
+      _sendMessage({
+        'type': 'ping',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
       });
+    });
+  }
+
+  void _stopHeartbeat() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
+  }
+
+  void _handleDeadConnection() {
+    _stopHeartbeat();
+    _setState(StdbConnectionState.error);
+    _cleanup();
+    _scheduleReconnect();
+  }
+
+  void _updateConnectionQuality(int latency) {
+    _recentLatencies.add(latency);
+    if (_recentLatencies.length > 5) {
+      _recentLatencies.removeAt(0);
     }
+
+    // Use average of recent latencies
+    final avgLatency = _recentLatencies.reduce((a, b) => a + b) ~/ _recentLatencies.length;
+    _latencyMs = avgLatency;
+
+    ConnectionQuality quality;
+    if (avgLatency < 100) {
+      quality = ConnectionQuality.excellent;
+    } else if (avgLatency < 200) {
+      quality = ConnectionQuality.good;
+    } else if (avgLatency < 500) {
+      quality = ConnectionQuality.fair;
+    } else if (avgLatency < 1000) {
+      quality = ConnectionQuality.poor;
+    } else {
+      quality = ConnectionQuality.critical;
+    }
+
+    if (quality != _connectionQuality) {
+      _connectionQuality = quality;
+      _connectionQualityController.add(quality);
+    }
+  }
+
+  @override
+  void requestResync() {
+    if (!isConnected) {
+      debugPrint('[Bridge] Cannot resync - not connected');
+      return;
+    }
+
+    debugPrint('[Bridge] Requesting full state resync');
+    _sendMessage({'type': 'request_resync'});
   }
 
   void _sendMessage(Map<String, dynamic> message) {
@@ -1520,6 +1681,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   @override
   void dispose() {
     _reconnectTimer?.cancel();
+    _stopHeartbeat();
     disconnect();
     _playerUpdatesController.close();
     _connectionStateController.close();
@@ -1529,6 +1691,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _playerStatsController.close();
     _levelUpController.close();
     _npcController.close();
+    _connectionQualityController.close();
   }
 }
 

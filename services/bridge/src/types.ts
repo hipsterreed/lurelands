@@ -264,7 +264,10 @@ export type ClientMessage =
   | { type: 'npc_trade'; npcId: string }
   // Storyline/NPC data requests
   | { type: 'get_storylines' }
-  | { type: 'get_npcs' };
+  | { type: 'get_npcs' }
+  // Connection health
+  | { type: 'ping'; timestamp: number }
+  | { type: 'request_resync' };
 
 // =============================================================================
 // Bridge → Client Messages
@@ -294,5 +297,7 @@ export type ServerMessage =
   | { type: 'storyline_updated'; playerStoryline: PlayerStoryline }
   // NPC messages
   | { type: 'npcs'; npcs: Npc[]; playerNpcInteractions: PlayerNpcInteraction[] }
-  | { type: 'npc_interaction_updated'; interaction: PlayerNpcInteraction };
+  | { type: 'npc_interaction_updated'; interaction: PlayerNpcInteraction }
+  // Connection health
+  | { type: 'pong'; timestamp: number; serverTime: number };
 

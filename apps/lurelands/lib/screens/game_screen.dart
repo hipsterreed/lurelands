@@ -821,6 +821,12 @@ class _GameScreenState extends State<GameScreen> {
             left: 16,
             child: _buildLevelDisplay(),
           ),
+          // Connection quality indicator (below level display)
+          Positioned(
+            top: 70,
+            left: 16,
+            child: _buildConnectionIndicator(),
+          ),
           // Level up notification (center top)
           if (_showLevelUpNotification)
             Positioned(
@@ -986,6 +992,52 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Build connection quality indicator
+  Widget _buildConnectionIndicator() {
+    return StreamBuilder<ConnectionQuality>(
+      stream: _stdbService.connectionQualityStream,
+      initialData: _stdbService.connectionQuality,
+      builder: (context, snapshot) {
+        final quality = snapshot.data ?? ConnectionQuality.excellent;
+
+        // Only show if not excellent (don't clutter good connections)
+        if (quality == ConnectionQuality.excellent) {
+          return const SizedBox.shrink();
+        }
+
+        final (icon, color, label) = switch (quality) {
+          ConnectionQuality.excellent => (Icons.signal_cellular_4_bar, Colors.green, 'Excellent'),
+          ConnectionQuality.good => (Icons.signal_cellular_4_bar, Colors.green, 'Good'),
+          ConnectionQuality.fair => (Icons.signal_cellular_alt, Colors.yellow, 'Fair'),
+          ConnectionQuality.poor => (Icons.signal_cellular_alt_2_bar, Colors.orange, 'Poor'),
+          ConnectionQuality.critical => (Icons.signal_cellular_0_bar, Colors.red, 'Poor Connection'),
+        };
+
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: GameColors.menuBackground.withAlpha(180),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, color: color, size: 16),
+              if (quality == ConnectionQuality.poor || quality == ConnectionQuality.critical)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Text(
+                    label,
+                    style: TextStyle(color: color, fontSize: 10),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
