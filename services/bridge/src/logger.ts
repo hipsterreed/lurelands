@@ -4,6 +4,12 @@ const isDev = process.env.NODE_ENV !== 'production';
 
 export const logger = pino({
   level: process.env.LOG_LEVEL ?? 'info',
+  // Use 'message' instead of 'msg' for Railway compatibility
+  messageKey: 'message',
+  // Format level as string for Railway log coloring
+  formatters: {
+    level: (label) => ({ level: label }),
+  },
   transport: isDev
     ? {
         target: 'pino-pretty',

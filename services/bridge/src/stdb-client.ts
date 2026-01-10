@@ -371,7 +371,7 @@ export class StdbClient {
 
     // Game event callback
     this.conn.db.gameEvent.onInsert((ctx: EventContext, event) => {
-      stdbLogger.info({ eventType: event.eventType, playerId: event.playerId, id: Number(event.id) }, 'Game event received from SpacetimeDB');
+      stdbLogger.debug({ eventType: event.eventType, playerId: event.playerId, id: Number(event.id) }, 'Game event received from SpacetimeDB');
       const mapped = this.cacheGameEvent(event);
       this.addGameEvent(mapped);
     });
