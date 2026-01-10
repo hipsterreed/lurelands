@@ -2,6 +2,37 @@ import { Elysia } from 'elysia';
 import { StdbClient } from './stdb-client';
 import type { ClientMessage, ServerMessage, Player } from './types';
 import { logger, wsLogger, stdbLogger, serverLogger } from './logger';
+import { createInflate, createGunzip } from 'zlib';
+import { Readable } from 'stream';
+
+// Polyfill DecompressionStream for Bun compatibility
+if (typeof globalThis.DecompressionStream === 'undefined') {
+  (globalThis as any).DecompressionStream = class DecompressionStream {
+    readable: ReadableStream;
+    writable: WritableStream;
+
+    constructor(format: 'gzip' | 'deflate' | 'deflate-raw') {
+      const decompressor = format === 'gzip' ? createGunzip() : createInflate();
+
+      this.readable = new ReadableStream({
+        start(controller) {
+          decompressor.on('data', (chunk) => controller.enqueue(chunk));
+          decompressor.on('end', () => controller.close());
+          decompressor.on('error', (err) => controller.error(err));
+        }
+      });
+
+      this.writable = new WritableStream({
+        write(chunk) {
+          decompressor.write(chunk);
+        },
+        close() {
+          decompressor.end();
+        }
+      });
+    }
+  };
+}
 
 // =============================================================================
 // Configuration

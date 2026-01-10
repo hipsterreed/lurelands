@@ -1,6 +1,8 @@
-import type { Player, Quest, GameEvent } from "./types";
+"use server";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+import type { Quest, GameEvent } from "./types";
+
+const API_URL = process.env.API_URL || "http://localhost:8080";
 const SERVICE_KEY = process.env.SERVICE_KEY || "";
 
 async function fetchApi<T>(
