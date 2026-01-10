@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
+import 'panel_frame.dart';
 
 /// WoW-style quest dialog colors
 class _QuestDialogColors {
@@ -45,7 +46,8 @@ class QuestOfferDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final dialogWidth = (screenSize.width * 0.85).clamp(320.0, 450.0);
+    final dialogWidth = (screenSize.width * 0.95).clamp(500.0, 900.0);
+    final dialogHeight = (screenSize.height * 0.85).clamp(500.0, 700.0);
 
     return GestureDetector(
       onTap: onClose,
@@ -56,8 +58,9 @@ class QuestOfferDialog extends StatelessWidget {
             onTap: () {}, // Prevent closing when tapping dialog
             child: Container(
               width: dialogWidth,
+              height: dialogHeight,
               constraints: BoxConstraints(
-                maxHeight: screenSize.height * 0.75,
+                maxHeight: dialogHeight,
               ),
               decoration: _buildDialogDecoration(),
               child: Column(
@@ -385,63 +388,13 @@ class QuestOfferDialog extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: _QuestDialogColors.slotBg.withAlpha(150),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: _QuestDialogColors.textGold.withAlpha(60),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              // Gold reward
-              if (quest.goldReward > 0) ...[
-                Icon(
-                  Icons.monetization_on,
-                  color: _QuestDialogColors.textGold,
-                  size: 24,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '${quest.goldReward}',
-                  style: TextStyle(
-                    color: _QuestDialogColors.textGold,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(width: 16),
-              ],
-              // Item rewards
-              for (final item in quest.itemRewards) ...[
-                Icon(
-                  Icons.card_giftcard,
-                  color: _QuestDialogColors.textLight,
-                  size: 20,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${GameItems.get(item.itemId)?.name ?? item.itemId} x${item.quantity}',
-                  style: TextStyle(
-                    color: _QuestDialogColors.textLight,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-              if (quest.goldReward == 0 && quest.itemRewards.isEmpty)
-                Text(
-                  'Experience',
-                  style: TextStyle(
-                    color: _QuestDialogColors.textMuted,
-                    fontSize: 13,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-            ],
-          ),
+        RewardTilesRow(
+          goldReward: quest.goldReward,
+          xpReward: quest.xpReward,
+          itemRewards: quest.itemRewards
+              .map((item) => (itemId: item.itemId, quantity: item.quantity))
+              .toList(),
+          tileSize: 64,
         ),
       ],
     );

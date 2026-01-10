@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
+import 'panel_frame.dart';
 
 /// Quest panel colors (matching backpack theme)
 class _QuestColors {
@@ -46,8 +47,8 @@ class _QuestPanelState extends State<QuestPanel> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final panelWidth = (screenSize.width * 0.92).clamp(400.0, 620.0);
-    final panelHeight = (screenSize.height * 0.85).clamp(500.0, 720.0);
+    final panelWidth = (screenSize.width * 0.95).clamp(500.0, 900.0);
+    final panelHeight = (screenSize.height * 0.85).clamp(500.0, 700.0);
 
     return GestureDetector(
       onTap: widget.onClose,
@@ -565,48 +566,13 @@ class _QuestPanelState extends State<QuestPanel> {
   }
 
   Widget _buildRewards(Quest quest) {
-    final rewards = <Widget>[];
-
-    // Gold reward
-    if (quest.goldReward > 0) {
-      rewards.add(_buildRewardRow(Icons.monetization_on, '${quest.goldReward} Gold'));
-    }
-
-    // Item rewards
-    for (final item in quest.itemRewards) {
-      final itemDef = GameItems.get(item.itemId);
-      rewards.add(_buildRewardRow(
-        Icons.card_giftcard,
-        '${itemDef?.name ?? item.itemId} x${item.quantity}',
-      ));
-    }
-
-    if (rewards.isEmpty) {
-      rewards.add(Text(
-        'No rewards',
-        style: TextStyle(color: _QuestColors.textMuted, fontSize: 12),
-      ));
-    }
-
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: rewards);
-  }
-
-  Widget _buildRewardRow(IconData icon, String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        children: [
-          Icon(icon, color: _QuestColors.textGold, size: 16),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: TextStyle(
-              color: _QuestColors.textLight,
-              fontSize: 12,
-            ),
-          ),
-        ],
-      ),
+    return RewardTilesRow(
+      goldReward: quest.goldReward,
+      xpReward: quest.xpReward,
+      itemRewards: quest.itemRewards
+          .map((item) => (itemId: item.itemId, quantity: item.quantity))
+          .toList(),
+      tileSize: 56,
     );
   }
 

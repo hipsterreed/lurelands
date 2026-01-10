@@ -121,6 +121,16 @@ class Quest {
     }
   }
 
+  /// Parse rewards JSON to get XP amount
+  int get xpReward {
+    try {
+      final rew = jsonDecode(rewards) as Map<String, dynamic>;
+      return rew['xp'] as int? ?? 0;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   /// Parse rewards JSON to get item rewards
   List<({String itemId, int quantity})> get itemRewards {
     try {
