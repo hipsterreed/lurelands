@@ -61,21 +61,24 @@ class QuestOfferDialog extends StatelessWidget {
                 children: [
                   _buildHeader(),
                   Flexible(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildQuestTitle(),
-                          const SizedBox(height: 16),
-                          _buildDescription(),
-                          const SizedBox(height: 20),
-                          if (_isActive) ...[
-                            _buildObjectives(),
-                            const SizedBox(height: 20),
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: PanelColors.woodDark.withAlpha(150),
+                      ),
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildDescription(),
+                            const SizedBox(height: 16),
+                            if (_isActive) ...[
+                              _buildObjectives(),
+                              const SizedBox(height: 16),
+                            ],
+                            _buildRewards(),
                           ],
-                          _buildRewards(),
-                        ],
+                        ),
                       ),
                     ),
                   ),
@@ -91,7 +94,7 @@ class QuestOfferDialog extends StatelessWidget {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -107,45 +110,34 @@ class QuestOfferDialog extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Quest status indicator
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: PanelColors.slotBg,
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: PanelColors.slotBorder, width: 2),
             ),
             child: Icon(
-              _canComplete ? Icons.check_circle : Icons.assignment,
-              color: _canComplete ? PanelColors.progressGreen : PanelColors.textGold,
-              size: 20,
+              quest.isStoryQuest ? Icons.auto_stories : Icons.wb_sunny_outlined,
+              color: quest.isStoryQuest ? PanelColors.textGold : PanelColors.textLight,
+              size: 18,
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 10),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  signName.toUpperCase(),
-                  style: const TextStyle(
-                    color: PanelColors.textLight,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 2,
-                  ),
-                ),
-                if (quest.storyline != null)
-                  Text(
-                    quest.storyline!.replaceAll('_', ' '),
-                    style: const TextStyle(
-                      color: PanelColors.textMuted,
-                      fontSize: 10,
-                    ),
-                  ),
-              ],
+            child: Text(
+              quest.title,
+              style: const TextStyle(
+                color: PanelColors.textLight,
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 0.5,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
+          const SizedBox(width: 10),
           _buildCloseButton(),
         ],
       ),
@@ -156,7 +148,7 @@ class QuestOfferDialog extends StatelessWidget {
     return GestureDetector(
       onTap: onClose,
       child: Container(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
           color: PanelColors.slotBg,
           borderRadius: BorderRadius.circular(6),
@@ -165,52 +157,16 @@ class QuestOfferDialog extends StatelessWidget {
         child: const Icon(
           Icons.close,
           color: PanelColors.textLight,
-          size: 20,
+          size: 18,
         ),
       ),
-    );
-  }
-
-  Widget _buildQuestTitle() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: quest.isStoryQuest
-                ? PanelColors.textGold.withAlpha(30)
-                : PanelColors.slotBg,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: quest.isStoryQuest ? PanelColors.textGold.withAlpha(100) : PanelColors.slotBorder,
-              width: 2,
-            ),
-          ),
-          child: Icon(
-            quest.isStoryQuest ? Icons.auto_stories : Icons.wb_sunny_outlined,
-            color: quest.isStoryQuest ? PanelColors.textGold : PanelColors.textLight,
-            size: 24,
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Text(
-            quest.title,
-            style: const TextStyle(
-              color: PanelColors.textLight,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-      ],
     );
   }
 
   Widget _buildDescription() {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: PanelColors.slotBg,
         borderRadius: BorderRadius.circular(8),
@@ -220,7 +176,7 @@ class QuestOfferDialog extends StatelessWidget {
         quest.description,
         style: const TextStyle(
           color: PanelColors.textLight,
-          fontSize: 11,
+          fontSize: 12,
           height: 1.5,
         ),
       ),

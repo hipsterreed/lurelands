@@ -70,24 +70,9 @@ class _QuestPanelState extends State<QuestPanel> {
                   _buildHeader(),
                   _buildTabs(),
                   Expanded(
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 280,
-                          child: Container(
-                            decoration: const BoxDecoration(
-                              border: Border(
-                                right: BorderSide(color: PanelColors.divider, width: 2),
-                              ),
-                            ),
-                            child: _buildQuestList(),
-                          ),
-                        ),
-                        Expanded(
-                          child: _buildQuestDetails(),
-                        ),
-                      ],
-                    ),
+                    child: _selectedQuestId == null
+                        ? _buildQuestList()
+                        : _buildQuestDetails(),
                   ),
                   _buildFooter(),
                 ],
@@ -101,7 +86,7 @@ class _QuestPanelState extends State<QuestPanel> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -118,7 +103,7 @@ class _QuestPanelState extends State<QuestPanel> {
       child: Row(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: PanelColors.slotBg,
               borderRadius: BorderRadius.circular(6),
@@ -127,24 +112,26 @@ class _QuestPanelState extends State<QuestPanel> {
             child: const Icon(
               Icons.menu_book_rounded,
               color: PanelColors.textGold,
-              size: 24,
+              size: 18,
             ),
           ),
-          const SizedBox(width: 12),
-          const Text(
-            'QUEST JOURNAL',
-            style: TextStyle(
-              color: PanelColors.textLight,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 2,
+          const SizedBox(width: 10),
+          Expanded(
+            child: const Text(
+              'QUEST JOURNAL',
+              style: TextStyle(
+                color: PanelColors.textLight,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 2,
+              ),
             ),
           ),
-          const Spacer(),
+          const SizedBox(width: 10),
           GestureDetector(
             onTap: widget.onClose,
             child: Container(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: PanelColors.slotBg,
                 borderRadius: BorderRadius.circular(6),
@@ -153,7 +140,7 @@ class _QuestPanelState extends State<QuestPanel> {
               child: const Icon(
                 Icons.close,
                 color: PanelColors.textLight,
-                size: 22,
+                size: 18,
               ),
             ),
           ),
@@ -171,7 +158,7 @@ class _QuestPanelState extends State<QuestPanel> {
     ];
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: PanelColors.woodDark.withAlpha(150),
         border: const Border(
@@ -182,14 +169,14 @@ class _QuestPanelState extends State<QuestPanel> {
         children: List.generate(tabs.length, (index) {
           final isSelected = _selectedTab == index;
           return Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () => setState(() {
                 _selectedTab = index;
                 _selectedQuestId = null;
               }),
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
                   color: isSelected ? PanelColors.slotBg : Colors.transparent,
                   borderRadius: BorderRadius.circular(6),
@@ -201,7 +188,7 @@ class _QuestPanelState extends State<QuestPanel> {
                       ? [
                           BoxShadow(
                             color: PanelColors.textGold.withAlpha(60),
-                            blurRadius: 8,
+                            blurRadius: 6,
                             spreadRadius: 0,
                           ),
                         ]
@@ -213,14 +200,14 @@ class _QuestPanelState extends State<QuestPanel> {
                       tabs[index],
                       style: TextStyle(
                         color: isSelected ? PanelColors.textGold : PanelColors.textMuted,
-                        fontSize: 11,
+                        fontSize: 10,
                         fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
                       ),
                     ),
                     if (counts[index] > 0) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: isSelected ? PanelColors.textGold : PanelColors.slotBorder,
                           borderRadius: BorderRadius.circular(10),
@@ -229,7 +216,7 @@ class _QuestPanelState extends State<QuestPanel> {
                           '${counts[index]}',
                           style: TextStyle(
                             color: isSelected ? Colors.black87 : PanelColors.textLight,
-                            fontSize: 10,
+                            fontSize: 9,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
@@ -280,160 +267,107 @@ class _QuestPanelState extends State<QuestPanel> {
     final quests = _getQuestsForCategory(_selectedTab);
 
     if (quests.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              Icons.inbox_outlined,
-              color: PanelColors.textMuted.withAlpha(120),
-              size: 40,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              _selectedTab == 0
-                  ? 'No quests available'
-                  : _selectedTab == 1
-                      ? 'No active quests'
-                      : 'No completed quests',
-              style: const TextStyle(
-                color: PanelColors.textMuted,
-                fontSize: 11,
+      return Container(
+        color: PanelColors.woodDark.withAlpha(150),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.inbox_outlined,
+                color: PanelColors.textMuted.withAlpha(120),
+                size: 40,
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Text(
+                _selectedTab == 0
+                    ? 'No quests available'
+                    : _selectedTab == 1
+                        ? 'No active quests'
+                        : 'No completed quests',
+                style: const TextStyle(
+                  color: PanelColors.textMuted,
+                  fontSize: 11,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: quests.length,
-      itemBuilder: (context, index) {
+    return Container(
+      color: PanelColors.woodDark.withAlpha(150),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: quests.length,
+        itemBuilder: (context, index) {
         final quest = quests[index];
-        final isSelected = _selectedQuestId == quest.id;
         final playerQuest = widget.playerQuests
             .where((pq) => pq.questId == quest.id)
             .firstOrNull;
         final canComplete = playerQuest != null &&
             playerQuest.isActive &&
             playerQuest.areRequirementsMet(quest);
+        final isActive = playerQuest?.isActive == true;
+        final isCompleted = playerQuest?.isCompleted == true;
+
+        // Determine icon and color
+        IconData icon;
+        Color iconColor;
+        if (isCompleted) {
+          icon = Icons.check_circle;
+          iconColor = PanelColors.textMuted;
+        } else if (canComplete) {
+          icon = Icons.help_outline;
+          iconColor = PanelColors.textGold;
+        } else if (isActive) {
+          icon = Icons.priority_high;
+          iconColor = PanelColors.textGold;
+        } else {
+          icon = Icons.priority_high;
+          iconColor = PanelColors.textGold;
+        }
 
         return GestureDetector(
           onTap: () => setState(() => _selectedQuestId = quest.id),
           child: Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.all(10),
+            margin: const EdgeInsets.only(bottom: 8),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: isSelected
-                  ? PanelColors.slotHover
-                  : PanelColors.slotBg,
-              borderRadius: BorderRadius.circular(6),
+              color: PanelColors.slotBg,
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isSelected ? PanelColors.textGold : PanelColors.slotBorder,
-                width: isSelected ? 2 : 2,
+                color: PanelColors.slotBorder,
+                width: 2,
               ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: PanelColors.textGold.withAlpha(60),
-                        blurRadius: 6,
-                        spreadRadius: 0,
-                      ),
-                    ]
-                  : null,
             ),
             child: Row(
               children: [
-                // Quest type icon
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: quest.isStoryQuest
-                        ? PanelColors.textGold.withAlpha(30)
-                        : PanelColors.panelBg,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: quest.isStoryQuest
-                          ? PanelColors.textGold.withAlpha(100)
-                          : PanelColors.slotBorder,
-                      width: 2,
-                    ),
-                  ),
-                  child: Icon(
-                    quest.isStoryQuest ? Icons.auto_stories : Icons.wb_sunny_outlined,
-                    color: quest.isStoryQuest ? PanelColors.textGold : PanelColors.textLight,
-                    size: 16,
-                  ),
+                // Exclamation icon
+                Icon(
+                  icon,
+                  color: iconColor,
+                  size: 24,
                 ),
-                const SizedBox(width: 10),
-                // Quest info
+                const SizedBox(width: 12),
+                // Quest title
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        quest.title,
-                        style: TextStyle(
-                          color: PanelColors.textLight,
-                          fontSize: 11,
-                          fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      if (quest.storyline != null) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          quest.storyline!.replaceAll('_', ' '),
-                          style: const TextStyle(
-                            color: PanelColors.textMuted,
-                            fontSize: 9,
-                          ),
-                        ),
-                      ],
-                    ],
+                  child: Text(
+                    quest.title,
+                    style: const TextStyle(
+                      color: PanelColors.textLight,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
                 ),
-                // Status badge
-                if (canComplete)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: PanelColors.progressGreen,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'Ready!',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  )
-                else if (playerQuest?.isActive == true)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: PanelColors.textGold,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Text(
-                      'Active',
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 9,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
               ],
             ),
           ),
         );
       },
+      ),
     );
   }
 
@@ -448,14 +382,14 @@ class _QuestPanelState extends State<QuestPanel> {
             Icon(
               Icons.arrow_back,
               color: PanelColors.textMuted.withAlpha(120),
-              size: 56,
+              size: 40,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
             const Text(
               'Select a quest to view details',
               style: TextStyle(
                 color: PanelColors.textMuted,
-                fontSize: 16,
+                fontSize: 12,
               ),
             ),
           ],
@@ -465,115 +399,87 @@ class _QuestPanelState extends State<QuestPanel> {
 
     final playerQuest = _selectedPlayerQuest;
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Title
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: quest.isStoryQuest
-                      ? PanelColors.textGold.withAlpha(30)
-                      : PanelColors.slotBg,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: quest.isStoryQuest
-                        ? PanelColors.textGold.withAlpha(100)
-                        : PanelColors.slotBorder,
-                    width: 2,
-                  ),
-                ),
-                child: Icon(
-                  quest.isStoryQuest ? Icons.auto_stories : Icons.wb_sunny_outlined,
-                  color: quest.isStoryQuest ? PanelColors.textGold : PanelColors.textLight,
-                  size: 32,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      quest.title,
-                      style: const TextStyle(
-                        color: PanelColors.textLight,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    if (quest.storyline != null) ...[
-                      const SizedBox(height: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: PanelColors.slotBg,
-                          borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: PanelColors.slotBorder, width: 1),
-                        ),
-                        child: Text(
-                          quest.storyline!.replaceAll('_', ' '),
-                          style: const TextStyle(
-                            color: PanelColors.textMuted,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-
-          // Description
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
+    return Column(
+      children: [
+        // Description at top
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          child: Container(
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: PanelColors.slotBg,
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(8),
               border: Border.all(color: PanelColors.slotBorder, width: 2),
             ),
             child: Text(
               quest.description,
               style: const TextStyle(
                 color: PanelColors.textLight,
-                fontSize: 15,
-                height: 1.6,
+                fontSize: 12,
+                height: 1.5,
               ),
             ),
           ),
-          const SizedBox(height: 28),
-
-          // Objectives
-          _buildSectionHeader('OBJECTIVES', Icons.flag_outlined),
-          const SizedBox(height: 14),
-          _buildObjectives(quest, playerQuest),
-        ],
-      ),
+        ),
+        // Objectives and Rewards side by side
+        Expanded(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Objectives on left half
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader('OBJECTIVES', Icons.flag_outlined),
+                      const SizedBox(height: 10),
+                      _buildObjectives(quest, playerQuest),
+                    ],
+                  ),
+                ),
+              ),
+              // Divider
+              Container(
+                width: 2,
+                color: PanelColors.divider,
+                margin: const EdgeInsets.symmetric(vertical: 8),
+              ),
+              // Rewards on right half
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionHeader('REWARDS', Icons.card_giftcard_outlined),
+                      const SizedBox(height: 10),
+                      _buildRewardsSection(quest),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildSectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        Icon(icon, color: PanelColors.textGold, size: 20),
-        const SizedBox(width: 10),
+        Icon(icon, color: PanelColors.textGold, size: 16),
+        const SizedBox(width: 8),
         Text(
           title,
           style: const TextStyle(
             color: PanelColors.textGold,
-            fontSize: 14,
+            fontSize: 11,
             fontWeight: FontWeight.bold,
-            letterSpacing: 2,
+            letterSpacing: 1.5,
           ),
         ),
       ],
@@ -592,6 +498,7 @@ class _QuestPanelState extends State<QuestPanel> {
         progress,
         target,
         progress >= target,
+        itemDef?.assetPath,
       ));
     }
 
@@ -603,6 +510,7 @@ class _QuestPanelState extends State<QuestPanel> {
         progress,
         target,
         progress >= target,
+        null, // No specific fish icon for "any fish"
       ));
     }
 
@@ -614,71 +522,131 @@ class _QuestPanelState extends State<QuestPanel> {
         progress >= target ? 1 : 0,
         1,
         progress >= target,
+        null, // No specific fish icon for rarity requirement
       ));
     }
 
     if (objectives.isEmpty) {
       return const Text(
         'Complete the quest objectives',
-        style: TextStyle(color: PanelColors.textMuted, fontSize: 14),
+        style: TextStyle(color: PanelColors.textMuted, fontSize: 11),
       );
     }
 
-    return Column(children: objectives);
+    // Display objectives in a wrap layout (2 per row, but can span if content is long)
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final itemWidth = (constraints.maxWidth - 8) / 2; // 2 columns with spacing
+        return Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: objectives.map((objective) {
+            return SizedBox(
+              width: itemWidth,
+              child: objective,
+            );
+          }).toList(),
+        );
+      },
+    );
   }
 
-  Widget _buildObjectiveRow(String label, int progress, int target, bool completed) {
+  Widget _buildObjectiveRow(String label, int progress, int target, bool completed, String? assetPath) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: completed ? PanelColors.progressGreen.withAlpha(30) : PanelColors.slotBg,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: completed ? PanelColors.progressGreen.withAlpha(150) : PanelColors.slotBorder,
           width: 2,
         ),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 28,
-            height: 28,
-            decoration: BoxDecoration(
-              color: completed ? PanelColors.progressGreen : PanelColors.panelBg,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: completed ? PanelColors.progressGreen : PanelColors.slotBorder,
-                width: 2,
+          // Fish sprite (always show if available, even when completed) or check icon
+          if (assetPath != null)
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: PanelColors.panelBg,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(
+                  color: PanelColors.slotBorder,
+                  width: 1,
+                ),
               ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Image.asset(
+                  assetPath,
+                  width: 32,
+                  height: 32,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    // Fallback to check icon if image fails
+                    return Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: completed ? PanelColors.progressGreen : PanelColors.panelBg,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: completed ? PanelColors.progressGreen : PanelColors.slotBorder,
+                          width: 2,
+                        ),
+                      ),
+                      child: completed
+                          ? const Icon(Icons.check, color: Colors.white, size: 16)
+                          : null,
+                    );
+                  },
+                ),
+              ),
+            )
+          else
+            Container(
+              width: 16,
+              height: 16,
+              decoration: BoxDecoration(
+                color: completed ? PanelColors.progressGreen : PanelColors.panelBg,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: completed ? PanelColors.progressGreen : PanelColors.slotBorder,
+                  width: 2,
+                ),
+              ),
+              child: completed
+                  ? const Icon(Icons.check, color: Colors.white, size: 10)
+                  : null,
             ),
-            child: completed
-                ? const Icon(Icons.check, color: Colors.white, size: 18)
-                : null,
-          ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               label,
               style: TextStyle(
                 color: completed ? PanelColors.progressGreen : PanelColors.textLight,
-                fontSize: 14,
+                fontSize: 10,
                 fontWeight: FontWeight.w500,
                 decoration: completed ? TextDecoration.lineThrough : null,
               ),
             ),
           ),
+          const SizedBox(width: 6),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
               color: completed ? PanelColors.progressGreen : PanelColors.woodDark,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '$progress / $target',
               style: TextStyle(
                 color: completed ? Colors.white : PanelColors.textLight,
-                fontSize: 13,
+                fontSize: 9,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -688,12 +656,57 @@ class _QuestPanelState extends State<QuestPanel> {
     );
   }
 
+  Widget _buildRewardsSection(Quest quest) {
+    if (quest.goldReward == 0 &&
+        quest.xpReward == 0 &&
+        quest.itemRewards.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: PanelColors.slotBg,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: PanelColors.slotBorder, width: 2),
+        ),
+        child: const Text(
+          'No rewards',
+          style: TextStyle(
+            color: PanelColors.textMuted,
+            fontSize: 11,
+          ),
+        ),
+      );
+    }
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 12,
+      children: [
+        if (quest.goldReward > 0)
+          _buildRewardTile(
+            Icons.monetization_on,
+            PanelColors.textGold,
+            '${quest.goldReward}',
+            null,
+          ),
+        if (quest.xpReward > 0)
+          _buildRewardTile(
+            Icons.star_rounded,
+            const Color(0xFF9C27B0),
+            '${quest.xpReward} XP',
+            null,
+          ),
+        for (final item in quest.itemRewards)
+          _buildItemRewardTile(item.itemId, item.quantity),
+      ],
+    );
+  }
+
   Widget _buildFooter() {
     final quest = _selectedQuest;
     final playerQuest = _selectedPlayerQuest;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: PanelColors.woodDark.withAlpha(200),
         borderRadius: const BorderRadius.vertical(bottom: Radius.circular(10)),
@@ -703,72 +716,45 @@ class _QuestPanelState extends State<QuestPanel> {
       ),
       child: quest == null
           ? const SizedBox(
-              height: 60,
+              height: 40,
               child: Center(
                 child: Text(
-                  'Select a quest to see rewards',
-                  style: TextStyle(color: PanelColors.textMuted, fontSize: 15),
+                  'Select a quest',
+                  style: TextStyle(color: PanelColors.textMuted, fontSize: 12),
                 ),
               ),
             )
           : Row(
               children: [
-                // Rewards section
+                // Close button
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Text(
-                        'REWARDS',
-                        style: TextStyle(
-                          color: PanelColors.textGold,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2,
+                  child: GestureDetector(
+                    onTap: () => setState(() => _selectedQuestId = null),
+                    child: Container(
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: PanelColors.slotBg,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: PanelColors.slotBorder, width: 2),
+                      ),
+                      child: const Center(
+                        child: Text(
+                          'Close',
+                          style: TextStyle(
+                            color: PanelColors.textLight,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
-                      const SizedBox(height: 10),
-                      Row(
-                        children: [
-                          if (quest.goldReward > 0)
-                            _buildRewardChip(
-                              Icons.monetization_on,
-                              PanelColors.textGold,
-                              '${quest.goldReward}',
-                            ),
-                          if (quest.xpReward > 0)
-                            _buildRewardChip(
-                              Icons.star_rounded,
-                              const Color(0xFF9C27B0),
-                              '${quest.xpReward} XP',
-                            ),
-                          for (final item in quest.itemRewards)
-                            _buildRewardChip(
-                              Icons.inventory_2,
-                              PanelColors.textLight,
-                              'x${item.quantity}',
-                            ),
-                          if (quest.goldReward == 0 &&
-                              quest.xpReward == 0 &&
-                              quest.itemRewards.isEmpty)
-                            const Text(
-                              'No rewards',
-                              style: TextStyle(
-                                color: PanelColors.textMuted,
-                                fontSize: 14,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 20),
+                const SizedBox(width: 12),
                 // Action button
                 SizedBox(
                   width: 180,
-                  height: 56,
+                  height: 44,
                   child: _buildActionButton(quest, playerQuest),
                 ),
               ],
@@ -776,26 +762,134 @@ class _QuestPanelState extends State<QuestPanel> {
     );
   }
 
-  Widget _buildRewardChip(IconData icon, Color color, String label) {
+  Widget _buildRewardTile(IconData icon, Color color, String label, String? imagePath) {
     return Container(
-      margin: const EdgeInsets.only(right: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      width: 80,
+      height: 80,
       decoration: BoxDecoration(
         color: PanelColors.slotBg,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
         border: Border.all(color: color.withAlpha(100), width: 2),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: color, size: 20),
-          const SizedBox(width: 6),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Center(
+              child: imagePath != null
+                  ? Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: PanelColors.panelBg,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: PanelColors.slotBorder, width: 1),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: Image.asset(
+                          imagePath,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(icon, color: color, size: 40);
+                          },
+                        ),
+                      ),
+                    )
+                  : Icon(icon, color: color, size: 40),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: PanelColors.woodDark.withAlpha(200),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(6)),
+            ),
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildItemRewardTile(String itemId, int quantity) {
+    final itemDef = GameItems.get(itemId);
+    final itemName = itemDef?.name ?? itemId;
+    final assetPath = itemDef?.assetPath;
+    final displayText = quantity > 1 ? 'x$quantity' : itemName;
+
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: PanelColors.slotBg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: PanelColors.textLight.withAlpha(100), width: 2),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Expanded(
+            child: Center(
+              child: assetPath != null
+                  ? Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: PanelColors.panelBg,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: PanelColors.slotBorder, width: 1),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(3),
+                        child: Image.asset(
+                          assetPath,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) {
+                            return Icon(
+                              Icons.inventory_2,
+                              color: PanelColors.textLight,
+                              size: 40,
+                            );
+                          },
+                        ),
+                      ),
+                    )
+                  : Icon(Icons.inventory_2, color: PanelColors.textLight, size: 40),
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: PanelColors.woodDark.withAlpha(200),
+              borderRadius: const BorderRadius.vertical(bottom: Radius.circular(6)),
+            ),
+            child: Text(
+              displayText,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: PanelColors.textLight,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -813,19 +907,19 @@ class _QuestPanelState extends State<QuestPanel> {
       return Container(
         decoration: BoxDecoration(
           color: PanelColors.progressGreen.withAlpha(30),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: PanelColors.progressGreen, width: 2),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.check_circle, color: PanelColors.progressGreen, size: 24),
-            SizedBox(width: 10),
+            Icon(Icons.check_circle, color: PanelColors.progressGreen, size: 18),
+            SizedBox(width: 8),
             Text(
               'Completed',
               style: TextStyle(
                 color: PanelColors.progressGreen,
-                fontSize: 16,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -840,12 +934,12 @@ class _QuestPanelState extends State<QuestPanel> {
         child: Container(
           decoration: BoxDecoration(
             color: PanelColors.textGold,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: PanelColors.textGold, width: 2),
             boxShadow: [
               BoxShadow(
                 color: PanelColors.textGold.withAlpha(100),
-                blurRadius: 8,
+                blurRadius: 6,
                 spreadRadius: 0,
               ),
             ],
@@ -853,13 +947,13 @@ class _QuestPanelState extends State<QuestPanel> {
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.check_circle, size: 22, color: Colors.black87),
-              SizedBox(width: 8),
+              Icon(Icons.check_circle, size: 18, color: Colors.black87),
+              SizedBox(width: 6),
               Text(
                 'Complete',
                 style: TextStyle(
                   color: Colors.black87,
-                  fontSize: 16,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
               ),
@@ -873,19 +967,19 @@ class _QuestPanelState extends State<QuestPanel> {
       return Container(
         decoration: BoxDecoration(
           color: PanelColors.slotBg,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(color: PanelColors.slotBorder, width: 2),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.hourglass_empty, color: PanelColors.textMuted, size: 22),
-            SizedBox(width: 8),
+            Icon(Icons.hourglass_empty, color: PanelColors.textMuted, size: 18),
+            SizedBox(width: 6),
             Text(
               'In Progress',
               style: TextStyle(
                 color: PanelColors.textMuted,
-                fontSize: 16,
+                fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -900,12 +994,12 @@ class _QuestPanelState extends State<QuestPanel> {
         child: Container(
           decoration: BoxDecoration(
             color: PanelColors.progressGreen,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(color: const Color(0xFF66BB6A), width: 2),
             boxShadow: [
               BoxShadow(
                 color: PanelColors.progressGreen.withAlpha(100),
-                blurRadius: 8,
+                blurRadius: 6,
                 spreadRadius: 0,
               ),
             ],
@@ -913,13 +1007,13 @@ class _QuestPanelState extends State<QuestPanel> {
           child: const Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.add_task, size: 22, color: Colors.white),
-              SizedBox(width: 8),
+              Icon(Icons.add_task, size: 18, color: Colors.white),
+              SizedBox(width: 6),
               Text(
                 'Accept',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 16,
+                  fontSize: 13,
                   fontWeight: FontWeight.bold,
                 ),
               ),

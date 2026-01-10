@@ -13,6 +13,7 @@ import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
 import '../widgets/quest_dialog.dart';
+import '../widgets/quest_panel.dart';
 import '../widgets/shop_panel.dart';
 import '../game/components/quest_sign.dart';
 import '../game/components/shop.dart';
@@ -57,6 +58,7 @@ class _GameScreenState extends State<GameScreen> {
   
   // Quest state
   bool _showQuestPanel = false;
+  bool _showQuestDialog = false;
   QuestSign? _nearbyQuestSign;
   List<Quest> _quests = [];
   List<PlayerQuest> _playerQuests = [];
@@ -394,8 +396,17 @@ class _GameScreenState extends State<GameScreen> {
           // Shop interaction button (when near shop)
           if (_nearbyShop != null && !_showShop && !_showInventory && !_showQuestPanel)
             _buildShopButton(),
-          // Quest dialog overlay (WoW-style)
-          if (_showQuestPanel && _nearbyQuestSign != null)
+          // Quest panel overlay (full quest journal)
+          if (_showQuestPanel)
+            QuestPanel(
+              quests: _quests,
+              playerQuests: _playerQuests,
+              onClose: () => setState(() => _showQuestPanel = false),
+              onAcceptQuest: _onAcceptQuest,
+              onCompleteQuest: _onCompleteQuest,
+            ),
+          // Quest dialog overlay (WoW-style) - only for new quests
+          if (_showQuestDialog && _nearbyQuestSign != null)
             Builder(
               builder: (context) {
                 final questToShow = QuestSignHelper.getQuestToShow(
@@ -408,7 +419,7 @@ class _GameScreenState extends State<GameScreen> {
                 if (questToShow == null) {
                   // No quests available - close dialog
                   WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) setState(() => _showQuestPanel = false);
+                    if (mounted) setState(() => _showQuestDialog = false);
                   });
                   return const SizedBox.shrink();
                 }
@@ -417,15 +428,28 @@ class _GameScreenState extends State<GameScreen> {
                     .where((pq) => pq.questId == questToShow.id)
                     .firstOrNull;
                 
+                // Only show dialog for new/available quests, not active ones
+                if (playerQuest?.isActive == true) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (mounted) {
+                      setState(() {
+                        _showQuestDialog = false;
+                        _showQuestPanel = true;
+                      });
+                    }
+                  });
+                  return const SizedBox.shrink();
+                }
+                
                 return QuestOfferDialog(
                   quest: questToShow,
                   playerQuest: playerQuest,
                   signName: _nearbyQuestSign!.name,
-                  onClose: () => setState(() => _showQuestPanel = false),
+                  onClose: () => setState(() => _showQuestDialog = false),
                   onAccept: () {
                     _onAcceptQuest(questToShow.id);
                     // Close after accepting - player can view in backpack
-                    setState(() => _showQuestPanel = false);
+                    setState(() => _showQuestDialog = false);
                   },
                   onComplete: (playerQuest?.isActive ?? false) && 
                               playerQuest!.areRequirementsMet(questToShow)
@@ -438,7 +462,7 @@ class _GameScreenState extends State<GameScreen> {
               },
             ),
           // Quest sign interaction button (when near quest sign with available, completable, or active quests)
-          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop &&
+          if (_nearbyQuestSign != null && !_showQuestPanel && !_showQuestDialog && !_showInventory && !_showShop &&
               (QuestSignHelper.hasAvailableOrCompletableQuests(
                 allQuests: _quests,
                 playerQuests: _playerQuests,
@@ -1450,7 +1474,14 @@ class _GameScreenState extends State<GameScreen> {
       right: 0,
       child: Center(
         child: GestureDetector(
-          onTap: () => setState(() => _showQuestPanel = true),
+          onTap: () {
+            // Show dialog for new quests, panel for active/completed
+            if (hasAvailable && !hasCompletable && !hasActive) {
+              setState(() => _showQuestDialog = true);
+            } else {
+              setState(() => _showQuestPanel = true);
+            }
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             decoration: BoxDecoration(
