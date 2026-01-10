@@ -41,6 +41,8 @@ export default function NewQuestPage() {
     prerequisiteQuestId: "",
     requirements: "[]",
     rewards: "[]",
+    questGiverType: "" as "" | "npc" | "sign",
+    questGiverId: "",
   });
 
   useEffect(() => {
@@ -83,6 +85,8 @@ export default function NewQuestPage() {
         prerequisiteQuestId: formData.prerequisiteQuestId || null,
         requirements: formData.requirements,
         rewards: formData.rewards,
+        questGiverType: formData.questGiverType && formData.questGiverType !== "__any__" ? formData.questGiverType : null,
+        questGiverId: formData.questGiverId || null,
       });
       router.push("/quests");
     } catch (error) {
@@ -201,6 +205,42 @@ export default function NewQuestPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Quest Giver Type</label>
+                <Select
+                  value={formData.questGiverType}
+                  onValueChange={(v) => setFormData({ ...formData, questGiverType: v as "" | "npc" | "sign" })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select giver type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any Sign (storyline filter)</SelectItem>
+                    <SelectItem value="sign">Specific Sign</SelectItem>
+                    <SelectItem value="npc">NPC</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  Where players can pick up this quest
+                </p>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Quest Giver ID</label>
+                <Input
+                  value={formData.questGiverId}
+                  onChange={(e) => setFormData({ ...formData, questGiverId: e.target.value })}
+                  placeholder={formData.questGiverType === "npc" ? "e.g., guild_master" : "e.g., town_board"}
+                  disabled={!formData.questGiverType || formData.questGiverType === "__any__"}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.questGiverType === "npc" ? "The NPC ID that gives this quest" :
+                   formData.questGiverType === "sign" ? "The Sign ID for this quest" :
+                   "Leave empty for any sign with matching storyline"}
+                </p>
               </div>
             </div>
 

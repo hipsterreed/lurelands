@@ -282,6 +282,87 @@ class LevelUpEvent {
       );
 }
 
+/// NPC definition from the server
+class Npc {
+  final String id;
+  final String name;
+  final String? title;
+  final String? description;
+  final double? locationX;
+  final double? locationY;
+  final String? spriteId;
+  final bool canGiveQuests;
+  final bool canTrade;
+  final bool isActive;
+
+  const Npc({
+    required this.id,
+    required this.name,
+    this.title,
+    this.description,
+    this.locationX,
+    this.locationY,
+    this.spriteId,
+    required this.canGiveQuests,
+    required this.canTrade,
+    required this.isActive,
+  });
+
+  factory Npc.fromJson(Map<String, dynamic> json) => Npc(
+        id: json['id'] as String,
+        name: json['name'] as String,
+        title: json['title'] as String?,
+        description: json['description'] as String?,
+        locationX: (json['locationX'] as num?)?.toDouble(),
+        locationY: (json['locationY'] as num?)?.toDouble(),
+        spriteId: json['spriteId'] as String?,
+        canGiveQuests: json['canGiveQuests'] as bool? ?? false,
+        canTrade: json['canTrade'] as bool? ?? false,
+        isActive: json['isActive'] as bool? ?? true,
+      );
+
+  /// Check if NPC has a valid world position
+  bool get hasPosition => locationX != null && locationY != null;
+}
+
+/// Player's interaction history with an NPC
+class PlayerNpcInteraction {
+  final int id;
+  final String playerId;
+  final String npcId;
+  final bool hasTalked;
+  final bool hasTraded;
+  final int talkCount;
+  final int reputation;
+  final int firstInteractionAt;
+  final int lastInteractionAt;
+
+  const PlayerNpcInteraction({
+    required this.id,
+    required this.playerId,
+    required this.npcId,
+    required this.hasTalked,
+    required this.hasTraded,
+    required this.talkCount,
+    required this.reputation,
+    required this.firstInteractionAt,
+    required this.lastInteractionAt,
+  });
+
+  factory PlayerNpcInteraction.fromJson(Map<String, dynamic> json) =>
+      PlayerNpcInteraction(
+        id: json['id'] as int,
+        playerId: json['playerId'] as String,
+        npcId: json['npcId'] as String,
+        hasTalked: json['hasTalked'] as bool? ?? false,
+        hasTraded: json['hasTraded'] as bool? ?? false,
+        talkCount: json['talkCount'] as int? ?? 0,
+        reputation: json['reputation'] as int? ?? 0,
+        firstInteractionAt: json['firstInteractionAt'] as int? ?? 0,
+        lastInteractionAt: json['lastInteractionAt'] as int? ?? 0,
+      );
+}
+
 /// Connection state for SpacetimeDB
 enum StdbConnectionState {
   disconnected,
@@ -448,6 +529,23 @@ abstract class SpacetimeDBService {
   /// Stream of level up events
   Stream<LevelUpEvent> get levelUpStream;
 
+  // NPC methods
+
+  /// Current list of all NPCs
+  List<Npc> get npcs;
+
+  /// Current list of player's NPC interactions
+  List<PlayerNpcInteraction> get npcInteractions;
+
+  /// Stream of NPC updates
+  Stream<({List<Npc> npcs, List<PlayerNpcInteraction> interactions})> get npcUpdates;
+
+  /// Request NPC data refresh
+  void requestNpcs();
+
+  /// Record talking to an NPC
+  void talkToNpc(String npcId);
+
   /// Dispose resources
   void dispose();
 }
@@ -471,6 +569,8 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   List<Quest> _quests = [];
   List<PlayerQuest> _playerQuests = [];
   PlayerStats? _playerStats;
+  List<Npc> _npcs = [];
+  List<PlayerNpcInteraction> _npcInteractions = [];
 
   // Stream controllers
   final _playerUpdatesController = StreamController<List<PlayerState>>.broadcast();
@@ -480,6 +580,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   final _questController = StreamController<({List<Quest> quests, List<PlayerQuest> playerQuests})>.broadcast();
   final _playerStatsController = StreamController<PlayerStats>.broadcast();
   final _levelUpController = StreamController<LevelUpEvent>.broadcast();
+  final _npcController = StreamController<({List<Npc> npcs, List<PlayerNpcInteraction> interactions})>.broadcast();
 
   // Throttle position updates to avoid flooding
   DateTime? _lastPositionUpdate;
@@ -526,6 +627,15 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
   @override
   Stream<LevelUpEvent> get levelUpStream => _levelUpController.stream;
+
+  @override
+  List<Npc> get npcs => _npcs;
+
+  @override
+  List<PlayerNpcInteraction> get npcInteractions => _npcInteractions;
+
+  @override
+  Stream<({List<Npc> npcs, List<PlayerNpcInteraction> interactions})> get npcUpdates => _npcController.stream;
 
   void _setState(StdbConnectionState newState) {
     if (_state != newState) {
@@ -820,6 +930,41 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
         }
         _levelUpController.add(levelUpData);
         debugPrint('[Bridge] Level up! New level: ${levelUpData.newLevel}');
+        break;
+
+      case 'npcs':
+        final npcsData = data['npcs'] as List?;
+        final interactionsData = data['playerNpcInteractions'] as List?;
+        if (npcsData != null) {
+          _npcs = npcsData
+              .map((e) => Npc.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        if (interactionsData != null) {
+          _npcInteractions = interactionsData
+              .map((e) => PlayerNpcInteraction.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        _npcController.add((npcs: _npcs, interactions: _npcInteractions));
+        debugPrint('[Bridge] NPCs updated: ${_npcs.length} npcs, ${_npcInteractions.length} interactions');
+        break;
+
+      case 'npc_interaction_updated':
+        final interactionData = data['interaction'] as Map<String, dynamic>?;
+        if (interactionData != null) {
+          final updatedInteraction = PlayerNpcInteraction.fromJson(interactionData);
+          // Update or add the interaction
+          final index = _npcInteractions.indexWhere(
+            (i) => i.npcId == updatedInteraction.npcId && i.playerId == updatedInteraction.playerId,
+          );
+          if (index >= 0) {
+            _npcInteractions[index] = updatedInteraction;
+          } else {
+            _npcInteractions.add(updatedInteraction);
+          }
+          _npcController.add((npcs: _npcs, interactions: _npcInteractions));
+          debugPrint('[Bridge] NPC interaction updated: ${updatedInteraction.npcId}');
+        }
         break;
     }
   }
@@ -1278,6 +1423,26 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   }
 
   @override
+  void requestNpcs() {
+    if (!isConnected) {
+      debugPrint('[Bridge] Cannot request NPCs - not connected');
+      return;
+    }
+
+    _sendMessage({'type': 'get_npcs'});
+  }
+
+  @override
+  void talkToNpc(String npcId) {
+    if (!isConnected) {
+      debugPrint('[Bridge] Cannot talk to NPC - not connected');
+      return;
+    }
+
+    _sendMessage({'type': 'npc_talk', 'npcId': npcId});
+  }
+
+  @override
   void dispose() {
     _reconnectTimer?.cancel();
     disconnect();
@@ -1288,6 +1453,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _questController.close();
     _playerStatsController.close();
     _levelUpController.close();
+    _npcController.close();
   }
 }
 

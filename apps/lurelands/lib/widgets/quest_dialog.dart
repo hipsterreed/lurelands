@@ -728,3 +728,127 @@ class QuestSignHelper {
   }
 }
 
+/// Helper for NPC quest indicators
+class NpcHelper {
+  /// Filter quests that this NPC can give
+  /// Only includes quests where questGiverType == 'npc' and questGiverId == npcId
+  static List<Quest> _filterForNpc(List<Quest> quests, String npcId) {
+    return quests.where((q) {
+      return q.questGiverType == 'npc' && q.questGiverId == npcId;
+    }).toList();
+  }
+
+  /// Gets the next quest to show at an NPC
+  /// Priority: 1) Completable quests, 2) Available quests, 3) Active quests
+  static Quest? getQuestToShow({
+    required List<Quest> allQuests,
+    required List<PlayerQuest> playerQuests,
+    required String npcId,
+  }) {
+    final filteredQuests = _filterForNpc(allQuests, npcId);
+
+    Quest? completableQuest;
+    Quest? availableQuest;
+    Quest? activeQuest;
+
+    for (final quest in filteredQuests) {
+      final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
+
+      // Check if this quest is completable (priority 1)
+      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+        completableQuest ??= quest;
+        continue;
+      }
+
+      // Check if this quest is active but not complete (priority 3)
+      if (pq != null && pq.isActive) {
+        activeQuest ??= quest;
+        continue;
+      }
+
+      // Skip completed quests
+      if (pq != null && pq.isCompleted) continue;
+
+      // Check if quest is available (no playerQuest entry)
+      if (pq == null) {
+        // Check prerequisites
+        if (quest.prerequisiteQuestId != null) {
+          final prereqDone = playerQuests.any(
+            (p) => p.questId == quest.prerequisiteQuestId && p.isCompleted,
+          );
+          if (!prereqDone) continue;
+        }
+        availableQuest ??= quest;
+      }
+    }
+
+    // Return in priority order
+    return completableQuest ?? availableQuest ?? activeQuest;
+  }
+
+  /// Check if there are any available or completable quests at this NPC
+  static bool hasAvailableOrCompletableQuests({
+    required List<Quest> allQuests,
+    required List<PlayerQuest> playerQuests,
+    required String npcId,
+  }) {
+    final filteredQuests = _filterForNpc(allQuests, npcId);
+
+    for (final quest in filteredQuests) {
+      final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
+
+      // Completable quest
+      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+        return true;
+      }
+
+      // Available quest (not started, prerequisites met)
+      if (pq == null) {
+        if (quest.prerequisiteQuestId != null) {
+          final prereqDone = playerQuests.any(
+            (p) => p.questId == quest.prerequisiteQuestId && p.isCompleted,
+          );
+          if (!prereqDone) continue;
+        }
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Check if there's a quest ready to turn in at this NPC
+  static bool hasCompletableQuest({
+    required List<Quest> allQuests,
+    required List<PlayerQuest> playerQuests,
+    required String npcId,
+  }) {
+    final filteredQuests = _filterForNpc(allQuests, npcId);
+
+    for (final quest in filteredQuests) {
+      final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
+      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /// Check if there's an active quest in progress at this NPC
+  static bool hasActiveQuest({
+    required List<Quest> allQuests,
+    required List<PlayerQuest> playerQuests,
+    required String npcId,
+  }) {
+    final filteredQuests = _filterForNpc(allQuests, npcId);
+
+    for (final quest in filteredQuests) {
+      final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
+      // Active but not complete
+      if (pq != null && pq.isActive && !pq.areRequirementsMet(quest)) {
+        return true;
+      }
+    }
+    return false;
+  }
+}
+

@@ -33,6 +33,34 @@ export interface Quest {
   prerequisiteQuestId: string | null;
   requirements: string;
   rewards: string;
+  // Quest giver system
+  questGiverType: "npc" | "sign" | null;
+  questGiverId: string | null;
+}
+
+export interface Npc {
+  id: string;
+  name: string;
+  title: string | null;
+  description: string | null;
+  locationX: number | null;
+  locationY: number | null;
+  spriteId: string | null;
+  canGiveQuests: boolean;
+  canTrade: boolean;
+  isActive: boolean;
+}
+
+export interface Storyline {
+  id: string;
+  name: string;
+  description: string;
+  icon: string | null;
+  category: "main" | "side" | "event";
+  displayOrder: number;
+  unlockConditions: string | null;
+  isActive: boolean;
+  totalQuests: number;
 }
 
 export interface PlayerQuest {
