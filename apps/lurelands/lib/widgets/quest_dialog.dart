@@ -4,31 +4,15 @@ import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import 'panel_frame.dart';
 
-/// WoW-style quest dialog colors
-class _QuestDialogColors {
-  static const Color woodDark = Color(0xFF5D3A1A);
-  static const Color woodMedium = Color(0xFF8B5A2B);
-  static const Color woodLight = Color(0xFFA0724B);
-  static const Color panelBg = Color(0xFF2D1810);
-  static const Color slotBg = Color(0xFF4A3728);
-  static const Color slotBorder = Color(0xFF6B4423);
-  static const Color textLight = Color(0xFFF5E6D3);
-  static const Color textGold = Color(0xFFFFD700);
-  static const Color textMuted = Color(0xFF8B7355);
-  static const Color progressGreen = Color(0xFF4CAF50);
-  static const Color acceptButton = Color(0xFF2E7D32);
-  static const Color declineButton = Color(0xFF8B4513);
-}
-
-/// WoW-style quest offer dialog - shown when approaching a quest sign
-/// Shows one quest at a time with Accept/Decline buttons
+/// Stardew Valley style quest dialog - shown when approaching a quest sign
+/// Uses the shared dark wood theme from PanelColors
 class QuestOfferDialog extends StatelessWidget {
   final Quest quest;
-  final PlayerQuest? playerQuest; // If player already has this quest
-  final String signName; // Name of the quest sign/giver
+  final PlayerQuest? playerQuest;
+  final String signName;
   final VoidCallback onClose;
   final VoidCallback onAccept;
-  final VoidCallback? onComplete; // Only available if quest is completable
+  final VoidCallback? onComplete;
 
   const QuestOfferDialog({
     super.key,
@@ -47,7 +31,6 @@ class QuestOfferDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
     final dialogWidth = (screenSize.width * 0.95).clamp(500.0, 900.0);
-    final dialogHeight = (screenSize.height * 0.85).clamp(500.0, 700.0);
 
     return GestureDetector(
       onTap: onClose,
@@ -55,21 +38,31 @@ class QuestOfferDialog extends StatelessWidget {
         color: Colors.black.withAlpha(180),
         child: Center(
           child: GestureDetector(
-            onTap: () {}, // Prevent closing when tapping dialog
+            onTap: () {},
             child: Container(
               width: dialogWidth,
-              height: dialogHeight,
               constraints: BoxConstraints(
-                maxHeight: dialogHeight,
+                maxHeight: screenSize.height * 0.85,
               ),
-              decoration: _buildDialogDecoration(),
+              decoration: BoxDecoration(
+                color: PanelColors.panelBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: PanelColors.woodMedium, width: 6),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(220),
+                    blurRadius: 40,
+                    offset: const Offset(0, 20),
+                  ),
+                ],
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _buildHeader(),
                   Flexible(
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(20),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -96,111 +89,84 @@ class QuestOfferDialog extends StatelessWidget {
     );
   }
 
-  BoxDecoration _buildDialogDecoration() {
-    return BoxDecoration(
-      color: _QuestDialogColors.panelBg,
-      borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: _QuestDialogColors.woodMedium, width: 5),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withAlpha(200),
-          blurRadius: 24,
-          offset: const Offset(0, 12),
-        ),
-      ],
-    );
-  }
-
   Widget _buildHeader() {
-    // Quest giver header with scroll/parchment look
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            _QuestDialogColors.woodDark,
-            _QuestDialogColors.woodMedium,
-            _QuestDialogColors.woodDark,
+            PanelColors.woodDark,
+            PanelColors.woodMedium,
+            PanelColors.woodDark,
           ],
         ),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(7)),
-        border: Border(
-          bottom: BorderSide(color: _QuestDialogColors.woodLight, width: 2),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(10)),
+        border: const Border(
+          bottom: BorderSide(color: PanelColors.woodLight, width: 2),
         ),
       ),
       child: Row(
         children: [
-          // Quest icon - exclamation for new, question for turn-in
+          // Quest status indicator
           Container(
-            width: 36,
-            height: 36,
+            padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: _canComplete 
-                  ? _QuestDialogColors.progressGreen.withAlpha(80)
-                  : _QuestDialogColors.textGold.withAlpha(80),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: _canComplete 
-                    ? _QuestDialogColors.progressGreen
-                    : _QuestDialogColors.textGold,
-                width: 2,
-              ),
+              color: PanelColors.slotBg,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: PanelColors.slotBorder, width: 2),
             ),
-            child: Center(
-              child: Text(
-                _canComplete ? '?' : '!',
-                style: TextStyle(
-                  color: _canComplete 
-                      ? _QuestDialogColors.progressGreen
-                      : _QuestDialogColors.textGold,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+            child: Icon(
+              _canComplete ? Icons.check_circle : Icons.assignment,
+              color: _canComplete ? PanelColors.progressGreen : PanelColors.textGold,
+              size: 20,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  signName,
-                  style: TextStyle(
-                    color: _QuestDialogColors.textLight,
-                    fontSize: 16,
+                  signName.toUpperCase(),
+                  style: const TextStyle(
+                    color: PanelColors.textLight,
+                    fontSize: 14,
                     fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
+                    letterSpacing: 2,
                   ),
                 ),
                 if (quest.storyline != null)
                   Text(
                     quest.storyline!.replaceAll('_', ' '),
-                    style: TextStyle(
-                      color: _QuestDialogColors.textMuted,
-                      fontSize: 11,
+                    style: const TextStyle(
+                      color: PanelColors.textMuted,
+                      fontSize: 10,
                     ),
                   ),
               ],
             ),
           ),
-          GestureDetector(
-            onTap: onClose,
-            child: Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: _QuestDialogColors.slotBg,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: _QuestDialogColors.slotBorder, width: 2),
-              ),
-              child: Icon(
-                Icons.close,
-                color: _QuestDialogColors.textLight,
-                size: 18,
-              ),
-            ),
-          ),
+          _buildCloseButton(),
         ],
+      ),
+    );
+  }
+
+  Widget _buildCloseButton() {
+    return GestureDetector(
+      onTap: onClose,
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color: PanelColors.slotBg,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: PanelColors.slotBorder, width: 2),
+        ),
+        child: const Icon(
+          Icons.close,
+          color: PanelColors.textLight,
+          size: 20,
+        ),
       ),
     );
   }
@@ -208,18 +174,31 @@ class QuestOfferDialog extends StatelessWidget {
   Widget _buildQuestTitle() {
     return Row(
       children: [
-        Icon(
-          quest.isStoryQuest ? Icons.auto_stories : Icons.today,
-          color: _QuestDialogColors.textGold,
-          size: 22,
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: quest.isStoryQuest
+                ? PanelColors.textGold.withAlpha(30)
+                : PanelColors.slotBg,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: quest.isStoryQuest ? PanelColors.textGold.withAlpha(100) : PanelColors.slotBorder,
+              width: 2,
+            ),
+          ),
+          child: Icon(
+            quest.isStoryQuest ? Icons.auto_stories : Icons.wb_sunny_outlined,
+            color: quest.isStoryQuest ? PanelColors.textGold : PanelColors.textLight,
+            size: 24,
+          ),
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 14),
         Expanded(
           child: Text(
             quest.title,
-            style: TextStyle(
-              color: _QuestDialogColors.textGold,
-              fontSize: 18,
+            style: const TextStyle(
+              color: PanelColors.textLight,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
             ),
           ),
@@ -230,22 +209,19 @@ class QuestOfferDialog extends StatelessWidget {
 
   Widget _buildDescription() {
     return Container(
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _QuestDialogColors.slotBg.withAlpha(150),
+        color: PanelColors.slotBg,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: _QuestDialogColors.slotBorder.withAlpha(100),
-          width: 1,
-        ),
+        border: Border.all(color: PanelColors.slotBorder, width: 2),
       ),
       child: Text(
         quest.description,
-        style: TextStyle(
-          color: _QuestDialogColors.textLight,
-          fontSize: 14,
+        style: const TextStyle(
+          color: PanelColors.textLight,
+          fontSize: 11,
           height: 1.5,
-          fontStyle: FontStyle.italic,
         ),
       ),
     );
@@ -255,16 +231,22 @@ class QuestOfferDialog extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'OBJECTIVES',
-          style: TextStyle(
-            color: _QuestDialogColors.textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
+        const Row(
+          children: [
+            Icon(Icons.flag_outlined, color: PanelColors.textGold, size: 14),
+            SizedBox(width: 6),
+            Text(
+              'OBJECTIVES',
+              style: TextStyle(
+                color: PanelColors.textGold,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         ..._buildObjectivesList(),
       ],
     );
@@ -273,99 +255,99 @@ class QuestOfferDialog extends StatelessWidget {
   List<Widget> _buildObjectivesList() {
     final objectives = <Widget>[];
 
-    // Specific fish requirements
     for (final entry in quest.requiredFish.entries) {
       final itemDef = GameItems.get(entry.key);
       final progress = playerQuest?.fishProgress[entry.key] ?? 0;
-      final met = progress >= entry.value;
+      final completed = progress >= entry.value;
 
       objectives.add(_buildObjectiveRow(
         itemDef?.name ?? entry.key,
         progress,
         entry.value,
-        met,
+        completed,
       ));
     }
 
-    // Total fish requirement
     if (quest.totalFishRequired != null) {
       final progress = playerQuest?.totalFishCaught ?? 0;
-      final met = progress >= quest.totalFishRequired!;
-
+      final target = quest.totalFishRequired!;
       objectives.add(_buildObjectiveRow(
         'Catch any fish',
         progress,
-        quest.totalFishRequired!,
-        met,
+        target,
+        progress >= target,
       ));
     }
 
-    // Min rarity requirement
     if (quest.minRarityRequired != null) {
       final progress = playerQuest?.maxRarityCaught ?? 0;
-      final met = progress >= quest.minRarityRequired!;
-
+      final target = quest.minRarityRequired!;
       objectives.add(_buildObjectiveRow(
-        'Catch a ${quest.minRarityRequired}-star fish',
-        met ? 1 : 0,
+        'Catch a $target-star fish',
+        progress >= target ? 1 : 0,
         1,
-        met,
+        progress >= target,
       ));
     }
 
     return objectives;
   }
 
-  Widget _buildObjectiveRow(String label, int current, int required, bool met) {
+  Widget _buildObjectiveRow(String label, int progress, int target, bool completed) {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: met 
-            ? _QuestDialogColors.progressGreen.withAlpha(30)
-            : _QuestDialogColors.slotBg.withAlpha(100),
+        color: completed
+            ? PanelColors.progressGreen.withAlpha(30)
+            : PanelColors.slotBg,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(
-          color: met 
-              ? _QuestDialogColors.progressGreen.withAlpha(100)
-              : _QuestDialogColors.slotBorder.withAlpha(80),
-          width: 1,
+          color: completed ? PanelColors.progressGreen.withAlpha(150) : PanelColors.slotBorder,
+          width: 2,
         ),
       ),
       child: Row(
         children: [
-          Icon(
-            met ? Icons.check_circle : Icons.radio_button_unchecked,
-            color: met ? _QuestDialogColors.progressGreen : _QuestDialogColors.textMuted,
-            size: 18,
+          Container(
+            width: 18,
+            height: 18,
+            decoration: BoxDecoration(
+              color: completed ? PanelColors.progressGreen : PanelColors.slotBg,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: completed ? PanelColors.progressGreen : PanelColors.slotBorder,
+                width: 2,
+              ),
+            ),
+            child: completed
+                ? const Icon(Icons.check, color: Colors.white, size: 12)
+                : null,
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               label,
               style: TextStyle(
-                color: met 
-                    ? _QuestDialogColors.progressGreen
-                    : _QuestDialogColors.textLight,
-                fontSize: 13,
-                decoration: met ? TextDecoration.lineThrough : null,
+                color: completed ? PanelColors.progressGreen : PanelColors.textLight,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+                decoration: completed ? TextDecoration.lineThrough : null,
               ),
             ),
           ),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(
-              color: _QuestDialogColors.woodDark,
+              color: completed ? PanelColors.progressGreen : PanelColors.woodDark,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
-              '$current/$required',
+              '$progress / $target',
               style: TextStyle(
-                color: met 
-                    ? _QuestDialogColors.progressGreen
-                    : _QuestDialogColors.textLight,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+                color: completed ? Colors.white : PanelColors.textLight,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
               ),
             ),
           ),
@@ -378,25 +360,38 @@ class QuestOfferDialog extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'REWARDS',
-          style: TextStyle(
-            color: _QuestDialogColors.textMuted,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-            letterSpacing: 1.5,
-          ),
+        const Row(
+          children: [
+            Icon(Icons.card_giftcard_outlined, color: PanelColors.textGold, size: 14),
+            SizedBox(width: 6),
+            Text(
+              'REWARDS',
+              style: TextStyle(
+                color: PanelColors.textGold,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
+              ),
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-        RewardTilesRow(
-          goldReward: quest.goldReward,
-          xpReward: quest.xpReward,
-          itemRewards: quest.itemRewards
-              .map((item) => (itemId: item.itemId, quantity: item.quantity))
-              .toList(),
-          tileSize: 64,
-        ),
+        const SizedBox(height: 12),
+        _buildRewardTiles(),
       ],
+    );
+  }
+
+  Widget _buildRewardTiles() {
+    // Convert item rewards to the format expected by RewardTilesRow
+    final itemRewards = quest.itemRewards
+        .map((item) => (itemId: item.itemId, quantity: item.quantity))
+        .toList();
+
+    return RewardTilesRow(
+      goldReward: quest.goldReward > 0 ? quest.goldReward : null,
+      xpReward: quest.xpReward > 0 ? quest.xpReward : null,
+      itemRewards: itemRewards,
+      tileSize: 52,
     );
   }
 
@@ -404,120 +399,97 @@ class QuestOfferDialog extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: _QuestDialogColors.woodDark.withAlpha(150),
-        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(7)),
-        border: Border(
-          top: BorderSide(color: _QuestDialogColors.slotBorder, width: 1),
+        color: PanelColors.woodDark.withAlpha(200),
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(10)),
+        border: const Border(
+          top: BorderSide(color: PanelColors.divider, width: 2),
         ),
       ),
       child: Row(
         children: [
-          // Decline/Close button
+          // Close/Decline button
           Expanded(
             child: GestureDetector(
               onTap: onClose,
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                height: 40,
                 decoration: BoxDecoration(
-                  color: _QuestDialogColors.declineButton,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: _QuestDialogColors.woodLight,
-                    width: 2,
-                  ),
+                  color: PanelColors.slotBg,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: PanelColors.slotBorder, width: 2),
                 ),
                 child: Center(
                   child: Text(
                     _isActive ? 'CLOSE' : 'DECLINE',
-                    style: TextStyle(
-                      color: _QuestDialogColors.textLight,
-                      fontSize: 14,
+                    style: const TextStyle(
+                      color: PanelColors.textLight,
+                      fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      letterSpacing: 1,
                     ),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           // Accept/Complete button
           Expanded(
             flex: 2,
             child: GestureDetector(
-              onTap: _canComplete 
-                  ? onComplete 
+              onTap: _canComplete
+                  ? onComplete
                   : (_isActive ? null : onAccept),
               child: Container(
-                padding: const EdgeInsets.symmetric(vertical: 14),
+                height: 40,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: _canComplete
-                        ? [
-                            _QuestDialogColors.progressGreen,
-                            _QuestDialogColors.progressGreen.withAlpha(200),
-                          ]
-                        : _isActive
-                            ? [
-                                _QuestDialogColors.slotBg,
-                                _QuestDialogColors.slotBg,
-                              ]
-                            : [
-                                _QuestDialogColors.acceptButton,
-                                _QuestDialogColors.acceptButton.withAlpha(200),
-                              ],
-                  ),
-                  borderRadius: BorderRadius.circular(8),
+                  color: _canComplete
+                      ? PanelColors.textGold
+                      : _isActive
+                          ? PanelColors.slotBg
+                          : PanelColors.progressGreen,
+                  borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color: _canComplete
-                        ? Colors.white.withAlpha(150)
+                        ? PanelColors.textGold
                         : _isActive
-                            ? _QuestDialogColors.slotBorder
-                            : _QuestDialogColors.textGold,
+                            ? PanelColors.slotBorder
+                            : const Color(0xFF66BB6A),
                     width: 2,
                   ),
-                  boxShadow: (_canComplete || !_isActive)
-                      ? [
+                  boxShadow: _isActive && !_canComplete
+                      ? null
+                      : [
                           BoxShadow(
-                            color: (_canComplete
-                                    ? _QuestDialogColors.progressGreen
-                                    : _QuestDialogColors.textGold)
-                                .withAlpha(60),
+                            color: (_canComplete ? PanelColors.textGold : PanelColors.progressGreen).withAlpha(100),
                             blurRadius: 8,
                             spreadRadius: 0,
                           ),
-                        ]
-                      : null,
+                        ],
                 ),
-                child: Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (_canComplete) ...[
-                        Icon(
-                          Icons.check_circle,
-                          color: Colors.white,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      Text(
-                        _canComplete 
-                            ? 'COMPLETE QUEST'
-                            : _isActive 
-                                ? 'IN PROGRESS...'
-                                : 'ACCEPT QUEST',
-                        style: TextStyle(
-                          color: _isActive && !_canComplete
-                              ? _QuestDialogColors.textMuted
-                              : Colors.white,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1,
-                        ),
-                      ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    if (_canComplete) ...[
+                      const Icon(Icons.check_circle, size: 16, color: Colors.black87),
+                      const SizedBox(width: 6),
                     ],
-                  ),
+                    Text(
+                      _canComplete
+                          ? 'COMPLETE'
+                          : _isActive
+                              ? 'IN PROGRESS...'
+                              : 'ACCEPT QUEST',
+                      style: TextStyle(
+                        color: _canComplete
+                            ? Colors.black87
+                            : _isActive
+                                ? PanelColors.textMuted
+                                : Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -530,35 +502,21 @@ class QuestOfferDialog extends StatelessWidget {
 
 /// Determines which quest to show at a quest sign
 class QuestSignHelper {
-  /// Filter quests that should appear at this specific sign
-  /// Logic:
-  /// - If quest.questGiverType == 'sign' and quest.questGiverId == signId, include it
-  /// - If quest.questGiverType == null, include it if storyline matches (legacy behavior)
-  /// - If quest.questGiverType == 'npc', exclude it (NPCs handle their own quests)
   static List<Quest> _filterForSign(
     List<Quest> quests,
     String? signId,
     List<String>? storylines,
   ) {
     return quests.where((q) {
-      // If quest is assigned to a specific NPC, don't show at signs
       if (q.questGiverType == 'npc') return false;
-
-      // If quest is assigned to a specific sign, only show at that sign
       if (q.questGiverType == 'sign') {
         return q.questGiverId == signId;
       }
-
-      // Quest has no specific giver (null) - use storyline filtering (legacy behavior)
       if (storylines == null || storylines.isEmpty) return true;
       return q.storyline != null && storylines.contains(q.storyline);
     }).toList();
   }
 
-  /// Gets the next quest to show at a quest sign
-  /// Priority: 1) Completable quests, 2) Available quests, 3) Active quests
-  /// signId: The unique ID of this quest sign (for quest giver matching)
-  /// storylines: Legacy filter - only used for quests with no specific giver
   static Quest? getQuestToShow({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -574,24 +532,19 @@ class QuestSignHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      // Check if this quest is completable (priority 1)
       if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
         completableQuest ??= quest;
         continue;
       }
 
-      // Check if this quest is active but not complete (priority 3)
       if (pq != null && pq.isActive) {
         activeQuest ??= quest;
         continue;
       }
 
-      // Skip completed quests
       if (pq != null && pq.isCompleted) continue;
 
-      // Check if quest is available (no playerQuest entry)
       if (pq == null) {
-        // Check prerequisites
         if (quest.prerequisiteQuestId != null) {
           final prereqDone = playerQuests.any(
             (p) => p.questId == quest.prerequisiteQuestId && p.isCompleted,
@@ -602,13 +555,9 @@ class QuestSignHelper {
       }
     }
 
-    // Return in priority order
     return completableQuest ?? availableQuest ?? activeQuest;
   }
 
-  /// Check if there are any available or completable quests (for showing ! indicator)
-  /// signId: The unique ID of this quest sign (for quest giver matching)
-  /// storylines: Legacy filter - only used for quests with no specific giver
   static bool hasAvailableOrCompletableQuests({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -620,12 +569,10 @@ class QuestSignHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      // Completable quest
       if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
         return true;
       }
 
-      // Available quest (not started, prerequisites met)
       if (pq == null) {
         if (quest.prerequisiteQuestId != null) {
           final prereqDone = playerQuests.any(
@@ -639,9 +586,6 @@ class QuestSignHelper {
     return false;
   }
 
-  /// Check if there's a quest ready to turn in (for showing ? indicator instead of !)
-  /// signId: The unique ID of this quest sign (for quest giver matching)
-  /// storylines: Legacy filter - only used for quests with no specific giver
   static bool hasCompletableQuest({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -659,9 +603,6 @@ class QuestSignHelper {
     return false;
   }
 
-  /// Check if there's an active quest in progress (not complete)
-  /// signId: The unique ID of this quest sign (for quest giver matching)
-  /// storylines: Legacy filter - only used for quests with no specific giver
   static bool hasActiveQuest({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -672,7 +613,6 @@ class QuestSignHelper {
 
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-      // Active but not complete
       if (pq != null && pq.isActive && !pq.areRequirementsMet(quest)) {
         return true;
       }
@@ -683,16 +623,12 @@ class QuestSignHelper {
 
 /// Helper for NPC quest indicators
 class NpcHelper {
-  /// Filter quests that this NPC can give
-  /// Only includes quests where questGiverType == 'npc' and questGiverId == npcId
   static List<Quest> _filterForNpc(List<Quest> quests, String npcId) {
     return quests.where((q) {
       return q.questGiverType == 'npc' && q.questGiverId == npcId;
     }).toList();
   }
 
-  /// Gets the next quest to show at an NPC
-  /// Priority: 1) Completable quests, 2) Available quests, 3) Active quests
   static Quest? getQuestToShow({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -707,24 +643,19 @@ class NpcHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      // Check if this quest is completable (priority 1)
       if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
         completableQuest ??= quest;
         continue;
       }
 
-      // Check if this quest is active but not complete (priority 3)
       if (pq != null && pq.isActive) {
         activeQuest ??= quest;
         continue;
       }
 
-      // Skip completed quests
       if (pq != null && pq.isCompleted) continue;
 
-      // Check if quest is available (no playerQuest entry)
       if (pq == null) {
-        // Check prerequisites
         if (quest.prerequisiteQuestId != null) {
           final prereqDone = playerQuests.any(
             (p) => p.questId == quest.prerequisiteQuestId && p.isCompleted,
@@ -735,11 +666,9 @@ class NpcHelper {
       }
     }
 
-    // Return in priority order
     return completableQuest ?? availableQuest ?? activeQuest;
   }
 
-  /// Check if there are any available or completable quests at this NPC
   static bool hasAvailableOrCompletableQuests({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -750,12 +679,10 @@ class NpcHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      // Completable quest
       if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
         return true;
       }
 
-      // Available quest (not started, prerequisites met)
       if (pq == null) {
         if (quest.prerequisiteQuestId != null) {
           final prereqDone = playerQuests.any(
@@ -769,7 +696,6 @@ class NpcHelper {
     return false;
   }
 
-  /// Check if there's a quest ready to turn in at this NPC
   static bool hasCompletableQuest({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -786,7 +712,6 @@ class NpcHelper {
     return false;
   }
 
-  /// Check if there's an active quest in progress at this NPC
   static bool hasActiveQuest({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
@@ -796,7 +721,6 @@ class NpcHelper {
 
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-      // Active but not complete
       if (pq != null && pq.isActive && !pq.areRequirementsMet(quest)) {
         return true;
       }
@@ -804,4 +728,3 @@ class NpcHelper {
     return false;
   }
 }
-
