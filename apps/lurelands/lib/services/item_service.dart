@@ -191,10 +191,16 @@ class ItemService {
 
   String _spriteIdToAssetPath(String spriteId, String category) {
     // Map spriteId to asset path based on category
-    // Database stores: "fish_pond_1" -> "assets/images/fish/fish_pond_1.png"
-    // Database stores: "fishing_pole_1" -> "assets/items/fishing_pole_1.png"
+    // Database stores item IDs as sprite IDs, but asset files have different names:
+    // - "fish_pond_1" -> "assets/images/fish/fish_pond_1.png"
+    // - "pole_1" -> "assets/items/fishing_pole_1.png"
+    // - "lure_1" -> "assets/items/lure_1.png"
     if (category == 'fish') {
       return '${AssetPaths.fish}/$spriteId.png';
+    } else if (category == 'pole') {
+      // Convert "pole_X" to "fishing_pole_X"
+      final assetName = spriteId.replaceFirst('pole_', 'fishing_pole_');
+      return '${AssetPaths.items}/$assetName.png';
     } else {
       return '${AssetPaths.items}/$spriteId.png';
     }
