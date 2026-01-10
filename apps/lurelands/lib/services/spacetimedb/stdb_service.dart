@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../models/player_state.dart';
@@ -440,6 +441,10 @@ abstract class SpacetimeDBService {
   /// Disconnect from the server
   Future<void> disconnect();
 
+  /// Check bridge health and SpacetimeDB connection status
+  /// Returns a record with status info, or null if health check failed
+  Future<({String status, String spacetimedb, bool healthy})> checkHealth(String bridgeUrl);
+
   /// Check if currently connected
   bool get isConnected;
 
@@ -717,6 +722,41 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _subscription = null;
     await _channel?.sink.close();
     _channel = null;
+  }
+
+  @override
+  Future<({String status, String spacetimedb, bool healthy})> checkHealth(String bridgeUrl) async {
+    try {
+      // Convert ws:// to http:// for health check
+      final httpUrl = bridgeUrl
+          .replaceFirst('wss://', 'https://')
+          .replaceFirst('ws://', 'http://')
+          .replaceFirst('/ws', '/health');
+
+      debugPrint('[Bridge] Health check: $httpUrl');
+
+      final response = await http.get(Uri.parse(httpUrl)).timeout(
+        const Duration(seconds: 5),
+        onTimeout: () => throw Exception('Health check timed out'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final status = data['status'] as String? ?? 'unknown';
+        final spacetimedb = data['spacetimedb'] as String? ?? 'unknown';
+        final healthy = status == 'ok' && spacetimedb == 'connected';
+
+        debugPrint('[Bridge] Health check result: status=$status, spacetimedb=$spacetimedb, healthy=$healthy');
+
+        return (status: status, spacetimedb: spacetimedb, healthy: healthy);
+      } else {
+        debugPrint('[Bridge] Health check failed: ${response.statusCode}');
+        return (status: 'error', spacetimedb: 'unknown', healthy: false);
+      }
+    } catch (e) {
+      debugPrint('[Bridge] Health check error: $e');
+      return (status: 'error', spacetimedb: 'unreachable', healthy: false);
+    }
   }
 
   void _onMessage(dynamic message) {
@@ -1007,12 +1047,19 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     );
   }
 
-  void _onError(Object error) {
+  void _onError(Object error, StackTrace? stackTrace) {
+    print('[Bridge] WebSocket ERROR: $error');
+    if (stackTrace != null) {
+      print('[Bridge] Stack trace: $stackTrace');
+    }
     _setState(StdbConnectionState.error);
     _scheduleReconnect();
   }
 
   void _onDone() {
+    final closeCode = _channel?.closeCode;
+    final closeReason = _channel?.closeReason;
+    print('[Bridge] WebSocket CLOSED - code: $closeCode, reason: $closeReason, wasConnected: ${_state == StdbConnectionState.connected}');
     if (_state == StdbConnectionState.connected) {
       _setState(StdbConnectionState.error);
       _scheduleReconnect();

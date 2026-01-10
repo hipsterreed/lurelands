@@ -1414,7 +1414,11 @@ const app = new Elysia()
     clients: clients.size,
   }))
   
-  .get('/health', () => ({ status: 'ok' }))
+  .get('/health', () => ({
+    status: stdb.getIsConnected() ? 'ok' : 'degraded',
+    spacetimedb: stdb.getIsConnected() ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString(),
+  }))
 
   // Events API endpoint
   .get('/api/events', ({ query }) => {
@@ -1570,12 +1574,16 @@ const app = new Elysia()
   .ws('/ws', {
     open(ws) {
       const wsId = getWsId(ws);
-      wsLogger.info({ wsId, clientCount: clients.size + 1 }, 'Client connected');
+      const stdbConnected = stdb.getIsConnected();
+      wsLogger.info({ wsId, clientCount: clients.size + 1, stdbConnected }, 'Client connected');
       clients.set(wsId, { ws, playerId: null });
-      
+
       // Send initial state if available
-      if (stdb.getIsConnected()) {
+      if (stdbConnected) {
+        wsLogger.debug({ wsId }, 'Sending world_state to new client');
         send(ws, { type: 'world_state', data: stdb.getWorldState() });
+      } else {
+        wsLogger.warn({ wsId }, 'SpacetimeDB not connected - cannot send world_state');
       }
     },
 
@@ -1612,9 +1620,9 @@ const app = new Elysia()
       }
     },
 
-    close(ws) {
+    close(ws, code, reason) {
       const wsId = getWsId(ws);
-      wsLogger.info({ wsId, clientCount: clients.size - 1 }, 'Client disconnected');
+      wsLogger.info({ wsId, clientCount: clients.size - 1, closeCode: code, closeReason: reason?.toString() }, 'Client disconnected');
       const session = clients.get(wsId);
       
       // Mark player as offline when they disconnect (but keep them in database)

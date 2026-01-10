@@ -101,6 +101,25 @@ class _GameScreenState extends State<GameScreen> {
     // Use BridgeSpacetimeDBService to connect via Bun/Elysia bridge
     _stdbService = BridgeSpacetimeDBService();
 
+    // Health check - verify bridge is healthy and SpacetimeDB is connected
+    debugPrint('[GameScreen] Performing health check...');
+    final healthResult = await _stdbService.checkHealth(_bridgeUrl);
+
+    if (!healthResult.healthy) {
+      if (!mounted) return;
+      final errorMsg = healthResult.spacetimedb == 'disconnected'
+          ? 'Server database is disconnected. Please try again later.'
+          : healthResult.spacetimedb == 'unreachable'
+              ? 'Could not reach server. Check your internet connection.'
+              : 'Server is experiencing issues (${healthResult.status})';
+      setState(() {
+        _isConnecting = false;
+        _connectionError = errorMsg;
+      });
+      return;
+    }
+    debugPrint('[GameScreen] Health check passed!');
+
     // Listen to connection state changes
     _connectionSubscription = _stdbService.connectionStateStream.listen((state) {
       debugPrint('[GameScreen] Connection state: $state');
@@ -625,15 +644,17 @@ class _GameScreenState extends State<GameScreen> {
       ),
       child: SafeArea(
         child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Error icon with pulsing animation
+                // Left side - Error icon
                 Container(
-                  width: 120,
-                  height: 120,
+                  width: 100,
+                  height: 100,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: GameColors.playerDefault.withAlpha(30),
@@ -645,88 +666,97 @@ class _GameScreenState extends State<GameScreen> {
                   child: Icon(
                     Icons.cloud_off_rounded,
                     color: GameColors.playerDefault,
-                    size: 64,
+                    size: 48,
                   ),
                 ),
-                const SizedBox(height: 40),
-                Text(
-                  'Cannot Connect to Server',
-                  style: TextStyle(
-                    color: GameColors.textPrimary,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'The game server is not available.\nPlease check your connection and try again.',
-                  style: TextStyle(
-                    color: GameColors.textSecondary,
-                    fontSize: 16,
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: GameColors.menuAccent,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    _bridgeUrl,
-                    style: TextStyle(
-                      color: GameColors.textSecondary.withAlpha(180),
-                      fontSize: 12,
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 48),
-                // Retry button
-                SizedBox(
-                  width: 220,
-                  height: 56,
-                  child: ElevatedButton.icon(
-                    onPressed: _retryConnection,
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text(
-                      'Retry Connection',
+                const SizedBox(width: 40),
+                // Right side - Text and buttons
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Cannot Connect to Server',
                       style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                        color: GameColors.textPrimary,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: GameColors.pondBlue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                    const SizedBox(height: 8),
+                    Text(
+                      'The game server is not available.\nPlease check your connection and try again.',
+                      style: TextStyle(
+                        color: GameColors.textSecondary,
+                        fontSize: 14,
+                        height: 1.4,
                       ),
-                      elevation: 4,
                     ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // Back to menu button
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pushReplacementNamed('/');
-                  },
-                  icon: Icon(
-                    Icons.arrow_back_rounded,
-                    color: GameColors.textSecondary,
-                    size: 20,
-                  ),
-                  label: Text(
-                    'Back to Menu',
-                    style: TextStyle(
-                      color: GameColors.textSecondary,
-                      fontSize: 14,
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: GameColors.menuAccent,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _bridgeUrl,
+                        style: TextStyle(
+                          color: GameColors.textSecondary.withAlpha(180),
+                          fontSize: 11,
+                          fontFamily: 'monospace',
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(height: 24),
+                    // Buttons row
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          height: 44,
+                          child: ElevatedButton.icon(
+                            onPressed: _retryConnection,
+                            icon: const Icon(Icons.refresh_rounded, size: 20),
+                            label: const Text(
+                              'Retry Connection',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: GameColors.pondBlue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 20),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              elevation: 4,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        TextButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pushReplacementNamed('/');
+                          },
+                          icon: Icon(
+                            Icons.arrow_back_rounded,
+                            color: GameColors.textSecondary,
+                            size: 18,
+                          ),
+                          label: Text(
+                            'Back to Menu',
+                            style: TextStyle(
+                              color: GameColors.textSecondary,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),
