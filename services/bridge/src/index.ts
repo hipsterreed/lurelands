@@ -11,6 +11,20 @@ const PORT = parseInt(process.env.PORT ?? '8080', 10);
 const HOST = process.env.HOST ?? '0.0.0.0';
 const SPACETIMEDB_URI = process.env.SPACETIMEDB_URI ?? 'ws://localhost:3000';
 const SPACETIMEDB_MODULE = process.env.SPACETIMEDB_MODULE ?? 'lurelands';
+const SERVICE_KEY = process.env.SERVICE_KEY ?? '';
+
+// Service key validation helper
+function validateServiceKey(request: Request): Response | null {
+  if (!SERVICE_KEY) return null; // No key configured = no auth required
+  const providedKey = request.headers.get('X-Service-Key');
+  if (providedKey !== SERVICE_KEY) {
+    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  return null;
+}
 
 // =============================================================================
 // Client Session Management
@@ -1330,6 +1344,25 @@ const questAdminPageHtml = `<!DOCTYPE html>
 // =============================================================================
 
 const app = new Elysia()
+  // CORS for admin app
+  .onRequest(({ request, set }) => {
+    const origin = request.headers.get('Origin');
+    if (origin) {
+      set.headers['Access-Control-Allow-Origin'] = origin;
+      set.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS';
+      set.headers['Access-Control-Allow-Headers'] = 'Content-Type, X-Service-Key';
+    }
+    if (request.method === 'OPTIONS') {
+      return new Response(null, { status: 204 });
+    }
+  })
+  // Service key auth for /api/* routes
+  .onBeforeHandle(({ request, path }) => {
+    if (path.startsWith('/api/')) {
+      const authError = validateServiceKey(request);
+      if (authError) return authError;
+    }
+  })
   // Health check endpoint
   .get('/', () => ({
     status: 'ok',

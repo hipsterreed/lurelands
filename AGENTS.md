@@ -6,12 +6,38 @@ This is a multiplayer fishing game built with Flutter, SpacetimeDB, and a TypeSc
 
 ```
 lurelands/
-├── apps/lurelands/          # Flutter client app
+├── apps/
+│   └── lurelands/              # Flutter client app (main game)
 ├── services/
-│   ├── spacetime-server/    # SpacetimeDB Rust module (database + game logic)
-│   └── bridge/              # TypeScript WebSocket bridge (Bun + Elysia)
-└── cli/                     # Go CLI for development commands
+│   ├── spacetime-server/       # SpacetimeDB Rust module (schema + game logic)
+│   └── bridge/                 # TypeScript WebSocket bridge (Bun + Elysia)
+└── cli/                        # Go CLI for development commands
 ```
+
+### Apps
+
+The `apps/` folder contains our client applications:
+
+- **lurelands** (Flutter) - This is our main app, the Lurelands fishing game. Built with Flutter and the Flame game engine, it's a multiplayer fishing RPG where players can fish, collect items, and explore the world.
+
+- **admin** (NextJS) - *Coming soon* - An admin dashboard for managing the game from an administrative standpoint. This will be used for game management, analytics, and content management.
+
+### Services
+
+The `services/` folder contains our backend infrastructure:
+
+- **spacetime-server** - Contains our SpacetimeDB schema and game logic written in Rust. This defines all our database tables, reducers, and server-side game logic. We always connect to the hosted SpacetimeDB instance (maincloud) both locally during development and in production - we don't run SpacetimeDB locally.
+
+- **bridge** - A TypeScript WebSocket service that acts as the communication layer between our apps and the SpacetimeDB database. The bridge handles all real-time data synchronization, translating between the Flutter client and SpacetimeDB.
+
+### CLI
+
+The `cli/` folder contains a Go-based command-line tool used locally for development tasks:
+
+- Push schema changes to SpacetimeDB
+- Run builds and deployments
+- Generate TypeScript types from the Rust schema
+- Run the Flutter app on various devices
 
 ## CLI Usage
 
@@ -111,13 +137,10 @@ Key files:
 
 2. **Running the full stack locally:**
    ```bash
-   # Terminal 1: Start SpacetimeDB (if not already running)
-   spacetime start
-   
-   # Terminal 2: Start the bridge
+   # Terminal 1: Start the bridge
    lurelands bridge:dev
-   
-   # Terminal 3: Run Flutter app
+
+   # Terminal 2: Run Flutter app
    lurelands run
    ```
 
@@ -125,7 +148,7 @@ Key files:
    ```bash
    # Step 1: Deploy SpacetimeDB module to maincloud and rebuild bridge
    lurelands deploy:full
-   
+
    # Step 2: Deploy bridge to Railway
    cd services/bridge
    railway up
@@ -142,7 +165,7 @@ Key files:
 └─────────────┘                   └─────────────┘                     └─────────────────┘
 ```
 
-- **SpacetimeDB**: Hosted on SpacetimeDB maincloud (`wss://maincloud.spacetimedb.com`)
+- **SpacetimeDB**: Always hosted on SpacetimeDB maincloud (`wss://maincloud.spacetimedb.com`) - both for local development and production
 - **Bridge Service**: Hosted on Railway (Dockerfile-based, Bun runtime)
 - **Flutter Client**: Connects to Railway bridge which proxies to SpacetimeDB
 
@@ -174,4 +197,3 @@ spacetime sql lurelands "SELECT * FROM game_event WHERE player_id = 'player123'"
 # Fish catch analytics
 spacetime sql lurelands "SELECT player_id, COUNT(*) as catches FROM game_event WHERE event_type = 'fish_caught' GROUP BY player_id"
 ```
-
