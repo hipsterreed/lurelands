@@ -577,24 +577,43 @@ class QuestOfferDialog extends StatelessWidget {
 
 /// Determines which quest to show at a quest sign
 class QuestSignHelper {
-  /// Filter quests by storyline if specified
-  static List<Quest> _filterByStoryline(List<Quest> quests, List<String>? storylines) {
-    if (storylines == null || storylines.isEmpty) return quests;
-    return quests.where((q) => 
-      q.storyline != null && storylines.contains(q.storyline)
-    ).toList();
+  /// Filter quests that should appear at this specific sign
+  /// Logic:
+  /// - If quest.questGiverType == 'sign' and quest.questGiverId == signId, include it
+  /// - If quest.questGiverType == null, include it if storyline matches (legacy behavior)
+  /// - If quest.questGiverType == 'npc', exclude it (NPCs handle their own quests)
+  static List<Quest> _filterForSign(
+    List<Quest> quests,
+    String? signId,
+    List<String>? storylines,
+  ) {
+    return quests.where((q) {
+      // If quest is assigned to a specific NPC, don't show at signs
+      if (q.questGiverType == 'npc') return false;
+
+      // If quest is assigned to a specific sign, only show at that sign
+      if (q.questGiverType == 'sign') {
+        return q.questGiverId == signId;
+      }
+
+      // Quest has no specific giver (null) - use storyline filtering (legacy behavior)
+      if (storylines == null || storylines.isEmpty) return true;
+      return q.storyline != null && storylines.contains(q.storyline);
+    }).toList();
   }
 
   /// Gets the next quest to show at a quest sign
   /// Priority: 1) Completable quests, 2) Available quests, 3) Active quests
-  /// If storylines is provided, only shows quests matching those storylines
+  /// signId: The unique ID of this quest sign (for quest giver matching)
+  /// storylines: Legacy filter - only used for quests with no specific giver
   static Quest? getQuestToShow({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
+    String? signId,
     List<String>? storylines,
   }) {
-    final filteredQuests = _filterByStoryline(allQuests, storylines);
-    
+    final filteredQuests = _filterForSign(allQuests, signId, storylines);
+
     Quest? completableQuest;
     Quest? availableQuest;
     Quest? activeQuest;
@@ -635,14 +654,16 @@ class QuestSignHelper {
   }
 
   /// Check if there are any available or completable quests (for showing ! indicator)
-  /// If storylines is provided, only checks quests matching those storylines
+  /// signId: The unique ID of this quest sign (for quest giver matching)
+  /// storylines: Legacy filter - only used for quests with no specific giver
   static bool hasAvailableOrCompletableQuests({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
+    String? signId,
     List<String>? storylines,
   }) {
-    final filteredQuests = _filterByStoryline(allQuests, storylines);
-    
+    final filteredQuests = _filterForSign(allQuests, signId, storylines);
+
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
@@ -666,14 +687,16 @@ class QuestSignHelper {
   }
 
   /// Check if there's a quest ready to turn in (for showing ? indicator instead of !)
-  /// If storylines is provided, only checks quests matching those storylines
+  /// signId: The unique ID of this quest sign (for quest giver matching)
+  /// storylines: Legacy filter - only used for quests with no specific giver
   static bool hasCompletableQuest({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
+    String? signId,
     List<String>? storylines,
   }) {
-    final filteredQuests = _filterByStoryline(allQuests, storylines);
-    
+    final filteredQuests = _filterForSign(allQuests, signId, storylines);
+
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
       if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
@@ -684,14 +707,16 @@ class QuestSignHelper {
   }
 
   /// Check if there's an active quest in progress (not complete)
-  /// If storylines is provided, only checks quests matching those storylines
+  /// signId: The unique ID of this quest sign (for quest giver matching)
+  /// storylines: Legacy filter - only used for quests with no specific giver
   static bool hasActiveQuest({
     required List<Quest> allQuests,
     required List<PlayerQuest> playerQuests,
+    String? signId,
     List<String>? storylines,
   }) {
-    final filteredQuests = _filterByStoryline(allQuests, storylines);
-    
+    final filteredQuests = _filterForSign(allQuests, signId, storylines);
+
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
       // Active but not complete

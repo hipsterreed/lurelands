@@ -62,6 +62,13 @@ class _GameScreenState extends State<GameScreen> {
   VoidCallback? _questSignNotifierListener;
   StreamSubscription<({List<Quest> quests, List<PlayerQuest> playerQuests})>? _questSubscription;
 
+  // Player stats (level/XP)
+  PlayerStats? _playerStats;
+  StreamSubscription<PlayerStats>? _playerStatsSubscription;
+  StreamSubscription<LevelUpEvent>? _levelUpSubscription;
+  bool _showLevelUpNotification = false;
+  int _levelUpNewLevel = 1;
+
   @override
   void initState() {
     super.initState();
@@ -199,11 +206,39 @@ class _GameScreenState extends State<GameScreen> {
         _updateQuestSignIndicators();
       }
     });
-    
-    // Initialize with current quest data
+
+    // Subscribe to player stats updates (level/XP)
+    _playerStatsSubscription = _stdbService.playerStatsStream.listen((stats) {
+      if (mounted) {
+        setState(() {
+          _playerStats = stats;
+        });
+      }
+    });
+
+    // Subscribe to level up events for notifications
+    _levelUpSubscription = _stdbService.levelUpStream.listen((event) {
+      if (mounted) {
+        setState(() {
+          _showLevelUpNotification = true;
+          _levelUpNewLevel = event.newLevel;
+        });
+        // Auto-hide after 3 seconds
+        Future.delayed(const Duration(seconds: 3), () {
+          if (mounted) {
+            setState(() {
+              _showLevelUpNotification = false;
+            });
+          }
+        });
+      }
+    });
+
+    // Initialize with current data
     _quests = _stdbService.quests;
     _playerQuests = _stdbService.playerQuests;
-    
+    _playerStats = _stdbService.playerStats;
+
     setState(() {
       _isConnecting = false;
       _game = game;
@@ -231,6 +266,8 @@ class _GameScreenState extends State<GameScreen> {
     _inventorySubscription?.cancel();
     _playerSubscription?.cancel();
     _questSubscription?.cancel();
+    _playerStatsSubscription?.cancel();
+    _levelUpSubscription?.cancel();
     if (_shopNotifierListener != null && _game != null) {
       _game!.nearbyShopNotifier.removeListener(_shopNotifierListener!);
     }
@@ -341,6 +378,7 @@ class _GameScreenState extends State<GameScreen> {
                 final questToShow = QuestSignHelper.getQuestToShow(
                   allQuests: _quests,
                   playerQuests: _playerQuests,
+                  signId: _nearbyQuestSign!.id,
                   storylines: _nearbyQuestSign!.storylines,
                 );
                 
@@ -381,11 +419,13 @@ class _GameScreenState extends State<GameScreen> {
               (QuestSignHelper.hasAvailableOrCompletableQuests(
                 allQuests: _quests,
                 playerQuests: _playerQuests,
+                signId: _nearbyQuestSign!.id,
                 storylines: _nearbyQuestSign!.storylines,
               ) ||
               QuestSignHelper.hasActiveQuest(
                 allQuests: _quests,
                 playerQuests: _playerQuests,
+                signId: _nearbyQuestSign!.id,
                 storylines: _nearbyQuestSign!.storylines,
               )))
             _buildQuestSignButton(),
@@ -689,6 +729,20 @@ class _GameScreenState extends State<GameScreen> {
     return SafeArea(
       child: Stack(
         children: [
+          // Level and XP display (top left)
+          Positioned(
+            top: 16,
+            left: 16,
+            child: _buildLevelDisplay(),
+          ),
+          // Level up notification (center top)
+          if (_showLevelUpNotification)
+            Positioned(
+              top: 80,
+              left: 0,
+              right: 0,
+              child: _buildLevelUpNotification(),
+            ),
           // Inventory/Backpack button (top right)
           Positioned(
             top: 16,
@@ -735,6 +789,189 @@ class _GameScreenState extends State<GameScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Build the level display with XP bar
+  Widget _buildLevelDisplay() {
+    final level = _playerStats?.level ?? 1;
+    final xp = _playerStats?.xp ?? 0;
+    final xpToNext = _playerStats?.xpToNextLevel ?? 100;
+    final progress = xpToNext > 0 ? (xp / xpToNext).clamp(0.0, 1.0) : 0.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: GameColors.menuBackground.withAlpha(200),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: const Color(0xFF5D3A1A),
+          width: 2,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Level badge
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [Color(0xFFFFD700), Color(0xFFB8860B)],
+              ),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: const Color(0xFF8B6914),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(100),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Center(
+              child: Text(
+                '$level',
+                style: const TextStyle(
+                  color: Color(0xFF2D1810),
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          // XP bar
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Level $level',
+                style: const TextStyle(
+                  color: Color(0xFFF5E6D3),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Container(
+                width: 80,
+                height: 8,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D1810),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: const Color(0xFF5D3A1A),
+                    width: 1,
+                  ),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: progress,
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF4CAF50), Color(0xFF81C784)],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                '$xp / $xpToNext XP',
+                style: TextStyle(
+                  color: const Color(0xFFF5E6D3).withAlpha(180),
+                  fontSize: 9,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Build level up notification toast
+  Widget _buildLevelUpNotification() {
+    return Center(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.elasticOut,
+        builder: (context, value, child) {
+          return Transform.scale(
+            scale: value,
+            child: child,
+          );
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFD700), Color(0xFFFFA500)],
+            ),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: const Color(0xFFB8860B),
+              width: 3,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFFFD700).withAlpha(100),
+                blurRadius: 20,
+                spreadRadius: 2,
+              ),
+              BoxShadow(
+                color: Colors.black.withAlpha(150),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.arrow_upward,
+                color: Color(0xFF2D1810),
+                size: 28,
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'LEVEL UP!',
+                style: TextStyle(
+                  color: Color(0xFF2D1810),
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 2,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Level $_levelUpNewLevel',
+                style: const TextStyle(
+                  color: Color(0xFF5D3A1A),
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1141,20 +1378,23 @@ class _GameScreenState extends State<GameScreen> {
 
   /// Build the quest sign interaction button (appears when near a quest sign)
   Widget _buildQuestSignButton() {
-    // Check if there's a quest ready to turn in (filtered by this sign's storylines)
+    // Check if there's a quest ready to turn in (filtered by this sign's id and storylines)
     final hasCompletable = QuestSignHelper.hasCompletableQuest(
       allQuests: _quests,
       playerQuests: _playerQuests,
+      signId: _nearbyQuestSign?.id,
       storylines: _nearbyQuestSign?.storylines,
     );
     final hasAvailable = QuestSignHelper.hasAvailableOrCompletableQuests(
       allQuests: _quests,
       playerQuests: _playerQuests,
+      signId: _nearbyQuestSign?.id,
       storylines: _nearbyQuestSign?.storylines,
     );
     final hasActive = QuestSignHelper.hasActiveQuest(
       allQuests: _quests,
       playerQuests: _playerQuests,
+      signId: _nearbyQuestSign?.id,
       storylines: _nearbyQuestSign?.storylines,
     );
     
@@ -1244,35 +1484,41 @@ class _GameScreenState extends State<GameScreen> {
   /// Update quest sign indicators based on current quest state
   void _updateQuestSignIndicators() {
     if (_game == null) return;
-    
+
     _game!.updateQuestSignIndicators(
       allQuests: _quests,
       playerQuests: _playerQuests,
       hasCompletableCheck: ({
         required List<dynamic> allQuests,
         required List<dynamic> playerQuests,
+        String? signId,
         List<String>? storylines,
       }) => QuestSignHelper.hasCompletableQuest(
         allQuests: allQuests.cast<Quest>(),
         playerQuests: playerQuests.cast<PlayerQuest>(),
+        signId: signId,
         storylines: storylines,
       ),
       hasAvailableCheck: ({
         required List<dynamic> allQuests,
         required List<dynamic> playerQuests,
+        String? signId,
         List<String>? storylines,
       }) => QuestSignHelper.hasAvailableOrCompletableQuests(
         allQuests: allQuests.cast<Quest>(),
         playerQuests: playerQuests.cast<PlayerQuest>(),
+        signId: signId,
         storylines: storylines,
       ),
       hasActiveCheck: ({
         required List<dynamic> allQuests,
         required List<dynamic> playerQuests,
+        String? signId,
         List<String>? storylines,
       }) => QuestSignHelper.hasActiveQuest(
         allQuests: allQuests.cast<Quest>(),
         playerQuests: playerQuests.cast<PlayerQuest>(),
+        signId: signId,
         storylines: storylines,
       ),
     );

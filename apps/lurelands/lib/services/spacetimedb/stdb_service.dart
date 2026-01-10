@@ -214,6 +214,74 @@ class PlayerQuest {
   }
 }
 
+/// Player stats including level and XP
+class PlayerStats {
+  final String playerId;
+  final int totalPlaytimeSeconds;
+  final int totalSessions;
+  final int totalFishCaught;
+  final int totalGoldEarned;
+  final int totalGoldSpent;
+  final int firstSeenAt; // Unix timestamp (microseconds)
+  final int lastSeenAt; // Unix timestamp (microseconds)
+  final int level;
+  final int xp;
+  final int xpToNextLevel;
+
+  const PlayerStats({
+    required this.playerId,
+    required this.totalPlaytimeSeconds,
+    required this.totalSessions,
+    required this.totalFishCaught,
+    required this.totalGoldEarned,
+    required this.totalGoldSpent,
+    required this.firstSeenAt,
+    required this.lastSeenAt,
+    required this.level,
+    required this.xp,
+    required this.xpToNextLevel,
+  });
+
+  factory PlayerStats.fromJson(Map<String, dynamic> json) => PlayerStats(
+        playerId: json['playerId'] as String,
+        totalPlaytimeSeconds: json['totalPlaytimeSeconds'] as int? ?? 0,
+        totalSessions: json['totalSessions'] as int? ?? 0,
+        totalFishCaught: json['totalFishCaught'] as int? ?? 0,
+        totalGoldEarned: json['totalGoldEarned'] as int? ?? 0,
+        totalGoldSpent: json['totalGoldSpent'] as int? ?? 0,
+        firstSeenAt: json['firstSeenAt'] as int? ?? 0,
+        lastSeenAt: json['lastSeenAt'] as int? ?? 0,
+        level: json['level'] as int? ?? 1,
+        xp: json['xp'] as int? ?? 0,
+        xpToNextLevel: json['xpToNextLevel'] as int? ?? 100,
+      );
+
+  /// Get XP progress as a percentage (0.0 to 1.0)
+  double get xpProgress => xpToNextLevel > 0 ? xp / xpToNextLevel : 0.0;
+}
+
+/// Level up event data
+class LevelUpEvent {
+  final String playerId;
+  final int newLevel;
+  final int xp;
+  final int xpToNextLevel;
+
+  const LevelUpEvent({
+    required this.playerId,
+    required this.newLevel,
+    required this.xp,
+    required this.xpToNextLevel,
+  });
+
+  factory LevelUpEvent.fromJson(Map<String, dynamic> json) => LevelUpEvent(
+        playerId: json['playerId'] as String,
+        newLevel: json['newLevel'] as int,
+        xp: json['xp'] as int,
+        xpToNextLevel: json['xpToNextLevel'] as int,
+      );
+}
+
 /// Connection state for SpacetimeDB
 enum StdbConnectionState {
   disconnected,
@@ -369,6 +437,17 @@ abstract class SpacetimeDBService {
   /// Request quest refresh
   void requestQuests();
 
+  // Player stats methods
+
+  /// Current player stats (null if not yet received)
+  PlayerStats? get playerStats;
+
+  /// Stream of player stats updates
+  Stream<PlayerStats> get playerStatsStream;
+
+  /// Stream of level up events
+  Stream<LevelUpEvent> get levelUpStream;
+
   /// Dispose resources
   void dispose();
 }
@@ -391,6 +470,7 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   List<InventoryEntry> _inventory = [];
   List<Quest> _quests = [];
   List<PlayerQuest> _playerQuests = [];
+  PlayerStats? _playerStats;
 
   // Stream controllers
   final _playerUpdatesController = StreamController<List<PlayerState>>.broadcast();
@@ -398,6 +478,8 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   final _worldStateController = StreamController<WorldState>.broadcast();
   final _inventoryController = StreamController<List<InventoryEntry>>.broadcast();
   final _questController = StreamController<({List<Quest> quests, List<PlayerQuest> playerQuests})>.broadcast();
+  final _playerStatsController = StreamController<PlayerStats>.broadcast();
+  final _levelUpController = StreamController<LevelUpEvent>.broadcast();
 
   // Throttle position updates to avoid flooding
   DateTime? _lastPositionUpdate;
@@ -435,6 +517,15 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
   @override
   List<PlayerQuest> get playerQuests => _playerQuests;
+
+  @override
+  PlayerStats? get playerStats => _playerStats;
+
+  @override
+  Stream<PlayerStats> get playerStatsStream => _playerStatsController.stream;
+
+  @override
+  Stream<LevelUpEvent> get levelUpStream => _levelUpController.stream;
 
   void _setState(StdbConnectionState newState) {
     if (_state != newState) {
@@ -697,6 +788,38 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
           _questController.add((quests: _quests, playerQuests: _playerQuests));
           debugPrint('[Bridge] Player quest updated: ${updatedPq.questId} -> ${updatedPq.status}');
         }
+        break;
+
+      case 'player_stats':
+        final statsData = data['stats'] as Map<String, dynamic>?;
+        if (statsData != null) {
+          _playerStats = PlayerStats.fromJson(statsData);
+          _playerStatsController.add(_playerStats!);
+          debugPrint('[Bridge] Player stats updated: Level ${_playerStats!.level}, XP ${_playerStats!.xp}/${_playerStats!.xpToNextLevel}');
+        }
+        break;
+
+      case 'level_up':
+        final levelUpData = LevelUpEvent.fromJson(data);
+        // Also update local stats cache
+        if (_playerStats != null && levelUpData.playerId == _playerStats!.playerId) {
+          _playerStats = PlayerStats(
+            playerId: _playerStats!.playerId,
+            totalPlaytimeSeconds: _playerStats!.totalPlaytimeSeconds,
+            totalSessions: _playerStats!.totalSessions,
+            totalFishCaught: _playerStats!.totalFishCaught,
+            totalGoldEarned: _playerStats!.totalGoldEarned,
+            totalGoldSpent: _playerStats!.totalGoldSpent,
+            firstSeenAt: _playerStats!.firstSeenAt,
+            lastSeenAt: _playerStats!.lastSeenAt,
+            level: levelUpData.newLevel,
+            xp: levelUpData.xp,
+            xpToNextLevel: levelUpData.xpToNextLevel,
+          );
+          _playerStatsController.add(_playerStats!);
+        }
+        _levelUpController.add(levelUpData);
+        debugPrint('[Bridge] Level up! New level: ${levelUpData.newLevel}');
         break;
     }
   }
@@ -1163,6 +1286,8 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _worldStateController.close();
     _inventoryController.close();
     _questController.close();
+    _playerStatsController.close();
+    _levelUpController.close();
   }
 }
 
