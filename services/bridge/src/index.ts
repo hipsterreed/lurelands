@@ -1430,7 +1430,7 @@ const app = new Elysia()
   // Debug endpoint to check bridge state
   .get('/api/debug', () => {
     return {
-      connected: stdb.isConnected,
+      connected: stdb.getIsConnected(),
       questCount: stdb.getQuests().length,
       quests: stdb.getQuests(),
     };
@@ -1453,6 +1453,8 @@ const app = new Elysia()
       prerequisiteQuestId: quest.prerequisiteQuestId || null,
       requirements: quest.requirements,
       rewards: quest.rewards,
+      questGiverType: quest.questGiverType || null,
+      questGiverId: quest.questGiverId || null,
     });
     return { success };
   })
@@ -1469,6 +1471,8 @@ const app = new Elysia()
       prerequisiteQuestId: quest.prerequisiteQuestId || null,
       requirements: quest.requirements,
       rewards: quest.rewards,
+      questGiverType: quest.questGiverType || null,
+      questGiverId: quest.questGiverId || null,
     });
     return { success };
   })
