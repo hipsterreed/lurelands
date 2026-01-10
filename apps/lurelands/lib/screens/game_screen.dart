@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../game/lurelands_game.dart';
 import '../models/player_state.dart';
 import '../services/game_settings.dart';
+import '../services/item_service.dart';
 import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
@@ -81,6 +82,10 @@ class _GameScreenState extends State<GameScreen> {
       _connectionError = null;
     });
 
+    // Load item definitions from API before connecting
+    final httpUrl = _wsUrlToHttpUrl(_bridgeUrl);
+    await ItemService.instance.loadItems(httpUrl);
+
     // Use BridgeSpacetimeDBService to connect via Bun/Elysia bridge
     _stdbService = BridgeSpacetimeDBService();
 
@@ -115,6 +120,14 @@ class _GameScreenState extends State<GameScreen> {
         _connectionError = 'Could not connect to server at $_bridgeUrl';
       });
     }
+  }
+
+  /// Convert WebSocket URL to HTTP URL for API calls
+  String _wsUrlToHttpUrl(String wsUrl) {
+    return wsUrl
+        .replaceFirst('wss://', 'https://')
+        .replaceFirst('ws://', 'http://')
+        .replaceFirst('/ws', '');
   }
 
   Future<void> _createGame() async {

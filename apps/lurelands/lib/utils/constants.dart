@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import '../services/item_service.dart';
+
 /// Game-wide constants for Lurelands
 class GameConstants {
   // Prevent instantiation
@@ -272,6 +274,7 @@ class ItemDefinition {
   final String assetPath;
   final WaterType? waterType; // For fish only
   final int? tier; // For equipment tiers
+  final Map<int, double>? rarityMultipliers; // From database
 
   const ItemDefinition({
     required this.id,
@@ -282,11 +285,16 @@ class ItemDefinition {
     required this.assetPath,
     this.waterType,
     this.tier,
+    this.rarityMultipliers,
   });
 
   /// Get the sell price based on rarity (stars)
   int getSellPrice(int rarity) {
-    // Higher rarity = higher multiplier
+    // Use database multipliers if available
+    if (rarityMultipliers != null && rarityMultipliers!.containsKey(rarity)) {
+      return (basePrice * rarityMultipliers![rarity]!).round();
+    }
+    // Fallback to hardcoded logic
     final multiplier = rarity <= 1 ? 1.0 : (rarity == 2 ? 2.0 : 4.0);
     return (basePrice * multiplier).round();
   }
@@ -575,13 +583,21 @@ class GameItems {
     'lure_4': lure4,
   };
 
-  /// Get item definition by ID
-  static ItemDefinition? get(String id) => all[id];
+  /// Get item definition by ID (from service if loaded, fallback otherwise)
+  static ItemDefinition? get(String id) {
+    if (ItemService.instance.isLoaded) {
+      return ItemService.instance.get(id);
+    }
+    return all[id];
+  }
 
   /// Get all fish items
-  static List<ItemDefinition> get allFish => all.values
-      .where((item) => item.type == ItemType.fish)
-      .toList();
+  static List<ItemDefinition> get allFish {
+    if (ItemService.instance.isLoaded) {
+      return ItemService.instance.allFish;
+    }
+    return all.values.where((item) => item.type == ItemType.fish).toList();
+  }
 
   /// Get fish item ID from water type and tier
   static String getFishId(WaterType waterType, int tier) {

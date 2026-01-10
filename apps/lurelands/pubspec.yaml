@@ -47,6 +47,9 @@ dependencies:
   # Local storage for player ID
   shared_preferences: ^2.3.5
 
+  # HTTP client for API calls
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
