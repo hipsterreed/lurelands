@@ -463,6 +463,8 @@ export class StdbClient {
       prerequisiteQuestId: quest.prerequisiteQuestId ?? null,
       requirements: quest.requirements,
       rewards: quest.rewards,
+      questGiverType: quest.questGiverType ?? null,
+      questGiverId: quest.questGiverId ?? null,
     });
   }
 
@@ -978,9 +980,11 @@ export class StdbClient {
     prerequisiteQuestId: string | null;
     requirements: string;
     rewards: string;
+    questGiverType: string | null;
+    questGiverId: string | null;
   }): Promise<boolean> {
     if (!this.conn || !this.isConnected) return false;
-    
+
     try {
       this.conn.reducers.adminCreateQuest({
         id: quest.id,
@@ -992,8 +996,10 @@ export class StdbClient {
         prerequisiteQuestId: quest.prerequisiteQuestId ?? undefined,
         requirements: quest.requirements,
         rewards: quest.rewards,
+        questGiverType: quest.questGiverType ?? undefined,
+        questGiverId: quest.questGiverId ?? undefined,
       });
-      
+
       stdbLogger.info({ questId: quest.id, title: quest.title }, 'Admin created quest');
       return true;
     } catch (error) {
@@ -1012,9 +1018,11 @@ export class StdbClient {
     prerequisiteQuestId: string | null;
     requirements: string;
     rewards: string;
+    questGiverType: string | null;
+    questGiverId: string | null;
   }): Promise<boolean> {
     if (!this.conn || !this.isConnected) return false;
-    
+
     try {
       this.conn.reducers.adminUpdateQuest({
         id: quest.id,
@@ -1026,8 +1034,10 @@ export class StdbClient {
         prerequisiteQuestId: quest.prerequisiteQuestId ?? undefined,
         requirements: quest.requirements,
         rewards: quest.rewards,
+        questGiverType: quest.questGiverType ?? undefined,
+        questGiverId: quest.questGiverId ?? undefined,
       });
-      
+
       stdbLogger.info({ questId: quest.id, title: quest.title }, 'Admin updated quest');
       return true;
     } catch (error) {

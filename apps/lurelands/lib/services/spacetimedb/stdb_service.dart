@@ -47,6 +47,9 @@ class Quest {
   final String? prerequisiteQuestId;
   final String requirements; // JSON string
   final String rewards; // JSON string
+  // Quest giver system
+  final String? questGiverType; // 'npc', 'sign', or null (any sign with matching storyline)
+  final String? questGiverId; // NPC ID or Sign ID
 
   const Quest({
     required this.id,
@@ -58,6 +61,8 @@ class Quest {
     this.prerequisiteQuestId,
     required this.requirements,
     required this.rewards,
+    this.questGiverType,
+    this.questGiverId,
   });
 
   factory Quest.fromJson(Map<String, dynamic> json) => Quest(
@@ -70,6 +75,8 @@ class Quest {
         prerequisiteQuestId: json['prerequisiteQuestId'] as String?,
         requirements: json['requirements'] as String,
         rewards: json['rewards'] as String,
+        questGiverType: json['questGiverType'] as String?,
+        questGiverId: json['questGiverId'] as String?,
       );
 
   /// Parse requirements JSON to get required fish counts

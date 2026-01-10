@@ -100,6 +100,10 @@ export interface PlayerStats {
   totalGoldSpent: number;
   firstSeenAt: number;  // Unix timestamp (microseconds)
   lastSeenAt: number;   // Unix timestamp (microseconds)
+  // Level system
+  level: number;
+  xp: number;
+  xpToNextLevel: number;
 }
 
 export type GameEventType = 
@@ -126,6 +130,9 @@ export interface Quest {
   prerequisiteQuestId: string | null;
   requirements: string;  // JSON string
   rewards: string;       // JSON string
+  // Quest giver system
+  questGiverType: 'npc' | 'sign' | null;  // "npc", "sign", or null (any sign)
+  questGiverId: string | null;            // NPC ID or Sign ID
 }
 
 export interface PlayerQuest {
@@ -136,6 +143,62 @@ export interface PlayerQuest {
   progress: string;  // JSON string
   acceptedAt: number | null;   // Unix timestamp (microseconds)
   completedAt: number | null;  // Unix timestamp (microseconds)
+}
+
+// =============================================================================
+// Storyline Types
+// =============================================================================
+
+export interface Storyline {
+  id: string;
+  name: string;
+  description: string;
+  icon: string | null;
+  category: 'main' | 'side' | 'event';
+  displayOrder: number;
+  unlockConditions: string | null;  // JSON string
+  isActive: boolean;
+  totalQuests: number;
+}
+
+export interface PlayerStoryline {
+  id: number;
+  playerId: string;
+  storylineId: string;
+  status: 'locked' | 'unlocked' | 'in_progress' | 'completed';
+  questsCompleted: number;
+  currentQuestId: string | null;
+  unlockedAt: number | null;   // Unix timestamp (microseconds)
+  completedAt: number | null;  // Unix timestamp (microseconds)
+}
+
+// =============================================================================
+// NPC Types
+// =============================================================================
+
+export interface Npc {
+  id: string;
+  name: string;
+  title: string | null;
+  description: string | null;
+  locationX: number | null;
+  locationY: number | null;
+  spriteId: string | null;
+  canGiveQuests: boolean;
+  canTrade: boolean;
+  isActive: boolean;
+}
+
+export interface PlayerNpcInteraction {
+  id: number;
+  playerId: string;
+  npcId: string;
+  hasTalked: boolean;
+  hasTraded: boolean;
+  talkCount: number;
+  reputation: number;  // -100 to 100
+  firstInteractionAt: number;  // Unix timestamp (microseconds)
+  lastInteractionAt: number;   // Unix timestamp (microseconds)
 }
 
 export interface GameEvent {
@@ -174,7 +237,13 @@ export type ClientMessage =
   // Quest messages
   | { type: 'get_quests' }
   | { type: 'accept_quest'; questId: string }
-  | { type: 'complete_quest'; questId: string };
+  | { type: 'complete_quest'; questId: string }
+  // NPC interaction messages
+  | { type: 'npc_talk'; npcId: string }
+  | { type: 'npc_trade'; npcId: string }
+  // Storyline/NPC data requests
+  | { type: 'get_storylines' }
+  | { type: 'get_npcs' };
 
 // =============================================================================
 // Bridge → Client Messages
@@ -195,5 +264,14 @@ export type ServerMessage =
   | { type: 'error'; message: string }
   // Quest messages
   | { type: 'quests'; quests: Quest[]; playerQuests: PlayerQuest[] }
-  | { type: 'quest_updated'; playerQuest: PlayerQuest };
+  | { type: 'quest_updated'; playerQuest: PlayerQuest }
+  // Player stats (with level info)
+  | { type: 'player_stats'; stats: PlayerStats }
+  | { type: 'level_up'; playerId: string; newLevel: number; xp: number; xpToNextLevel: number }
+  // Storyline messages
+  | { type: 'storylines'; storylines: Storyline[]; playerStorylines: PlayerStoryline[] }
+  | { type: 'storyline_updated'; playerStoryline: PlayerStoryline }
+  // NPC messages
+  | { type: 'npcs'; npcs: Npc[]; playerNpcInteractions: PlayerNpcInteraction[] }
+  | { type: 'npc_interaction_updated'; interaction: PlayerNpcInteraction };
 

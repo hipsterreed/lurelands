@@ -195,35 +195,46 @@ pub struct Quest {
     /// Unique quest identifier (e.g., "guild_1", "ocean_1", "daily_haul")
     #[primary_key]
     pub id: String,
-    
+
     /// Display title of the quest
     pub title: String,
-    
+
     /// Flavor text / description
     pub description: String,
-    
+
     /// Quest type: "story" or "daily"
     pub quest_type: String,
-    
+
     /// Storyline group (e.g., "fishermans_guild", "ocean_mysteries")
     /// None for daily quests which have no storyline
     pub storyline: Option<String>,
-    
+
     /// Order within the storyline (1, 2, 3...)
     /// None for daily quests
     pub story_order: Option<u32>,
-    
+
     /// Quest ID that must be completed before this one is available
     /// None if this is the first quest in a storyline or a daily
     pub prerequisite_quest_id: Option<String>,
-    
+
     /// Requirements as JSON string
-    /// Format: {"fish": {"fish_pond_1": 2, "fish_river_1": 3}, "min_rarity": 1}
+    /// New format: {"objectives": {...}, "unlock_conditions": {...}}
+    /// Legacy format (still supported): {"fish": {...}, "total_fish": N, "min_rarity": N}
     pub requirements: String,
-    
-    /// Rewards as JSON string  
+
+    /// Rewards as JSON string
     /// Format: {"gold": 100, "items": [{"item_id": "pole_2", "quantity": 1}]}
     pub rewards: String,
+
+    // === QUEST GIVER SYSTEM ===
+
+    /// Type of quest giver: "npc", "sign", or None (available at any sign with matching storyline)
+    #[sats(default)]
+    pub quest_giver_type: Option<String>,
+
+    /// ID of the quest giver (NPC ID or Sign ID)
+    #[sats(default)]
+    pub quest_giver_id: Option<String>,
 }
 
 /// Player quest progress table - tracks each player's quest state
@@ -253,6 +264,149 @@ pub struct PlayerQuest {
     
     /// When the quest was completed (None if not yet completed)
     pub completed_at: Option<Timestamp>,
+}
+
+// =============================================================================
+// STORYLINE SYSTEM
+// =============================================================================
+
+/// Storyline definition - groups quests into narrative arcs
+#[derive(Clone)]
+#[spacetimedb::table(name = storyline, public)]
+pub struct Storyline {
+    /// Unique storyline identifier (e.g., "fishermans_guild", "ocean_mysteries")
+    #[primary_key]
+    pub id: String,
+
+    /// Display name for the storyline
+    pub name: String,
+
+    /// Description of the storyline
+    pub description: String,
+
+    /// Icon identifier for UI display
+    pub icon: Option<String>,
+
+    /// Category: "main", "side", "event"
+    pub category: String,
+
+    /// Display order in UI (lower = first)
+    pub display_order: u32,
+
+    /// Unlock conditions as JSON string (same format as quest unlock_conditions)
+    /// Format: {"level": 5} or null for always available
+    pub unlock_conditions: Option<String>,
+
+    /// Whether this storyline is currently active (for seasonal/event content)
+    pub is_active: bool,
+
+    /// Total number of quests in this storyline (cached for progress display)
+    pub total_quests: u32,
+}
+
+/// Player storyline progress - tracks a player's progress through a storyline
+#[derive(Clone)]
+#[spacetimedb::table(name = player_storyline, public)]
+pub struct PlayerStoryline {
+    /// Unique row identifier
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+
+    /// Player who owns this progress
+    pub player_id: String,
+
+    /// Reference to Storyline.id
+    pub storyline_id: String,
+
+    /// Progress status: "locked", "unlocked", "in_progress", "completed"
+    pub status: String,
+
+    /// Number of quests completed in this storyline
+    pub quests_completed: u32,
+
+    /// ID of the current active quest in this storyline
+    pub current_quest_id: Option<String>,
+
+    /// When the storyline was unlocked
+    pub unlocked_at: Option<Timestamp>,
+
+    /// When all quests were completed
+    pub completed_at: Option<Timestamp>,
+}
+
+// =============================================================================
+// NPC SYSTEM
+// =============================================================================
+
+/// NPC definition - non-player characters that can give quests and interact with players
+#[derive(Clone)]
+#[spacetimedb::table(name = npc, public)]
+pub struct Npc {
+    /// Unique NPC identifier (e.g., "guild_master", "dock_worker")
+    #[primary_key]
+    pub id: String,
+
+    /// Display name for the NPC
+    pub name: String,
+
+    /// Title/role (e.g., "Fisherman's Guild Leader")
+    pub title: Option<String>,
+
+    /// Description text for NPC dialog
+    pub description: Option<String>,
+
+    /// X position in the game world (for spawning)
+    pub location_x: Option<f32>,
+
+    /// Y position in the game world (for spawning)
+    pub location_y: Option<f32>,
+
+    /// Sprite/asset identifier for rendering
+    pub sprite_id: Option<String>,
+
+    /// Whether this NPC can give quests
+    pub can_give_quests: bool,
+
+    /// Whether this NPC can trade with players
+    pub can_trade: bool,
+
+    /// Whether this NPC is currently active in the world
+    pub is_active: bool,
+}
+
+/// Player-NPC interaction tracking - for unlock conditions and relationship tracking
+#[derive(Clone)]
+#[spacetimedb::table(name = player_npc_interaction, public)]
+pub struct PlayerNpcInteraction {
+    /// Unique row identifier
+    #[primary_key]
+    #[auto_inc]
+    pub id: u64,
+
+    /// Player who interacted with the NPC
+    pub player_id: String,
+
+    /// NPC that was interacted with
+    pub npc_id: String,
+
+    /// Whether the player has ever talked to this NPC
+    pub has_talked: bool,
+
+    /// Whether the player has ever traded with this NPC
+    pub has_traded: bool,
+
+    /// Number of times player has talked to this NPC (for reputation)
+    pub talk_count: u32,
+
+    /// Reputation with this NPC (-100 to 100, 0 = neutral)
+    pub reputation: i32,
+
+    /// When the player first interacted with this NPC
+    pub first_interaction_at: Timestamp,
+
+    /// When the player last interacted with this NPC
+    pub last_interaction_at: Timestamp,
 }
 
 // =============================================================================
@@ -289,27 +443,41 @@ pub struct PlayerStats {
     /// Player identifier (matches Player.id)
     #[primary_key]
     pub player_id: String,
-    
+
     /// Total playtime in seconds across all sessions
     pub total_playtime_seconds: u64,
-    
+
     /// Total number of sessions
     pub total_sessions: u32,
-    
+
     /// Total fish caught (all time)
     pub total_fish_caught: u32,
-    
+
     /// Total gold earned (all time)
     pub total_gold_earned: u64,
-    
+
     /// Total gold spent (all time)
     pub total_gold_spent: u64,
-    
+
     /// When this player was first seen
     pub first_seen_at: Timestamp,
-    
+
     /// When this player was last seen
     pub last_seen_at: Timestamp,
+
+    // === LEVEL SYSTEM ===
+
+    /// Current player level (starts at 1)
+    #[sats(default)]
+    pub level: u32,
+
+    /// Current XP accumulated
+    #[sats(default)]
+    pub xp: u64,
+
+    /// XP required to reach next level (cached for client)
+    #[sats(default)]
+    pub xp_to_next_level: u64,
 }
 
 /// Event types for game event logging
@@ -476,6 +644,49 @@ fn calculate_sell_price(item_id: &str, rarity: u8) -> u32 {
         _ => 1.0,
     };
     (base_price as f32 * multiplier).round() as u32
+}
+
+// =============================================================================
+// LEVEL SYSTEM CONSTANTS
+// =============================================================================
+
+/// Base XP for level calculation
+const XP_BASE: f64 = 100.0;
+/// Exponent for level progression curve
+const XP_EXPONENT: f64 = 1.5;
+
+/// XP gained per fish caught (base amount)
+const XP_PER_FISH_BASE: u64 = 10;
+/// XP bonus per fish tier (tier 4 = +40 XP)
+const XP_PER_FISH_TIER: u64 = 10;
+/// XP bonus per rarity star above 1 (2-star = +5, 3-star = +10)
+const XP_PER_RARITY_STAR: u64 = 5;
+/// Base XP for completing a quest
+const XP_QUEST_BASE: u64 = 50;
+/// Bonus XP for story quests
+const XP_QUEST_STORY_BONUS: u64 = 100;
+
+/// Calculate XP required to reach a specific level
+/// Formula: XP = 100 * level^1.5
+fn calculate_xp_for_level(level: u32) -> u64 {
+    if level <= 1 {
+        return 0;
+    }
+    (XP_BASE * (level as f64).powf(XP_EXPONENT)).round() as u64
+}
+
+/// Calculate XP gained from catching a fish
+fn calculate_fish_xp(item_id: &str, rarity: u8) -> u64 {
+    // Extract tier from item_id (e.g., "fish_pond_2" -> tier 2)
+    let tier: u64 = item_id
+        .split('_')
+        .last()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(1);
+
+    XP_PER_FISH_BASE
+        + (tier * XP_PER_FISH_TIER)
+        + ((rarity.saturating_sub(1)) as u64 * XP_PER_RARITY_STAR)
 }
 
 // =============================================================================
@@ -658,7 +869,11 @@ pub fn catch_fish(
         stats.total_fish_caught += 1;
         ctx.db.player_stats().player_id().update(stats);
     }
-    
+
+    // Grant XP for catching fish
+    let fish_xp = calculate_fish_xp(&item_id, rarity);
+    add_xp_internal(ctx, &player_id, fish_xp, "fish_caught");
+
     // Update quest progress for any active quests
     update_quest_progress_for_fish(ctx, &player_id, &item_id, rarity);
 }
@@ -1264,12 +1479,20 @@ pub fn complete_quest(ctx: &ReducerContext, player_id: String, quest_id: String)
     updated_quest.status = "completed".to_string();
     updated_quest.completed_at = Some(ctx.timestamp);
     ctx.db.player_quest().id().update(updated_quest);
-    
+
     // Grant rewards
     grant_quest_rewards(ctx, &player_id, &quest.rewards);
-    
+
+    // Grant XP for completing quest
+    let quest_xp = if quest.quest_type == "story" {
+        XP_QUEST_BASE + XP_QUEST_STORY_BONUS
+    } else {
+        XP_QUEST_BASE
+    };
+    add_xp_internal(ctx, &player_id, quest_xp, "quest_completed");
+
     log::info!("Player {} completed quest: {} ({})", player_id, quest.title, quest_id);
-    
+
     // Log the event
     log_event_internal(
         ctx,
@@ -1574,6 +1797,299 @@ pub fn get_available_quests(ctx: &ReducerContext, player_id: String) {
 }
 
 // =============================================================================
+// XP & LEVEL SYSTEM REDUCERS
+// =============================================================================
+
+/// Internal helper to add XP and handle level ups
+fn add_xp_internal(ctx: &ReducerContext, player_id: &str, xp_amount: u64, source: &str) {
+    if let Some(mut stats) = ctx.db.player_stats().player_id().find(&player_id.to_string()) {
+        // Initialize level if it's 0 (for existing players before level system)
+        if stats.level == 0 {
+            stats.level = 1;
+            stats.xp_to_next_level = calculate_xp_for_level(2);
+        }
+
+        let old_level = stats.level;
+        stats.xp += xp_amount;
+
+        // Check for level ups
+        while stats.xp >= stats.xp_to_next_level && stats.xp_to_next_level > 0 {
+            stats.xp -= stats.xp_to_next_level;
+            stats.level += 1;
+            stats.xp_to_next_level = calculate_xp_for_level(stats.level + 1);
+            log::info!(
+                "Player {} leveled up to level {}!",
+                player_id, stats.level
+            );
+        }
+
+        // Save values for logging before update consumes stats
+        let new_level = stats.level;
+        let new_xp = stats.xp;
+        let xp_to_next = stats.xp_to_next_level;
+
+        ctx.db.player_stats().player_id().update(stats);
+
+        if new_level > old_level {
+            log::info!(
+                "Player {} gained {} XP from {} and reached level {}",
+                player_id, xp_amount, source, new_level
+            );
+        } else {
+            log::debug!(
+                "Player {} gained {} XP from {} (total: {}/{})",
+                player_id, xp_amount, source, new_xp, xp_to_next
+            );
+        }
+    }
+}
+
+/// Add XP to a player (public reducer for external calls)
+#[spacetimedb::reducer]
+pub fn add_xp(ctx: &ReducerContext, player_id: String, amount: u64, source: String) {
+    add_xp_internal(ctx, &player_id, amount, &source);
+}
+
+/// Record an NPC interaction for a player
+#[spacetimedb::reducer]
+pub fn record_npc_interaction(
+    ctx: &ReducerContext,
+    player_id: String,
+    npc_id: String,
+    interaction_type: String, // "talked", "traded"
+) {
+    // Verify the NPC exists
+    if ctx.db.npc().id().find(&npc_id).is_none() {
+        log::warn!("NPC {} not found for interaction", npc_id);
+        return;
+    }
+
+    // Find or create interaction record
+    let existing = ctx.db.player_npc_interaction().iter().find(|i| {
+        i.player_id == player_id && i.npc_id == npc_id
+    });
+
+    if let Some(mut interaction) = existing {
+        // Update existing record
+        match interaction_type.as_str() {
+            "talked" => {
+                interaction.has_talked = true;
+                interaction.talk_count += 1;
+            }
+            "traded" => interaction.has_traded = true,
+            _ => {}
+        }
+        interaction.last_interaction_at = ctx.timestamp;
+        ctx.db.player_npc_interaction().id().update(interaction);
+        log::debug!(
+            "Updated NPC interaction: player {} {} NPC {}",
+            player_id, interaction_type, npc_id
+        );
+    } else {
+        // Create new record
+        let mut new_interaction = PlayerNpcInteraction {
+            id: 0,
+            player_id: player_id.clone(),
+            npc_id: npc_id.clone(),
+            has_talked: false,
+            has_traded: false,
+            talk_count: 0,
+            reputation: 0,
+            first_interaction_at: ctx.timestamp,
+            last_interaction_at: ctx.timestamp,
+        };
+
+        match interaction_type.as_str() {
+            "talked" => {
+                new_interaction.has_talked = true;
+                new_interaction.talk_count = 1;
+            }
+            "traded" => new_interaction.has_traded = true,
+            _ => {}
+        }
+
+        ctx.db.player_npc_interaction().insert(new_interaction);
+        log::info!(
+            "Created NPC interaction: player {} {} NPC {}",
+            player_id, interaction_type, npc_id
+        );
+    }
+}
+
+// =============================================================================
+// STORYLINE & NPC ADMIN REDUCERS
+// =============================================================================
+
+/// Create a new storyline (admin only)
+#[spacetimedb::reducer]
+pub fn admin_create_storyline(
+    ctx: &ReducerContext,
+    id: String,
+    name: String,
+    description: String,
+    icon: Option<String>,
+    category: String,
+    display_order: u32,
+    unlock_conditions: Option<String>,
+    is_active: bool,
+    total_quests: u32,
+) {
+    if ctx.db.storyline().id().find(&id).is_some() {
+        log::warn!("Storyline {} already exists", id);
+        return;
+    }
+
+    let storyline = Storyline {
+        id: id.clone(),
+        name: name.clone(),
+        description,
+        icon,
+        category,
+        display_order,
+        unlock_conditions,
+        is_active,
+        total_quests,
+    };
+
+    ctx.db.storyline().insert(storyline);
+    log::info!("Created storyline: {} - {}", id, name);
+}
+
+/// Update an existing storyline (admin only)
+#[spacetimedb::reducer]
+pub fn admin_update_storyline(
+    ctx: &ReducerContext,
+    id: String,
+    name: String,
+    description: String,
+    icon: Option<String>,
+    category: String,
+    display_order: u32,
+    unlock_conditions: Option<String>,
+    is_active: bool,
+    total_quests: u32,
+) {
+    if let Some(mut storyline) = ctx.db.storyline().id().find(&id) {
+        storyline.name = name.clone();
+        storyline.description = description;
+        storyline.icon = icon;
+        storyline.category = category;
+        storyline.display_order = display_order;
+        storyline.unlock_conditions = unlock_conditions;
+        storyline.is_active = is_active;
+        storyline.total_quests = total_quests;
+
+        ctx.db.storyline().id().update(storyline);
+        log::info!("Updated storyline: {} - {}", id, name);
+    } else {
+        log::warn!("Storyline {} not found", id);
+    }
+}
+
+/// Delete a storyline (admin only)
+#[spacetimedb::reducer]
+pub fn admin_delete_storyline(ctx: &ReducerContext, id: String) {
+    if ctx.db.storyline().id().find(&id).is_some() {
+        ctx.db.storyline().id().delete(&id);
+        log::info!("Deleted storyline: {}", id);
+    } else {
+        log::warn!("Storyline {} not found", id);
+    }
+}
+
+/// Create a new NPC (admin only)
+#[spacetimedb::reducer]
+pub fn admin_create_npc(
+    ctx: &ReducerContext,
+    id: String,
+    name: String,
+    title: Option<String>,
+    description: Option<String>,
+    location_x: Option<f32>,
+    location_y: Option<f32>,
+    sprite_id: Option<String>,
+    can_give_quests: bool,
+    can_trade: bool,
+    is_active: bool,
+) {
+    if ctx.db.npc().id().find(&id).is_some() {
+        log::warn!("NPC {} already exists", id);
+        return;
+    }
+
+    let npc = Npc {
+        id: id.clone(),
+        name: name.clone(),
+        title,
+        description,
+        location_x,
+        location_y,
+        sprite_id,
+        can_give_quests,
+        can_trade,
+        is_active,
+    };
+
+    ctx.db.npc().insert(npc);
+    log::info!("Created NPC: {} - {}", id, name);
+}
+
+/// Update an existing NPC (admin only)
+#[spacetimedb::reducer]
+pub fn admin_update_npc(
+    ctx: &ReducerContext,
+    id: String,
+    name: String,
+    title: Option<String>,
+    description: Option<String>,
+    location_x: Option<f32>,
+    location_y: Option<f32>,
+    sprite_id: Option<String>,
+    can_give_quests: bool,
+    can_trade: bool,
+    is_active: bool,
+) {
+    if let Some(mut npc) = ctx.db.npc().id().find(&id) {
+        npc.name = name.clone();
+        npc.title = title;
+        npc.description = description;
+        npc.location_x = location_x;
+        npc.location_y = location_y;
+        npc.sprite_id = sprite_id;
+        npc.can_give_quests = can_give_quests;
+        npc.can_trade = can_trade;
+        npc.is_active = is_active;
+
+        ctx.db.npc().id().update(npc);
+        log::info!("Updated NPC: {} - {}", id, name);
+    } else {
+        log::warn!("NPC {} not found", id);
+    }
+}
+
+/// Delete an NPC (admin only)
+#[spacetimedb::reducer]
+pub fn admin_delete_npc(ctx: &ReducerContext, id: String) {
+    if ctx.db.npc().id().find(&id).is_some() {
+        ctx.db.npc().id().delete(&id);
+        log::info!("Deleted NPC: {}", id);
+
+        // Also delete all player NPC interactions for this NPC
+        let interactions_to_delete: Vec<_> = ctx.db.player_npc_interaction()
+            .iter()
+            .filter(|i| i.npc_id == id)
+            .map(|i| i.id)
+            .collect();
+
+        for interaction_id in interactions_to_delete {
+            ctx.db.player_npc_interaction().id().delete(&interaction_id);
+        }
+    } else {
+        log::warn!("NPC {} not found", id);
+    }
+}
+
+// =============================================================================
 // SESSION & EVENT TRACKING REDUCERS
 // =============================================================================
 
@@ -1662,6 +2178,10 @@ pub fn start_session(ctx: &ReducerContext, player_id: String) {
             total_gold_spent: 0,
             first_seen_at: ctx.timestamp,
             last_seen_at: ctx.timestamp,
+            // Level system - start at level 1
+            level: 1,
+            xp: 0,
+            xp_to_next_level: calculate_xp_for_level(2), // XP needed to reach level 2
         };
         ctx.db.player_stats().insert(stats);
     }
@@ -1830,13 +2350,15 @@ pub fn admin_create_quest(
     prerequisite_quest_id: Option<String>,
     requirements: String,
     rewards: String,
+    quest_giver_type: Option<String>,
+    quest_giver_id: Option<String>,
 ) {
     // Check if quest already exists
     if ctx.db.quest().id().find(&id).is_some() {
         log::warn!("Quest {} already exists", id);
         return;
     }
-    
+
     let quest = Quest {
         id: id.clone(),
         title: title.clone(),
@@ -1847,8 +2369,10 @@ pub fn admin_create_quest(
         prerequisite_quest_id,
         requirements,
         rewards,
+        quest_giver_type,
+        quest_giver_id,
     };
-    
+
     ctx.db.quest().insert(quest);
     log::info!("Created quest: {} - {}", id, title);
 }
@@ -1866,6 +2390,8 @@ pub fn admin_update_quest(
     prerequisite_quest_id: Option<String>,
     requirements: String,
     rewards: String,
+    quest_giver_type: Option<String>,
+    quest_giver_id: Option<String>,
 ) {
     // Find existing quest
     if let Some(mut quest) = ctx.db.quest().id().find(&id) {
@@ -1877,7 +2403,9 @@ pub fn admin_update_quest(
         quest.prerequisite_quest_id = prerequisite_quest_id;
         quest.requirements = requirements;
         quest.rewards = rewards;
-        
+        quest.quest_giver_type = quest_giver_type;
+        quest.quest_giver_id = quest_giver_id;
+
         ctx.db.quest().id().update(quest);
         log::info!("Updated quest: {} - {}", id, title);
     } else {
@@ -2001,6 +2529,8 @@ pub fn init(ctx: &ReducerContext) {
             prerequisite_quest_id: None,
             requirements: r#"{"total_fish": 2}"#.to_string(),
             rewards: r#"{"gold": 50}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
         Quest {
             id: "guild_2".to_string(),
@@ -2012,6 +2542,8 @@ pub fn init(ctx: &ReducerContext) {
             prerequisite_quest_id: Some("guild_1".to_string()),
             requirements: r#"{"fish": {"fish_pond_1": 1, "fish_pond_2": 1, "fish_pond_3": 1, "fish_river_1": 1, "fish_river_2": 1}}"#.to_string(),
             rewards: r#"{"gold": 100, "items": [{"item_id": "pole_2", "quantity": 1}]}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
         Quest {
             id: "guild_3".to_string(),
@@ -2023,6 +2555,8 @@ pub fn init(ctx: &ReducerContext) {
             prerequisite_quest_id: Some("guild_2".to_string()),
             requirements: r#"{"min_rarity": 3}"#.to_string(),
             rewards: r#"{"gold": 300, "items": [{"item_id": "pole_3", "quantity": 1}]}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
     ];
     
@@ -2043,6 +2577,8 @@ pub fn init(ctx: &ReducerContext) {
             prerequisite_quest_id: None,
             requirements: r#"{"fish": {"fish_ocean_1": 1, "fish_ocean_2": 1, "fish_ocean_3": 1}}"#.to_string(),
             rewards: r#"{"gold": 75}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
         Quest {
             id: "ocean_2".to_string(),
@@ -2054,6 +2590,8 @@ pub fn init(ctx: &ReducerContext) {
             prerequisite_quest_id: Some("ocean_1".to_string()),
             requirements: r#"{"total_fish": 5, "min_rarity": 2}"#.to_string(),
             rewards: r#"{"gold": 200, "items": [{"item_id": "lure_2", "quantity": 1}]}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
     ];
     
@@ -2074,6 +2612,8 @@ pub fn init(ctx: &ReducerContext) {
             prerequisite_quest_id: None,
             requirements: r#"{"total_fish": 5}"#.to_string(),
             rewards: r#"{"gold": 25}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
     ];
     
@@ -2103,6 +2643,8 @@ pub fn admin_seed_quests(ctx: &ReducerContext) {
             prerequisite_quest_id: None,
             requirements: r#"{"total_fish": 2}"#.to_string(),
             rewards: r#"{"gold": 50}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
         Quest {
             id: "guild_2".to_string(),
@@ -2114,6 +2656,8 @@ pub fn admin_seed_quests(ctx: &ReducerContext) {
             prerequisite_quest_id: Some("guild_1".to_string()),
             requirements: r#"{"fish": {"fish_pond_1": 1, "fish_pond_2": 1, "fish_pond_3": 1, "fish_river_1": 1, "fish_river_2": 1}}"#.to_string(),
             rewards: r#"{"gold": 100, "items": [{"item_id": "pole_2", "quantity": 1}]}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
         Quest {
             id: "guild_3".to_string(),
@@ -2125,6 +2669,8 @@ pub fn admin_seed_quests(ctx: &ReducerContext) {
             prerequisite_quest_id: Some("guild_2".to_string()),
             requirements: r#"{"min_rarity": 3}"#.to_string(),
             rewards: r#"{"gold": 300, "items": [{"item_id": "pole_3", "quantity": 1}]}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
     ];
     
@@ -2149,6 +2695,8 @@ pub fn admin_seed_quests(ctx: &ReducerContext) {
             prerequisite_quest_id: None,
             requirements: r#"{"fish": {"fish_ocean_1": 1, "fish_ocean_2": 1, "fish_ocean_3": 1}}"#.to_string(),
             rewards: r#"{"gold": 75}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
         Quest {
             id: "ocean_2".to_string(),
@@ -2160,6 +2708,8 @@ pub fn admin_seed_quests(ctx: &ReducerContext) {
             prerequisite_quest_id: Some("ocean_1".to_string()),
             requirements: r#"{"total_fish": 5, "min_rarity": 2}"#.to_string(),
             rewards: r#"{"gold": 200, "items": [{"item_id": "lure_2", "quantity": 1}]}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
     ];
     
@@ -2184,6 +2734,8 @@ pub fn admin_seed_quests(ctx: &ReducerContext) {
             prerequisite_quest_id: None,
             requirements: r#"{"total_fish": 5}"#.to_string(),
             rewards: r#"{"gold": 25}"#.to_string(),
+            quest_giver_type: None,
+            quest_giver_id: None,
         },
     ];
     
