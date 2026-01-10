@@ -1488,6 +1488,61 @@ const app = new Elysia()
     return { success, message: success ? 'Default quests seeded' : 'Failed to seed quests' };
   })
 
+  // Item Definition API endpoints
+  .get('/api/items', () => {
+    return stdb.getItemDefinitions();
+  })
+
+  .post('/api/items', async ({ body }) => {
+    const item = body as any;
+    const success = await stdb.adminCreateItem({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      waterType: item.waterType || null,
+      tier: item.tier,
+      buyPrice: item.buyPrice,
+      sellPrice: item.sellPrice,
+      stackSize: item.stackSize,
+      spriteId: item.spriteId,
+      description: item.description || null,
+      isActive: item.isActive,
+      rarityMultipliers: item.rarityMultipliers || null,
+      metadata: item.metadata || null,
+    });
+    return { success };
+  })
+
+  .put('/api/items/:id', async ({ params, body }) => {
+    const item = body as any;
+    const success = await stdb.adminUpdateItem({
+      id: params.id,
+      name: item.name,
+      category: item.category,
+      waterType: item.waterType || null,
+      tier: item.tier,
+      buyPrice: item.buyPrice,
+      sellPrice: item.sellPrice,
+      stackSize: item.stackSize,
+      spriteId: item.spriteId,
+      description: item.description || null,
+      isActive: item.isActive,
+      rarityMultipliers: item.rarityMultipliers || null,
+      metadata: item.metadata || null,
+    });
+    return { success };
+  })
+
+  .delete('/api/items/:id', async ({ params }) => {
+    const success = await stdb.adminDeleteItem(params.id);
+    return { success };
+  })
+
+  .post('/api/items/seed', async () => {
+    const success = await stdb.adminSeedItems();
+    return { success, message: success ? 'Default items seeded' : 'Failed to seed items' };
+  })
+
   // Quest Admin page
   .get('/admin/quests', () => {
     return new Response(questAdminPageHtml, {

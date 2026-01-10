@@ -1,6 +1,6 @@
 "use server";
 
-import type { Quest, GameEvent } from "./types";
+import type { Quest, GameEvent, ItemDefinition } from "./types";
 
 const API_URL = process.env.API_URL || "http://localhost:8080";
 const SERVICE_KEY = process.env.SERVICE_KEY || "";
@@ -98,4 +98,48 @@ export async function getDebugInfo(): Promise<{
   quests: Quest[];
 }> {
   return fetchApi("/api/debug");
+}
+
+// Items
+export async function getItems(): Promise<ItemDefinition[]> {
+  return fetchApi<ItemDefinition[]>("/api/items");
+}
+
+export async function getItem(id: string): Promise<ItemDefinition | null> {
+  const items = await getItems();
+  return items.find((item) => item.id === id) || null;
+}
+
+export async function createItem(
+  item: ItemDefinition
+): Promise<{ success: boolean }> {
+  return fetchApi<{ success: boolean }>("/api/items", {
+    method: "POST",
+    body: JSON.stringify(item),
+  });
+}
+
+export async function updateItem(
+  id: string,
+  item: Partial<ItemDefinition>
+): Promise<{ success: boolean }> {
+  return fetchApi<{ success: boolean }>(`/api/items/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(item),
+  });
+}
+
+export async function deleteItem(id: string): Promise<{ success: boolean }> {
+  return fetchApi<{ success: boolean }>(`/api/items/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function seedItems(): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  return fetchApi<{ success: boolean; message: string }>("/api/items/seed", {
+    method: "POST",
+  });
 }

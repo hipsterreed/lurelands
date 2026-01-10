@@ -546,6 +546,56 @@ pub struct GameEvent {
 }
 
 // =============================================================================
+// ITEM DEFINITION SYSTEM
+// =============================================================================
+
+/// Item definition table - stores all item configurations (database-driven)
+/// This replaces hardcoded pricing and allows admin management of items
+#[derive(Clone)]
+#[spacetimedb::table(name = item_definition, public)]
+pub struct ItemDefinition {
+    /// Unique item identifier (e.g., "fish_pond_1", "pole_2", "lure_3")
+    #[primary_key]
+    pub id: String,
+
+    /// Display name (e.g., "Pond Sunfish", "Steel Rod")
+    pub name: String,
+
+    /// Item category: "fish", "pole", "lure"
+    pub category: String,
+
+    /// Water type for fish: "pond", "river", "ocean", "night", or None for non-fish
+    pub water_type: Option<String>,
+
+    /// Tier level (1-4 typically)
+    pub tier: u8,
+
+    /// Base buy price (what players pay in shop, 0 = not purchasable)
+    pub buy_price: u32,
+
+    /// Base sell price (before rarity multiplier)
+    pub sell_price: u32,
+
+    /// Maximum stack size (1 for poles, 5 for fish, 99 for lures)
+    pub stack_size: u32,
+
+    /// Sprite identifier for rendering (matches Flutter asset name)
+    pub sprite_id: String,
+
+    /// Item description for tooltips
+    pub description: Option<String>,
+
+    /// Whether this item is currently available in game
+    pub is_active: bool,
+
+    /// Rarity multipliers as JSON: {"2": 2.0, "3": 4.0}
+    pub rarity_multipliers: Option<String>,
+
+    /// Additional metadata as JSON (for extensibility)
+    pub metadata: Option<String>,
+}
+
+// =============================================================================
 // ITEM STACKING CONSTANTS
 // =============================================================================
 
@@ -2087,6 +2137,183 @@ pub fn admin_delete_npc(ctx: &ReducerContext, id: String) {
     } else {
         log::warn!("NPC {} not found", id);
     }
+}
+
+// =============================================================================
+// ITEM DEFINITION ADMIN REDUCERS
+// =============================================================================
+
+/// Create a new item definition (admin only)
+#[spacetimedb::reducer]
+pub fn admin_create_item(
+    ctx: &ReducerContext,
+    id: String,
+    name: String,
+    category: String,
+    water_type: Option<String>,
+    tier: u8,
+    buy_price: u32,
+    sell_price: u32,
+    stack_size: u32,
+    sprite_id: String,
+    description: Option<String>,
+    is_active: bool,
+    rarity_multipliers: Option<String>,
+    metadata: Option<String>,
+) {
+    if ctx.db.item_definition().id().find(&id).is_some() {
+        log::warn!("Item {} already exists", id);
+        return;
+    }
+
+    let item = ItemDefinition {
+        id: id.clone(),
+        name: name.clone(),
+        category,
+        water_type,
+        tier,
+        buy_price,
+        sell_price,
+        stack_size,
+        sprite_id,
+        description,
+        is_active,
+        rarity_multipliers,
+        metadata,
+    };
+
+    ctx.db.item_definition().insert(item);
+    log::info!("Created item definition: {} - {}", id, name);
+}
+
+/// Update an existing item definition (admin only)
+#[spacetimedb::reducer]
+pub fn admin_update_item(
+    ctx: &ReducerContext,
+    id: String,
+    name: String,
+    category: String,
+    water_type: Option<String>,
+    tier: u8,
+    buy_price: u32,
+    sell_price: u32,
+    stack_size: u32,
+    sprite_id: String,
+    description: Option<String>,
+    is_active: bool,
+    rarity_multipliers: Option<String>,
+    metadata: Option<String>,
+) {
+    if let Some(mut item) = ctx.db.item_definition().id().find(&id) {
+        item.name = name.clone();
+        item.category = category;
+        item.water_type = water_type;
+        item.tier = tier;
+        item.buy_price = buy_price;
+        item.sell_price = sell_price;
+        item.stack_size = stack_size;
+        item.sprite_id = sprite_id;
+        item.description = description;
+        item.is_active = is_active;
+        item.rarity_multipliers = rarity_multipliers;
+        item.metadata = metadata;
+
+        ctx.db.item_definition().id().update(item);
+        log::info!("Updated item definition: {} - {}", id, name);
+    } else {
+        log::warn!("Item {} not found", id);
+    }
+}
+
+/// Delete an item definition (admin only)
+#[spacetimedb::reducer]
+pub fn admin_delete_item(ctx: &ReducerContext, id: String) {
+    if ctx.db.item_definition().id().find(&id).is_some() {
+        ctx.db.item_definition().id().delete(&id);
+        log::info!("Deleted item definition: {}", id);
+    } else {
+        log::warn!("Item {} not found", id);
+    }
+}
+
+/// Seed default items into the database (admin only)
+/// This populates all fish, poles, and lures with their default values
+#[spacetimedb::reducer]
+pub fn admin_seed_items(ctx: &ReducerContext) {
+    let default_rarity_multipliers = Some(r#"{"2": 2.0, "3": 4.0}"#.to_string());
+
+    // Fish - Pond
+    seed_item(ctx, "fish_pond_1", "Pond Sunfish", "fish", Some("pond"), 1, 0, 10, 5, "A common sunfish found in peaceful ponds.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_pond_2", "Pond Bass", "fish", Some("pond"), 2, 0, 25, 5, "A medium-sized bass dwelling in calm waters.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_pond_3", "Pond Pike", "fish", Some("pond"), 3, 0, 50, 5, "A rare pike that lurks in pond depths.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_pond_4", "Pond Legend", "fish", Some("pond"), 4, 0, 150, 5, "A legendary fish of pond lore.", &default_rarity_multipliers);
+
+    // Fish - River
+    seed_item(ctx, "fish_river_1", "River Trout", "fish", Some("river"), 1, 0, 12, 5, "A common trout swimming in rivers.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_river_2", "River Salmon", "fish", Some("river"), 2, 0, 30, 5, "A strong salmon fighting the current.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_river_3", "River Catfish", "fish", Some("river"), 3, 0, 60, 5, "A rare catfish hiding among river rocks.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_river_4", "River Monster", "fish", Some("river"), 4, 0, 180, 5, "A legendary river monster of ancient tales.", &default_rarity_multipliers);
+
+    // Fish - Ocean
+    seed_item(ctx, "fish_ocean_1", "Ocean Mackerel", "fish", Some("ocean"), 1, 0, 15, 5, "A common mackerel from the open sea.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_ocean_2", "Ocean Tuna", "fish", Some("ocean"), 2, 0, 40, 5, "A powerful tuna from deep waters.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_ocean_3", "Ocean Marlin", "fish", Some("ocean"), 3, 0, 80, 5, "A rare marlin with a magnificent bill.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_ocean_4", "Ocean Leviathan", "fish", Some("ocean"), 4, 0, 250, 5, "A legendary sea creature from the abyss.", &default_rarity_multipliers);
+
+    // Fish - Night
+    seed_item(ctx, "fish_night_1", "Night Eel", "fish", Some("night"), 1, 0, 20, 5, "A slippery eel that emerges at night.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_night_2", "Night Lanternfish", "fish", Some("night"), 2, 0, 45, 5, "A glowing fish that lights the dark waters.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_night_3", "Night Anglerfish", "fish", Some("night"), 3, 0, 90, 5, "A rare anglerfish with a luminous lure.", &default_rarity_multipliers);
+    seed_item(ctx, "fish_night_4", "Night Phantom", "fish", Some("night"), 4, 0, 300, 5, "A legendary phantom fish seen only under moonlight.", &default_rarity_multipliers);
+
+    // Poles
+    seed_item(ctx, "pole_1", "Starter Rod", "pole", None, 1, 0, 0, 1, "A basic fishing rod for beginners.", &None);
+    seed_item(ctx, "pole_2", "Steel Rod", "pole", None, 2, 200, 200, 1, "An improved rod with better durability.", &None);
+    seed_item(ctx, "pole_3", "Carbon Rod", "pole", None, 3, 500, 500, 1, "An advanced carbon fiber fishing rod.", &None);
+    seed_item(ctx, "pole_4", "Legendary Rod", "pole", None, 4, 1500, 1500, 1, "A masterwork rod crafted by experts.", &None);
+
+    // Lures
+    seed_item(ctx, "lure_1", "Basic Lure", "lure", None, 1, 20, 10, 99, "A simple lure for basic fishing.", &None);
+    seed_item(ctx, "lure_2", "Spinner Lure", "lure", None, 2, 60, 30, 99, "A spinning lure that attracts fish.", &None);
+    seed_item(ctx, "lure_3", "Premium Lure", "lure", None, 3, 160, 80, 99, "A high-quality lure for serious anglers.", &None);
+    seed_item(ctx, "lure_4", "Master Lure", "lure", None, 4, 500, 250, 99, "A legendary lure that fish cannot resist.", &None);
+
+    log::info!("Seeded default item definitions");
+}
+
+/// Helper function to seed a single item (only if it doesn't exist)
+fn seed_item(
+    ctx: &ReducerContext,
+    id: &str,
+    name: &str,
+    category: &str,
+    water_type: Option<&str>,
+    tier: u8,
+    buy_price: u32,
+    sell_price: u32,
+    stack_size: u32,
+    description: &str,
+    rarity_multipliers: &Option<String>,
+) {
+    if ctx.db.item_definition().id().find(&id.to_string()).is_some() {
+        return; // Already exists, skip
+    }
+
+    ctx.db.item_definition().insert(ItemDefinition {
+        id: id.to_string(),
+        name: name.to_string(),
+        category: category.to_string(),
+        water_type: water_type.map(|s| s.to_string()),
+        tier,
+        buy_price,
+        sell_price,
+        stack_size,
+        sprite_id: id.to_string(), // Default sprite_id matches item id
+        description: Some(description.to_string()),
+        is_active: true,
+        rarity_multipliers: rarity_multipliers.clone(),
+        metadata: None,
+    });
 }
 
 // =============================================================================

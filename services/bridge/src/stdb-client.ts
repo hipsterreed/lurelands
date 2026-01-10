@@ -1,5 +1,5 @@
 import { DbConnection, tables, reducers, type EventContext, type SubscriptionEventContext, type ErrorContext } from './generated';
-import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem, GameEvent, Quest, PlayerQuest } from './types';
+import type { Player, Pond, River, Ocean, SpawnPoint, WorldState, FishCatch, InventoryItem, GameEvent, Quest, PlayerQuest, ItemDefinition } from './types';
 import { stdbLogger } from './logger';
 
 // =============================================================================
@@ -36,6 +36,9 @@ export class StdbClient {
   // Quest caches
   private quests: Map<string, Quest> = new Map();
   private playerQuests: Map<string, Map<string, PlayerQuest>> = new Map(); // Map<playerId, Map<questId, PlayerQuest>>
+
+  // Item definitions cache
+  private itemDefinitions: Map<string, ItemDefinition> = new Map();
 
   // Callbacks
   private onPlayersUpdate: PlayerUpdateCallback | null = null;
@@ -115,6 +118,7 @@ export class StdbClient {
                 'SELECT * FROM game_event',
                 'SELECT * FROM quest',
                 'SELECT * FROM player_quest',
+                'SELECT * FROM item_definition',
               ]);
             
             resolve(true);
@@ -263,6 +267,19 @@ export class StdbClient {
         stdbLogger.warn({ err: error }, 'Error loading player quests - table may not exist yet');
       }
 
+      // Load item definitions
+      this.itemDefinitions.clear();
+      try {
+        let itemCount = 0;
+        for (const item of ctx.db.itemDefinition.iter()) {
+          this.cacheItemDefinition(item);
+          itemCount++;
+        }
+        stdbLogger.info({ itemCount }, 'Finished loading item definitions from DB');
+      } catch (error: any) {
+        stdbLogger.warn({ err: error }, 'Error loading item definitions - table may not exist yet');
+      }
+
       stdbLogger.info({
         spawnPoints: this.spawnPoints.length,
         ponds: this.ponds.length,
@@ -273,6 +290,7 @@ export class StdbClient {
         gameEvents: this.gameEvents.length,
         quests: this.quests.size,
         playerQuests: Array.from(this.playerQuests.values()).reduce((sum, map) => sum + map.size, 0),
+        itemDefinitions: this.itemDefinitions.size,
       }, 'Initial state loaded');
 
       // Emit callbacks
@@ -391,6 +409,22 @@ export class StdbClient {
       }
       this.emitQuestUpdate(pq.playerId);
     });
+
+    // Item definition callbacks
+    this.conn.db.itemDefinition.onInsert((ctx: EventContext, item) => {
+      stdbLogger.debug({ itemId: item.id, name: item.name }, 'Item definition inserted');
+      this.cacheItemDefinition(item);
+    });
+
+    this.conn.db.itemDefinition.onUpdate((ctx: EventContext, oldItem, newItem) => {
+      stdbLogger.debug({ itemId: newItem.id, name: newItem.name }, 'Item definition updated');
+      this.cacheItemDefinition(newItem);
+    });
+
+    this.conn.db.itemDefinition.onDelete((ctx: EventContext, item) => {
+      stdbLogger.debug({ itemId: item.id }, 'Item definition deleted');
+      this.itemDefinitions.delete(item.id);
+    });
   }
 
   // --- Inventory helpers ---
@@ -481,6 +515,24 @@ export class StdbClient {
       progress: pq.progress,
       acceptedAt: pq.acceptedAt ? Number(pq.acceptedAt) : null,
       completedAt: pq.completedAt ? Number(pq.completedAt) : null,
+    });
+  }
+
+  private cacheItemDefinition(item: any) {
+    this.itemDefinitions.set(item.id, {
+      id: item.id,
+      name: item.name,
+      category: item.category as 'fish' | 'pole' | 'lure',
+      waterType: item.waterType ?? null,
+      tier: item.tier,
+      buyPrice: item.buyPrice,
+      sellPrice: item.sellPrice,
+      stackSize: item.stackSize,
+      spriteId: item.spriteId,
+      description: item.description ?? null,
+      isActive: item.isActive,
+      rarityMultipliers: item.rarityMultipliers ?? null,
+      metadata: item.metadata ?? null,
     });
   }
 
@@ -879,6 +931,16 @@ export class StdbClient {
     return [...this.gameEvents];
   }
 
+  // --- Item Definition methods ---
+
+  getItemDefinitions(): ItemDefinition[] {
+    return Array.from(this.itemDefinitions.values());
+  }
+
+  getItemDefinition(itemId: string): ItemDefinition | undefined {
+    return this.itemDefinitions.get(itemId);
+  }
+
   // --- Quest methods ---
 
   getQuests(): Quest[] {
@@ -1090,6 +1152,122 @@ export class StdbClient {
     }
   }
 
+  // --- Admin Item Methods ---
+
+  async adminCreateItem(item: {
+    id: string;
+    name: string;
+    category: string;
+    waterType: string | null;
+    tier: number;
+    buyPrice: number;
+    sellPrice: number;
+    stackSize: number;
+    spriteId: string;
+    description: string | null;
+    isActive: boolean;
+    rarityMultipliers: string | null;
+    metadata: string | null;
+  }): Promise<boolean> {
+    if (!this.conn || !this.isConnected) return false;
+
+    try {
+      this.conn.reducers.adminCreateItem({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        waterType: item.waterType ?? undefined,
+        tier: item.tier,
+        buyPrice: item.buyPrice,
+        sellPrice: item.sellPrice,
+        stackSize: item.stackSize,
+        spriteId: item.spriteId,
+        description: item.description ?? undefined,
+        isActive: item.isActive,
+        rarityMultipliers: item.rarityMultipliers ?? undefined,
+        metadata: item.metadata ?? undefined,
+      });
+
+      stdbLogger.info({ itemId: item.id, name: item.name }, 'Admin created item');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error, item }, 'Failed to create item');
+      return false;
+    }
+  }
+
+  async adminUpdateItem(item: {
+    id: string;
+    name: string;
+    category: string;
+    waterType: string | null;
+    tier: number;
+    buyPrice: number;
+    sellPrice: number;
+    stackSize: number;
+    spriteId: string;
+    description: string | null;
+    isActive: boolean;
+    rarityMultipliers: string | null;
+    metadata: string | null;
+  }): Promise<boolean> {
+    if (!this.conn || !this.isConnected) return false;
+
+    try {
+      this.conn.reducers.adminUpdateItem({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        waterType: item.waterType ?? undefined,
+        tier: item.tier,
+        buyPrice: item.buyPrice,
+        sellPrice: item.sellPrice,
+        stackSize: item.stackSize,
+        spriteId: item.spriteId,
+        description: item.description ?? undefined,
+        isActive: item.isActive,
+        rarityMultipliers: item.rarityMultipliers ?? undefined,
+        metadata: item.metadata ?? undefined,
+      });
+
+      stdbLogger.info({ itemId: item.id, name: item.name }, 'Admin updated item');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error, item }, 'Failed to update item');
+      return false;
+    }
+  }
+
+  async adminDeleteItem(itemId: string): Promise<boolean> {
+    if (!this.conn || !this.isConnected) return false;
+
+    try {
+      this.conn.reducers.adminDeleteItem({ id: itemId });
+
+      stdbLogger.info({ itemId }, 'Admin deleted item');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error, itemId }, 'Failed to delete item');
+      return false;
+    }
+  }
+
+  async adminSeedItems(): Promise<boolean> {
+    if (!this.conn || !this.isConnected) {
+      stdbLogger.warn('Not connected to SpacetimeDB, cannot seed items');
+      return false;
+    }
+
+    try {
+      this.conn.reducers.adminSeedItems({});
+      stdbLogger.info('Admin triggered item seeding');
+      return true;
+    } catch (error) {
+      stdbLogger.error({ err: error }, 'Failed to seed items');
+      return false;
+    }
+  }
+
   disconnect() {
     if (this.conn) {
       this.conn.disconnect();
@@ -1101,5 +1279,6 @@ export class StdbClient {
     this.gameEvents = [];
     this.quests.clear();
     this.playerQuests.clear();
+    this.itemDefinitions.clear();
   }
 }

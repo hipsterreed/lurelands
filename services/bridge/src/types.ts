@@ -201,6 +201,26 @@ export interface PlayerNpcInteraction {
   lastInteractionAt: number;   // Unix timestamp (microseconds)
 }
 
+// =============================================================================
+// Item Definition Types
+// =============================================================================
+
+export interface ItemDefinition {
+  id: string;
+  name: string;
+  category: 'fish' | 'pole' | 'lure';
+  waterType: 'pond' | 'river' | 'ocean' | 'night' | null;
+  tier: number;
+  buyPrice: number;
+  sellPrice: number;
+  stackSize: number;
+  spriteId: string;
+  description: string | null;
+  isActive: boolean;
+  rarityMultipliers: string | null;  // JSON string: {"2": 2.0, "3": 4.0}
+  metadata: string | null;           // JSON string for extensibility
+}
+
 export interface GameEvent {
   id: number;
   playerId: string;

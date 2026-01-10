@@ -107,3 +107,19 @@ export interface PlayerStats {
   firstSeenAt: number;
   lastSeenAt: number;
 }
+
+export interface ItemDefinition {
+  id: string;
+  name: string;
+  category: "fish" | "pole" | "lure";
+  waterType: "pond" | "river" | "ocean" | "night" | null;
+  tier: number;
+  buyPrice: number;
+  sellPrice: number;
+  stackSize: number;
+  spriteId: string;
+  description: string | null;
+  isActive: boolean;
+  rarityMultipliers: string | null;
+  metadata: string | null;
+}
