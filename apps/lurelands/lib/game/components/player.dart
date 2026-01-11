@@ -265,9 +265,9 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       Vector2(newPos.x, newPos.y + playerHitboxRadius),
     ];
 
-    // Use tile-based water detection for accurate collision
+    // Use collision detection (checks tile collision objects + collision layer)
     for (final point in checkPoints) {
-      if (game.isInsideWater(point.x, point.y)) {
+      if (game.isCollisionAt(point.x, point.y)) {
         // Check if this point is on a dock (docks allow walking over water)
         if (!_isOnDock(point)) {
           return true;

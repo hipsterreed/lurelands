@@ -5,31 +5,51 @@
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="2" x="0" y="0" width="16" height="11.9791"/>
+   <object id="3" x="0" y="0" width="12.0509" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="1">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="3">
+   <object id="12" x="0" y="0" width="16" height="6.01946"/>
+  </objectgroup>
  </tile>
  <tile id="2">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="-0.0718025" y="0" width="16.0718" height="11.9791"/>
+   <object id="2" x="4.16454" y="0" width="11.8355" height="15.9282"/>
+  </objectgroup>
  </tile>
  <tile id="3">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="4.09274" y="6.10321" width="11.9073" height="9.89679"/>
+  </objectgroup>
  </tile>
  <tile id="4">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="6.08365" width="15.9776" height="9.92596"/>
+  </objectgroup>
  </tile>
  <tile id="5">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="6.03141" width="12.1227" height="9.96859"/>
+  </objectgroup>
  </tile>
  <tile id="6">
   <properties>
@@ -80,26 +100,41 @@
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="11.9073" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="21">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="4.09274" y="0" width="11.9073" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="22">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="4.09274" y="0" width="11.9073" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="23">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="24">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="12.0509" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="25">
   <properties>
@@ -160,41 +195,69 @@
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="12.0509" height="16"/>
+   <object id="2" x="0" y="5.9596" width="16" height="10.0404"/>
+  </objectgroup>
  </tile>
  <tile id="39">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="5.9596" width="16" height="10.0404"/>
+  </objectgroup>
  </tile>
  <tile id="40">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="6.03141" width="16" height="9.96859"/>
+   <object id="2" x="4.16454" y="0" width="11.8355" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="41">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="4.09274" y="0" width="11.9073" height="9.82499"/>
+  </objectgroup>
  </tile>
  <tile id="42">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="4.51161"/>
+  </objectgroup>
  </tile>
  <tile id="43">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="11.9073" height="10.1122"/>
+  </objectgroup>
  </tile>
  <tile id="44">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="12.8407" height="15.7846"/>
+   <object id="2" x="0" y="0" width="16" height="6.01946"/>
+  </objectgroup>
  </tile>
  <tile id="45">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="3.15931" y="0" width="12.8407" height="16"/>
+   <object id="2" x="0" y="0" width="16" height="6.01946"/>
+  </objectgroup>
  </tile>
  <tile id="46">
   <properties>
@@ -246,16 +309,27 @@
    <property name="is_fishable" type="bool" value="true"/>
    <property name="is_walkable" type="bool" value="false"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="63">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="13.0561" height="16"/>
+   <object id="2" x="0" y="9.90874" width="16" height="6.09126"/>
+  </objectgroup>
  </tile>
  <tile id="64">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="3.0157" y="0" width="12.9843" height="16"/>
+   <object id="2" x="0" y="10.0523" width="16" height="5.94766"/>
+  </objectgroup>
  </tile>
  <tile id="66">
   <properties>
@@ -311,11 +385,19 @@
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="8.96336"/>
+   <object id="2" x="0" y="0" width="10.9738" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="83">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="16" height="8.89156"/>
+   <object id="2" x="5.16978" y="0" width="10.8302" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="85">
   <properties>
@@ -366,11 +448,19 @@
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="0" width="10.9738" height="16"/>
+   <object id="2" x="0" y="6.03141" width="16" height="9.96859"/>
+  </objectgroup>
  </tile>
  <tile id="102">
   <properties>
    <property name="is_fishable" type="bool" value="true"/>
   </properties>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0" y="6.10321" width="16" height="9.89679"/>
+   <object id="2" x="5.09797" y="0" width="10.902" height="16"/>
+  </objectgroup>
  </tile>
  <tile id="112">
   <properties>

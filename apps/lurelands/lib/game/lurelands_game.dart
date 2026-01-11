@@ -135,6 +135,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   /// Check if a world position is inside water (tile-based, accurate)
   bool isInsideWater(double x, double y) => _tiledMapWorld.isInsideWater(x, y);
 
+  /// Check if a world position collides with tile collision objects or collision layer
+  bool isCollisionAt(double x, double y) => _tiledMapWorld.isCollisionAt(x, y);
+
   /// Get current game time for animations
   double currentTime() => _gameTime;
 
