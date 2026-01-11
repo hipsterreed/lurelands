@@ -123,7 +123,6 @@ class AssetPaths {
   AssetPaths._();
 
   static const String items = 'assets/items';
-  static const String icons = 'assets/icons';
   static const String images = 'assets/images';
   static const String characters = 'assets/images/characters';
   static const String fish = 'assets/images/fish';
@@ -238,14 +237,6 @@ class ItemAssets {
     assert(tier >= 1 && tier <= 4, 'Lure tier must be between 1 and 4');
     return lures[tier - 1];
   }
-}
-
-/// Icon assets (UI icons, indicators, etc.)
-class IconAssets {
-  IconAssets._();
-
-  static const String fishingPole = '${AssetPaths.icons}/fishing_pole.png';
-  static const String fishingPoleCasted = '${AssetPaths.icons}/fishing_pole_casted.png';
 }
 
 /// Water type enum for fish categorization
