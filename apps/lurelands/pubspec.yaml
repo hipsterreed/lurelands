@@ -37,6 +37,7 @@ dependencies:
 
   # Flame game engine
   flame: ^1.34.0
+  flame_tiled: ^1.20.0
 
   # WebSocket client for SpacetimeDB communication
   web_socket_channel: ^3.0.3
@@ -83,7 +84,10 @@ flutter:
     - assets/images/fish/
     - assets/images/plants/
     - assets/images/structures/
-    - assets/images/tiles/
+    - assets/images/terrain/
+    - assets/images/logic/
+    - assets/maps/
+    - assets/tilesets/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
