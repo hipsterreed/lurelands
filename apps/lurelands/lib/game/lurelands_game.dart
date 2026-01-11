@@ -81,6 +81,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
 
+  // Track if player was moving last frame (for stop detection)
+  bool _wasMovingLastFrame = false;
+
   // Notifiers for UI
   final ValueNotifier<bool> isLoadedNotifier = ValueNotifier(false);
   final ValueNotifier<bool> canCastNotifier = ValueNotifier(false);
@@ -242,14 +245,21 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     if (fishingStateNotifier.value != FishingState.minigame) {
       player.move(joystickDirection, dt);
 
+      final isMovingNow = joystickDirection.length > 0.1;
+
       // Sync position to server periodically (throttled in the service)
-      if (joystickDirection.length > 0.1) {
+      if (isMovingNow) {
         stdbService.updatePlayerPosition(
           player.position.x,
           player.position.y,
           player.facingAngle,
         );
+      } else if (_wasMovingLastFrame) {
+        // Player just stopped moving - log it
+        stdbService.logMovementStopped(player.position.x, player.position.y);
       }
+
+      _wasMovingLastFrame = isMovingNow;
     }
 
     // Update casting state notifiers

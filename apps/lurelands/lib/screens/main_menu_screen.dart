@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/game_settings.dart';
 import '../services/spacetimedb/stdb_service.dart';
-import '../utils/constants.dart';
+import '../widgets/panel_frame.dart';
 import 'game_screen.dart';
 
 /// Main menu screen with "Enter World" button - mobile optimized
@@ -127,14 +127,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
     if (_isLoadingPlayerData) {
       return Scaffold(
         body: Container(
-          decoration: BoxDecoration(
+          decoration: const BoxDecoration(
             gradient: LinearGradient(
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               colors: [
-                GameColors.menuBackground,
-                GameColors.menuAccent,
-                GameColors.menuBackground.withAlpha(230),
+                PanelColors.woodDark,
+                PanelColors.panelBg,
+                PanelColors.woodDark,
               ],
             ),
           ),
@@ -142,12 +142,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                CircularProgressIndicator(),
+                CircularProgressIndicator(
+                  color: PanelColors.textGold,
+                ),
                 SizedBox(height: 16),
                 Text(
                   'Loading...',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: PanelColors.textLight,
                     fontSize: 16,
                   ),
                 ),
@@ -160,14 +162,14 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
     return Scaffold(
       body: Container(
-        decoration: BoxDecoration(
+        decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              GameColors.menuBackground,
-              GameColors.menuAccent,
-              GameColors.menuBackground.withAlpha(230),
+              PanelColors.woodDark,
+              PanelColors.panelBg,
+              PanelColors.woodDark,
             ],
           ),
         ),
@@ -178,16 +180,23 @@ class _MainMenuScreenState extends State<MainMenuScreen>
               Positioned(
                 top: 16,
                 right: 16,
-                child: IconButton(
-                  onPressed: _showSettingsDialog,
-                  icon: Icon(
-                    Icons.settings,
-                    color: GameColors.textSecondary,
-                    size: 28,
-                  ),
-                  style: IconButton.styleFrom(
-                    backgroundColor: GameColors.menuAccent.withAlpha(200),
-                    padding: const EdgeInsets.all(12),
+                child: GestureDetector(
+                  onTap: _showSettingsDialog,
+                  child: Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: PanelColors.slotBg,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: PanelColors.slotBorder,
+                        width: 2,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.settings,
+                      color: PanelColors.textLight,
+                      size: 24,
+                    ),
                   ),
                 ),
               ),
@@ -231,11 +240,11 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
   Widget _buildTitle() {
     return ShaderMask(
-      shaderCallback: (bounds) => LinearGradient(
+      shaderCallback: (bounds) => const LinearGradient(
         colors: [
-          GameColors.pondBlueLight,
-          GameColors.pondBlue,
-          GameColors.grassGreenLight,
+          PanelColors.textGold,
+          PanelColors.woodLight,
+          PanelColors.textGold,
         ],
       ).createShader(bounds),
       child: const Text(
@@ -258,13 +267,13 @@ class _MainMenuScreenState extends State<MainMenuScreen>
   }
 
   Widget _buildSubtitle() {
-    return Text(
+    return const Text(
       'Cast your line, discover the waters',
       style: TextStyle(
         fontSize: 14,
         fontWeight: FontWeight.w300,
         letterSpacing: 3,
-        color: GameColors.textSecondary,
+        color: PanelColors.textMuted,
       ),
     );
   }
@@ -275,37 +284,43 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 20),
         decoration: BoxDecoration(
-          color: GameColors.buttonPrimary,
+          gradient: const LinearGradient(
+            colors: [
+              PanelColors.woodDark,
+              PanelColors.woodMedium,
+              PanelColors.woodDark,
+            ],
+          ),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: GameColors.pondBlue.withAlpha(128),
-            width: 2,
+            color: PanelColors.textGold.withAlpha(180),
+            width: 3,
           ),
           boxShadow: [
             BoxShadow(
-              color: GameColors.pondBlue.withAlpha(80),
+              color: PanelColors.textGold.withAlpha(60),
               blurRadius: 16,
               spreadRadius: 2,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: Row(
+        child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
               Icons.water,
               size: 28,
-              color: GameColors.pondBlueLight,
+              color: PanelColors.textGold,
             ),
-            const SizedBox(width: 16),
-            const Text(
+            SizedBox(width: 16),
+            Text(
               'ENTER WORLD',
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 3,
-                color: Colors.white,
+                color: PanelColors.textLight,
               ),
             ),
           ],
@@ -319,7 +334,7 @@ class _MainMenuScreenState extends State<MainMenuScreen>
       'v0.1.0 - Phase 1',
       style: TextStyle(
         fontSize: 11,
-        color: GameColors.textSecondary.withAlpha(128),
+        color: PanelColors.textMuted.withAlpha(150),
       ),
     );
   }
@@ -329,24 +344,33 @@ class _MainMenuScreenState extends State<MainMenuScreen>
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: GameColors.menuBackground,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: PanelColors.panelBg,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: GameColors.pondBlue.withAlpha(80),
-            width: 2,
+          side: const BorderSide(
+            color: PanelColors.woodMedium,
+            width: 4,
           ),
         ),
         title: Row(
           children: [
-            Icon(Icons.settings, color: GameColors.pondBlue, size: 24),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: PanelColors.slotBg,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: PanelColors.slotBorder, width: 2),
+              ),
+              child: const Icon(Icons.settings, color: PanelColors.textGold, size: 20),
+            ),
             const SizedBox(width: 12),
-            Text(
+            const Text(
               'Settings',
               style: TextStyle(
-                color: GameColors.textPrimary,
-                fontWeight: FontWeight.w600,
+                color: PanelColors.textLight,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1,
               ),
             ),
           ],
@@ -355,10 +379,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
+            const Text(
               'Player Name',
               style: TextStyle(
-                color: GameColors.textSecondary,
+                color: PanelColors.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
@@ -367,26 +391,30 @@ class _MainMenuScreenState extends State<MainMenuScreen>
             TextField(
               controller: _nameController,
               maxLength: 16,
-              style: TextStyle(color: GameColors.textPrimary),
+              style: const TextStyle(color: PanelColors.textLight),
               decoration: InputDecoration(
                 hintText: 'Enter your name...',
                 hintStyle: TextStyle(
-                  color: GameColors.textSecondary.withAlpha(128),
+                  color: PanelColors.textMuted.withAlpha(150),
                 ),
                 counterStyle: TextStyle(
-                  color: GameColors.textSecondary.withAlpha(128),
+                  color: PanelColors.textMuted.withAlpha(150),
                   fontSize: 10,
                 ),
                 filled: true,
-                fillColor: GameColors.menuAccent,
+                fillColor: PanelColors.slotBg,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide.none,
+                  borderSide: const BorderSide(color: PanelColors.slotBorder),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(8),
+                  borderSide: const BorderSide(color: PanelColors.slotBorder, width: 2),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
-                  borderSide: BorderSide(
-                    color: GameColors.pondBlue,
+                  borderSide: const BorderSide(
+                    color: PanelColors.textGold,
                     width: 2,
                   ),
                 ),
@@ -400,10 +428,10 @@ class _MainMenuScreenState extends State<MainMenuScreen>
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: Text(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text(
               'Cancel',
-              style: TextStyle(color: GameColors.textSecondary),
+              style: TextStyle(color: PanelColors.textMuted),
             ),
           ),
           ElevatedButton(
@@ -414,27 +442,29 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                 setState(() {
                   _playerName = newName;
                 });
-                
+
                 // Save to local settings
                 await GameSettings.instance.setPlayerName(newName);
-                
+
                 // Also update in database if connected
                 if (_stdbService == null || !_stdbService!.isConnected) {
                   _stdbService = BridgeSpacetimeDBService();
                   const bridgeUrl = 'wss://api.lurelands.com/ws';
                   await _stdbService!.connect(bridgeUrl);
                 }
-                
+
                 if (_stdbService!.isConnected) {
                   _stdbService!.updatePlayerName(newName);
                   debugPrint('[MainMenu] Settings save - name synced to server: "$newName"');
                 }
               }
-              Navigator.of(context).pop();
+              if (dialogContext.mounted) {
+                Navigator.of(dialogContext).pop();
+              }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: GameColors.pondBlue,
-              foregroundColor: Colors.white,
+              backgroundColor: PanelColors.woodMedium,
+              foregroundColor: PanelColors.textLight,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(8),
               ),

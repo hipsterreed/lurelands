@@ -404,6 +404,9 @@ class _GameScreenState extends State<GameScreen> {
               playerQuests: _playerQuests,
               onAcceptQuest: _onAcceptQuest,
               onCompleteQuest: _onCompleteQuest,
+              playerLevel: _playerStats?.level ?? 1,
+              playerXp: _playerStats?.xp ?? 0,
+              playerXpToNextLevel: _playerStats?.xpToNextLevel ?? 100,
             ),
           // Shop panel overlay
           if (_showShop && _nearbyShop != null)
@@ -815,15 +818,9 @@ class _GameScreenState extends State<GameScreen> {
     return SafeArea(
       child: Stack(
         children: [
-          // Level and XP display (top left)
+          // Connection quality indicator (top left)
           Positioned(
             top: 16,
-            left: 16,
-            child: _buildLevelDisplay(),
-          ),
-          // Connection quality indicator (below level display)
-          Positioned(
-            top: 70,
             left: 16,
             child: _buildConnectionIndicator(),
           ),
@@ -879,116 +876,6 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// Build the level display with XP bar
-  Widget _buildLevelDisplay() {
-    final level = _playerStats?.level ?? 1;
-    final xp = _playerStats?.xp ?? 0;
-    final xpToNext = _playerStats?.xpToNextLevel ?? 100;
-    final progress = xpToNext > 0 ? (xp / xpToNext).clamp(0.0, 1.0) : 0.0;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: GameColors.menuBackground.withAlpha(200),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: const Color(0xFF5D3A1A),
-          width: 2,
-        ),
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Level badge
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [Color(0xFFFFD700), Color(0xFFB8860B)],
-              ),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFF8B6914),
-                width: 2,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withAlpha(100),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Center(
-              child: Text(
-                '$level',
-                style: const TextStyle(
-                  color: Color(0xFF2D1810),
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // XP bar
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Level $level',
-                style: const TextStyle(
-                  color: Color(0xFFF5E6D3),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Container(
-                width: 80,
-                height: 8,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D1810),
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: const Color(0xFF5D3A1A),
-                    width: 1,
-                  ),
-                ),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
-                  child: FractionallySizedBox(
-                    alignment: Alignment.centerLeft,
-                    widthFactor: progress,
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFF4CAF50), Color(0xFF81C784)],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 1),
-              Text(
-                '$xp / $xpToNext XP',
-                style: TextStyle(
-                  color: const Color(0xFFF5E6D3).withAlpha(180),
-                  fontSize: 9,
-                ),
-              ),
-            ],
           ),
         ],
       ),

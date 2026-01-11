@@ -470,6 +470,9 @@ abstract class SpacetimeDBService {
   /// Update the local player's position
   void updatePlayerPosition(double x, double y, double facingAngle);
 
+  /// Log when player stops moving (for debugging without flooding logs)
+  void logMovementStopped(double x, double y);
+
   /// Notify that player started casting
   void startCasting(double targetX, double targetY);
 
@@ -812,10 +815,14 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
   }
 
   void _onMessage(dynamic message) {
-    print('[Bridge] Received message: $message');
     try {
       final data = message is String ? jsonDecode(message) : message;
-      _handleMessage(data as Map<String, dynamic>);
+      final type = (data as Map<String, dynamic>)['type'] as String?;
+      // Skip logging for frequent player position updates
+      if (type != 'players') {
+        print('[Bridge] Received message: $message');
+      }
+      _handleMessage(data);
     } catch (e) {
       print('[Bridge] Error parsing message: $e');
     }
@@ -823,7 +830,10 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
 
   void _handleMessage(Map<String, dynamic> data) {
     final type = data['type'] as String?;
-    print('[Bridge] Handling message type: $type');
+    // Skip logging for frequent player position updates
+    if (type != 'players') {
+      print('[Bridge] Handling message type: $type');
+    }
 
     switch (type) {
       case 'connected':
@@ -1236,19 +1246,39 @@ class BridgeSpacetimeDBService implements SpacetimeDBService {
     _sendMessage({'type': 'request_resync'});
   }
 
+  bool _wasMoving = false;
+
   void _sendMessage(Map<String, dynamic> message) {
-    print('[Bridge] _sendMessage() - channel: ${_channel != null}, isConnected: $isConnected');
+    final isMove = message['type'] == 'move';
+    if (!isMove) {
+      print('[Bridge] _sendMessage() - channel: ${_channel != null}, isConnected: $isConnected');
+    }
     if (_channel != null && isConnected) {
       try {
         final encoded = jsonEncode(message);
-        print('[Bridge] Sending: $encoded');
+        if (!isMove) {
+          print('[Bridge] Sending: $encoded');
+        }
         _channel!.sink.add(encoded);
+        if (isMove) {
+          _wasMoving = true;
+        }
       } catch (e) {
         print('[Bridge] Send error: $e');
         _setState(StdbConnectionState.error);
       }
     } else {
-      print('[Bridge] Cannot send - not connected');
+      if (!isMove) {
+        print('[Bridge] Cannot send - not connected');
+      }
+    }
+  }
+
+  @override
+  void logMovementStopped(double x, double y) {
+    if (_wasMoving) {
+      print('[Bridge] Player stopped moving at ($x, $y)');
+      _wasMoving = false;
     }
   }
 

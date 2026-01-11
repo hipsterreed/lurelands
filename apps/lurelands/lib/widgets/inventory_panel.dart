@@ -48,6 +48,10 @@ class InventoryPanel extends StatefulWidget {
   final List<PlayerQuest> playerQuests;
   final void Function(String questId)? onAcceptQuest;
   final void Function(String questId)? onCompleteQuest;
+  // Level/XP display
+  final int playerLevel;
+  final int playerXp;
+  final int playerXpToNextLevel;
 
   const InventoryPanel({
     super.key,
@@ -69,6 +73,9 @@ class InventoryPanel extends StatefulWidget {
     this.playerQuests = const [],
     this.onAcceptQuest,
     this.onCompleteQuest,
+    this.playerLevel = 1,
+    this.playerXp = 0,
+    this.playerXpToNextLevel = 100,
   });
 
   @override
@@ -191,6 +198,38 @@ class _InventoryPanelState extends State<InventoryPanel> {
             ),
           ),
           const Spacer(),
+          // Gold display
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: _BackpackColors.slotBg,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(
+                color: _BackpackColors.textGold.withAlpha(80),
+                width: 2,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.monetization_on,
+                  color: _BackpackColors.textGold,
+                  size: 16,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${_formatGold(widget.playerGold)}g',
+                  style: TextStyle(
+                    color: _BackpackColors.textGold,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
           GestureDetector(
             onTap: widget.onClose,
             child: Container(
@@ -573,41 +612,9 @@ class _InventoryPanelState extends State<InventoryPanel> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Gold display at top-right
-          Align(
-            alignment: Alignment.topRight,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-              decoration: BoxDecoration(
-                color: _BackpackColors.slotBg,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                  color: _BackpackColors.textGold.withAlpha(80),
-                  width: 2,
-                ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.monetization_on,
-                    color: _BackpackColors.textGold,
-                    size: 12,
-                  ),
-                  const SizedBox(width: 3),
-                  Text(
-                    '${_formatGold(widget.playerGold)}g',
-                    style: TextStyle(
-                      color: _BackpackColors.textGold,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
+          // Level display
+          _buildLevelDisplay(),
+          const SizedBox(height: 4),
           // Pole name with tier indicator
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -722,6 +729,59 @@ class _InventoryPanelState extends State<InventoryPanel> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Build a compact level display with XP bar
+  Widget _buildLevelDisplay() {
+    final level = widget.playerLevel;
+    final xp = widget.playerXp;
+    final xpToNext = widget.playerXpToNextLevel;
+    final progress = xpToNext > 0 ? (xp / xpToNext).clamp(0.0, 1.0) : 0.0;
+
+    return Column(
+      children: [
+        Text(
+          'Level $level',
+          style: const TextStyle(
+            color: _BackpackColors.textGold,
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity,
+          height: 6,
+          decoration: BoxDecoration(
+            color: _BackpackColors.panelBg,
+            borderRadius: BorderRadius.circular(3),
+            border: Border.all(color: _BackpackColors.slotBorder, width: 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: FractionallySizedBox(
+              alignment: Alignment.centerLeft,
+              widthFactor: progress,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF4CAF50), Color(0xFF81C784)],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          '$xp / $xpToNext XP',
+          style: TextStyle(
+            color: _BackpackColors.textMuted,
+            fontSize: 9,
+          ),
+        ),
+      ],
     );
   }
 
