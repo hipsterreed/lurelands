@@ -23,54 +23,78 @@ class _ShopColors {
   static const Color star = Color(0xFFFFD700);
 }
 
-/// Represents an item for sale in the shop
-class ShopItem {
-  final String itemId;
-  final String name;
-  final String description;
-  final int price;
-  final String assetPath;
+/// Merchant inventory - fishing poles for sale (using centralized GameItems)
+final List<ItemDefinition> _merchantItems = [
+  GameItems.pole1,
+  GameItems.pole2,
+  GameItems.pole3,
+  GameItems.pole4,
+];
 
-  const ShopItem({
-    required this.itemId,
-    required this.name,
-    required this.description,
-    required this.price,
-    required this.assetPath,
-  });
+/// Widget to display an item image (handles both spritesheet and regular assets)
+class _ItemImage extends StatelessWidget {
+  final ItemDefinition item;
+  final double size;
+
+  const _ItemImage({required this.item, this.size = 32});
+
+  @override
+  Widget build(BuildContext context) {
+    if (item.usesSpritesheet) {
+      return _SpritesheetSprite(
+        column: item.spriteColumn!,
+        row: item.spriteRow!,
+        size: size,
+      );
+    }
+    return Image.asset(
+      item.assetPath,
+      width: size,
+      height: size,
+      errorBuilder: (_, __, ___) => Icon(
+        Icons.phishing,
+        color: _ShopColors.textLight,
+        size: size - 4,
+      ),
+    );
+  }
 }
 
-/// Merchant inventory - fishing poles for sale
-const List<ShopItem> _merchantItems = [
-  ShopItem(
-    itemId: 'pole_1',
-    name: 'Wooden Rod',
-    description: 'A basic fishing rod for beginners. Free!',
-    price: 0,
-    assetPath: 'assets/items/fishing_pole_1.png',
-  ),
-  ShopItem(
-    itemId: 'pole_2',
-    name: 'Steel Rod',
-    description: 'A sturdy rod with better casting distance.',
-    price: 200,
-    assetPath: 'assets/items/fishing_pole_2.png',
-  ),
-  ShopItem(
-    itemId: 'pole_3',
-    name: 'Carbon Fiber Rod',
-    description: 'A lightweight rod for serious anglers.',
-    price: 500,
-    assetPath: 'assets/items/fishing_pole_3.png',
-  ),
-  ShopItem(
-    itemId: 'pole_4',
-    name: 'Legendary Rod',
-    description: 'The ultimate fishing rod, crafted by masters.',
-    price: 1500,
-    assetPath: 'assets/items/fishing_pole_4.png',
-  ),
-];
+/// Widget to display a sprite from the fishing spritesheet
+class _SpritesheetSprite extends StatelessWidget {
+  final int column;
+  final int row;
+  final double size;
+
+  const _SpritesheetSprite({
+    required this.column,
+    required this.row,
+    this.size = 32,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: ClipRect(
+        child: OverflowBox(
+          maxWidth: FishingPoleAsset.spriteSize * FishingPoleAsset.columns * (size / FishingPoleAsset.spriteSize),
+          maxHeight: FishingPoleAsset.spriteSize * FishingPoleAsset.rows * (size / FishingPoleAsset.spriteSize),
+          alignment: Alignment(
+            -1.0 + (2.0 * column + 1.0) / FishingPoleAsset.columns,
+            -1.0 + (2.0 * row + 1.0) / FishingPoleAsset.rows,
+          ),
+          child: Image.asset(
+            FishingPoleAsset.spritesheetPath,
+            fit: BoxFit.none,
+            scale: FishingPoleAsset.spriteSize / size,
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 /// Shop panel widget for buying/selling items
 class ShopPanel extends StatefulWidget {
@@ -98,7 +122,7 @@ class ShopPanel extends StatefulWidget {
 class _ShopPanelState extends State<ShopPanel> {
   // Selection state - either a player item or a shop item
   InventoryEntry? _selectedPlayerItem;
-  ShopItem? _selectedShopItem;
+  ItemDefinition? _selectedShopItem;
   int _sellQuantity = 1;
 
   @override
@@ -421,8 +445,8 @@ class _ShopPanelState extends State<ShopPanel> {
             spacing: 8,
             runSpacing: 8,
             children: _merchantItems.map((item) {
-              final isSelected = _selectedShopItem?.itemId == item.itemId;
-              final canAfford = widget.playerGold >= item.price;
+              final isSelected = _selectedShopItem?.id == item.id;
+              final canAfford = widget.playerGold >= item.basePrice;
               return GestureDetector(
                 onTap: () {
                   setState(() {
@@ -661,7 +685,7 @@ class _ShopPanelState extends State<ShopPanel> {
 
   Widget _buildBuyActionBar() {
     final item = _selectedShopItem!;
-    final canAfford = widget.playerGold >= item.price;
+    final canAfford = widget.playerGold >= item.basePrice;
 
     return Row(
       children: [
@@ -673,16 +697,7 @@ class _ShopPanelState extends State<ShopPanel> {
             borderRadius: BorderRadius.circular(6),
             border: Border.all(color: _ShopColors.buyButton, width: 2),
           ),
-          child: Image.asset(
-            item.assetPath,
-            width: 32,
-            height: 32,
-            errorBuilder: (_, __, ___) => Icon(
-              Icons.phishing,
-              color: _ShopColors.textLight,
-              size: 28,
-            ),
-          ),
+          child: _ItemImage(item: item, size: 32),
         ),
         const SizedBox(width: 12),
         // Item name and description
@@ -716,7 +731,7 @@ class _ShopPanelState extends State<ShopPanel> {
         GestureDetector(
           onTap: canAfford
               ? () {
-                  widget.onBuyItem(item.itemId, item.price);
+                  widget.onBuyItem(item.id, item.basePrice);
                   setState(() {
                     _selectedShopItem = null;
                   });
@@ -745,14 +760,14 @@ class _ShopPanelState extends State<ShopPanel> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  item.price == 0 ? 'GET FREE' : 'BUY',
+                  item.basePrice == 0 ? 'GET FREE' : 'BUY',
                   style: TextStyle(
                     color: canAfford ? Colors.white : _ShopColors.textMuted,
                     fontSize: 14,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (item.price > 0) ...[
+                if (item.basePrice > 0) ...[
                   const SizedBox(width: 8),
                   Icon(
                     Icons.monetization_on,
@@ -761,7 +776,7 @@ class _ShopPanelState extends State<ShopPanel> {
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    '${item.price}g',
+                    '${item.basePrice}g',
                     style: TextStyle(
                       color: canAfford ? _ShopColors.textGold : _ShopColors.textMuted,
                       fontSize: 14,
@@ -944,7 +959,7 @@ class _InventorySlot extends StatelessWidget {
 
 /// Merchant item slot for items for sale
 class _MerchantSlot extends StatelessWidget {
-  final ShopItem item;
+  final ItemDefinition item;
   final double width;
   final bool isSelected;
   final bool canAfford;
@@ -999,15 +1014,7 @@ class _MerchantSlot extends StatelessWidget {
                 ),
                 child: Opacity(
                   opacity: canAfford ? 1.0 : 0.5,
-                  child: Image.asset(
-                    item.assetPath,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, __, ___) => Icon(
-                      Icons.phishing,
-                      color: _ShopColors.textLight,
-                      size: 32,
-                    ),
-                  ),
+                  child: _ItemImage(item: item, size: 40),
                 ),
               ),
               const SizedBox(width: 8),
@@ -1031,7 +1038,7 @@ class _MerchantSlot extends StatelessWidget {
                     const SizedBox(height: 4),
                     Row(
                       children: [
-                        if (item.price > 0) ...[
+                        if (item.basePrice > 0) ...[
                           Icon(
                             Icons.monetization_on,
                             color: canAfford
@@ -1042,9 +1049,9 @@ class _MerchantSlot extends StatelessWidget {
                           const SizedBox(width: 2),
                         ],
                         Text(
-                          item.price == 0 ? 'Free' : '${item.price}g',
+                          item.basePrice == 0 ? 'Free' : '${item.basePrice}g',
                           style: TextStyle(
-                            color: item.price == 0
+                            color: item.basePrice == 0
                                 ? const Color(0xFF4CAF50) // Green for free
                                 : (canAfford
                                     ? _ShopColors.textGold

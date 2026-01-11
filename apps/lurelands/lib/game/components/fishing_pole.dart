@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flame/sprite.dart';
 
 import '../../utils/constants.dart';
 import 'player.dart';
@@ -13,43 +14,44 @@ class FishingPole extends PositionComponent with ParentIsA<Player>, HasGameRefer
           priority: GameLayers.fishingPole.toInt(),
         );
 
-  // Pole sprite dimensions
+  // Pole sprite dimensions (scaled up from 16x16)
   static const double poleWidth = 48.0;
   static const double poleHeight = 48.0;
 
-  // Cached sprites for each tier (normal and casted)
-  final Map<int, Sprite> _normalSprites = {};
-  final Map<int, Sprite> _castedSprites = {};
+  // Additional rotation when casting (tilted forward)
+  static const double castRotationOffset = pi / 6; // 30 degrees
+
+  // Cached sprites for each tier
+  final Map<int, Sprite> _sprites = {};
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    // Pre-load all pole sprites
+    // Pre-load all pole sprites from spritesheet
     await _loadAllSprites();
   }
 
   Future<void> _loadAllSprites() async {
+    // Load the spritesheet image
+    final spritesheetPath = FishingPoleAsset.spritesheetPath.replaceFirst('assets/', '');
+    final spritesheetImage = await game.images.load(spritesheetPath);
+
+    // Create spritesheet with 16x16 sprite size
+    final spritesheet = SpriteSheet(
+      image: spritesheetImage,
+      srcSize: Vector2(FishingPoleAsset.spriteSize, FishingPoleAsset.spriteSize),
+    );
+
+    // Load sprite for each tier
     for (int tier = 1; tier <= 4; tier++) {
       final poleAsset = ItemAssets.getFishingPole(tier);
-      
-      // Load normal sprite (strip path prefix for Flame's image loader)
-      final normalPath = poleAsset.normal.replaceFirst('assets/', '');
-      final normalImage = await game.images.load(normalPath);
-      _normalSprites[tier] = Sprite(normalImage);
-      
-      // Load casted sprite
-      final castedPath = poleAsset.casted.replaceFirst('assets/', '');
-      final castedImage = await game.images.load(castedPath);
-      _castedSprites[tier] = Sprite(castedImage);
+      _sprites[tier] = spritesheet.getSprite(poleAsset.spriteRow, poleAsset.spriteColumn);
     }
   }
 
   Sprite? get _currentSprite {
     final tier = parent.equippedPoleTier;
-    if (parent.isCasting) {
-      return _castedSprites[tier];
-    }
-    return _normalSprites[tier];
+    return _sprites[tier];
   }
 
   @override
@@ -64,20 +66,24 @@ class FishingPole extends PositionComponent with ParentIsA<Player>, HasGameRefer
       final startY = sin(angle) * (GameConstants.playerSize / 2);
 
       canvas.save();
-      
+
       // Move to pole position
       canvas.translate(startX, startY);
-      
+
       // Rotate to face the direction (add PI/4 to account for sprite orientation)
-      canvas.rotate(angle + pi / 4);
-      
+      // Add extra rotation when casting to show the pole is extended
+      final rotationAngle = player.isCasting
+          ? angle + pi / 4 + castRotationOffset
+          : angle + pi / 4;
+      canvas.rotate(rotationAngle);
+
       // Draw the sprite centered
       sprite.render(
         canvas,
         position: Vector2(-poleWidth / 2, -poleHeight / 2),
         size: Vector2(poleWidth, poleHeight),
       );
-      
+
       canvas.restore();
     } else {
       // Fallback: draw basic pole shape if sprites not loaded

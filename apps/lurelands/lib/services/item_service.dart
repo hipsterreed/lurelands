@@ -138,6 +138,11 @@ class ItemService {
       // Convert spriteId to assetPath
       final assetPath = _spriteIdToAssetPath(spriteId, category);
 
+      // Get spritesheet coordinates for poles
+      final spritesheetCoords = category == 'pole'
+          ? _getPoleSpritesheetCoords(spriteId)
+          : null;
+
       // Parse rarity multipliers
       final rarityMultipliers = _parseRarityMultipliers(rarityMultipliersJson);
 
@@ -151,6 +156,8 @@ class ItemService {
         waterType: waterType,
         tier: tier,
         rarityMultipliers: rarityMultipliers,
+        spriteColumn: spritesheetCoords?.$1,
+        spriteRow: spritesheetCoords?.$2,
       );
     } catch (e) {
       debugPrint('[ItemService] Error parsing item: $e');
@@ -193,17 +200,34 @@ class ItemService {
     // Map spriteId to asset path based on category
     // Database stores item IDs as sprite IDs, but asset files have different names:
     // - "fish_pond_1" -> "assets/images/fish/fish_pond_1.png"
-    // - "pole_1" -> "assets/items/fishing_pole_1.png"
+    // - "pole_1" -> uses fish_spritesheet.png (spritesheet)
     // - "lure_1" -> "assets/items/lure_1.png"
     if (category == 'fish') {
       return '${AssetPaths.fish}/$spriteId.png';
     } else if (category == 'pole') {
-      // Convert "pole_X" to "fishing_pole_X"
-      final assetName = spriteId.replaceFirst('pole_', 'fishing_pole_');
-      return '${AssetPaths.items}/$assetName.png';
+      // Poles now use the fish spritesheet
+      return FishingPoleAsset.spritesheetPath;
     } else {
       return '${AssetPaths.items}/$spriteId.png';
     }
+  }
+
+  /// Get spritesheet coordinates for a pole by its sprite ID
+  /// Returns (column, row) or null if not a pole
+  (int, int)? _getPoleSpritesheetCoords(String spriteId) {
+    // Pole sprites are on row 3, columns vary by tier
+    // pole_1 -> column 0, pole_2 -> column 3, pole_3 -> column 5, pole_4 -> column 21
+    const poleColumns = {
+      'pole_1': 0,
+      'pole_2': 3,
+      'pole_3': 5,
+      'pole_4': 21,
+    };
+    final column = poleColumns[spriteId];
+    if (column != null) {
+      return (column, 3); // All poles are on row 3
+    }
+    return null;
   }
 
   Map<int, double>? _parseRarityMultipliers(String? json) {

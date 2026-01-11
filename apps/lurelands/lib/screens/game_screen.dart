@@ -1113,13 +1113,14 @@ class _GameScreenState extends State<GameScreen> {
                                 poleTier = int.tryParse(_equippedPoleId!.split('_').last) ?? 1;
                               }
                               final poleAsset = ItemAssets.getFishingPole(poleTier);
-                              final imagePath =
-                                  isCasting ? poleAsset.casted : poleAsset.normal;
-                              return Image.asset(
-                                imagePath,
-                                width: 40,
-                                height: 40,
-                                opacity: AlwaysStoppedAnimation(isActive ? 1.0 : 0.5),
+                              // Rotate 30 degrees forward when casting
+                              final castRotation = isCasting ? pi / 6 : 0.0;
+                              return SpritesheetSprite(
+                                column: poleAsset.spriteColumn,
+                                row: poleAsset.spriteRow,
+                                size: 40,
+                                opacity: isActive ? 1.0 : 0.5,
+                                rotation: castRotation,
                               );
                             },
                           ),
@@ -2263,4 +2264,51 @@ class _DirectionIndicatorPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Widget to display a sprite from the fishing spritesheet
+class SpritesheetSprite extends StatelessWidget {
+  final int column;
+  final int row;
+  final double size;
+  final double opacity;
+  final double rotation;
+
+  const SpritesheetSprite({
+    super.key,
+    required this.column,
+    required this.row,
+    this.size = 40,
+    this.opacity = 1.0,
+    this.rotation = 0.0,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Transform.rotate(
+        angle: rotation,
+        child: Opacity(
+          opacity: opacity,
+          child: ClipRect(
+            child: OverflowBox(
+              maxWidth: FishingPoleAsset.spriteSize * FishingPoleAsset.columns * (size / FishingPoleAsset.spriteSize),
+              maxHeight: FishingPoleAsset.spriteSize * FishingPoleAsset.rows * (size / FishingPoleAsset.spriteSize),
+              alignment: Alignment(
+                -1.0 + (2.0 * column + 1.0) / FishingPoleAsset.columns,
+                -1.0 + (2.0 * row + 1.0) / FishingPoleAsset.rows,
+              ),
+              child: Image.asset(
+                FishingPoleAsset.spritesheetPath,
+                fit: BoxFit.none,
+                scale: FishingPoleAsset.spriteSize / size,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

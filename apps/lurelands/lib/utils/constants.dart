@@ -129,19 +129,33 @@ class AssetPaths {
   static const String plants = 'assets/images/plants';
 }
 
-/// Fishing pole asset with normal and casted variants
+/// Fishing pole asset loaded from spritesheet
 class FishingPoleAsset {
-  final String normal;
-  final String casted;
+  final int spriteColumn; // Column in the spritesheet (0-indexed)
+  final int spriteRow; // Row in the spritesheet (0-indexed)
   final int tier;
   final double maxCastDistance; // Max distance this pole can cast
 
   const FishingPoleAsset({
-    required this.normal,
-    required this.casted,
+    required this.spriteColumn,
+    required this.spriteRow,
     required this.tier,
     required this.maxCastDistance,
   });
+
+  /// Spritesheet configuration
+  static const String spritesheetPath = '${AssetPaths.fish}/fish_spritesheet.png';
+  static const double spriteSize = 16.0; // Each sprite is 16x16
+  static const int columns = 25;
+  static const int rows = 15;
+
+  /// Get the source rect for this sprite in the spritesheet
+  Rect get sourceRect => Rect.fromLTWH(
+        spriteColumn * spriteSize,
+        spriteRow * spriteSize,
+        spriteSize,
+        spriteSize,
+      );
 }
 
 /// Lure asset
@@ -159,32 +173,33 @@ class LureAsset {
 class ItemAssets {
   ItemAssets._();
 
-  // Fishing Poles (tier 1-4, each with normal and casted/alt variant)
+  // Fishing Poles (tier 1-4) from fish_spritesheet.png
+  // Row 3 (0-indexed), columns 0, 3, 5, 21
   // Each tier has progressively longer max cast distance
   static const FishingPoleAsset fishingPole1 = FishingPoleAsset(
-    normal: '${AssetPaths.items}/fishing_pole_1.png',
-    casted: '${AssetPaths.items}/fishing_pole_alt_1.png',
+    spriteColumn: 0,
+    spriteRow: 3,
     tier: 1,
     maxCastDistance: 100.0, // Starter pole
   );
 
   static const FishingPoleAsset fishingPole2 = FishingPoleAsset(
-    normal: '${AssetPaths.items}/fishing_pole_2.png',
-    casted: '${AssetPaths.items}/fishing_pole_alt_2.png',
+    spriteColumn: 3,
+    spriteRow: 3,
     tier: 2,
     maxCastDistance: 140.0, // Better range
   );
 
   static const FishingPoleAsset fishingPole3 = FishingPoleAsset(
-    normal: '${AssetPaths.items}/fishing_pole_3.png',
-    casted: '${AssetPaths.items}/fishing_pole_alt_3.png',
+    spriteColumn: 5,
+    spriteRow: 3,
     tier: 3,
     maxCastDistance: 180.0, // Great range
   );
 
   static const FishingPoleAsset fishingPole4 = FishingPoleAsset(
-    normal: '${AssetPaths.items}/fishing_pole_4.png',
-    casted: '${AssetPaths.items}/fishing_pole_alt_4.png',
+    spriteColumn: 21,
+    spriteRow: 3,
     tier: 4,
     maxCastDistance: 220.0, // Maximum range
   );
@@ -267,6 +282,10 @@ class ItemDefinition {
   final int? tier; // For equipment tiers
   final Map<int, double>? rarityMultipliers; // From database
 
+  // Spritesheet support (optional - if set, assetPath is the spritesheet)
+  final int? spriteColumn;
+  final int? spriteRow;
+
   const ItemDefinition({
     required this.id,
     required this.name,
@@ -277,7 +296,12 @@ class ItemDefinition {
     this.waterType,
     this.tier,
     this.rarityMultipliers,
+    this.spriteColumn,
+    this.spriteRow,
   });
+
+  /// Whether this item uses a spritesheet for its asset
+  bool get usesSpritesheet => spriteColumn != null && spriteRow != null;
 
   /// Get the sell price based on rarity (stars)
   int getSellPrice(int rarity) {
@@ -464,15 +488,17 @@ class GameItems {
     tier: 4,
   );
 
-  // --- Poles ---
+  // --- Poles --- (from fish_spritesheet.png, row 3)
   static const ItemDefinition pole1 = ItemDefinition(
     id: 'pole_1',
     name: 'Wooden Rod',
     description: 'A basic fishing rod for beginners. Free!',
     type: ItemType.pole,
     basePrice: 0,
-    assetPath: '${AssetPaths.items}/fishing_pole_1.png',
+    assetPath: FishingPoleAsset.spritesheetPath,
     tier: 1,
+    spriteColumn: 0,
+    spriteRow: 3,
   );
   static const ItemDefinition pole2 = ItemDefinition(
     id: 'pole_2',
@@ -480,8 +506,10 @@ class GameItems {
     description: 'A sturdy rod with better casting distance.',
     type: ItemType.pole,
     basePrice: 200,
-    assetPath: '${AssetPaths.items}/fishing_pole_2.png',
+    assetPath: FishingPoleAsset.spritesheetPath,
     tier: 2,
+    spriteColumn: 3,
+    spriteRow: 3,
   );
   static const ItemDefinition pole3 = ItemDefinition(
     id: 'pole_3',
@@ -489,8 +517,10 @@ class GameItems {
     description: 'A lightweight rod for serious anglers.',
     type: ItemType.pole,
     basePrice: 500,
-    assetPath: '${AssetPaths.items}/fishing_pole_3.png',
+    assetPath: FishingPoleAsset.spritesheetPath,
     tier: 3,
+    spriteColumn: 5,
+    spriteRow: 3,
   );
   static const ItemDefinition pole4 = ItemDefinition(
     id: 'pole_4',
@@ -498,8 +528,10 @@ class GameItems {
     description: 'The ultimate fishing rod, crafted by masters.',
     type: ItemType.pole,
     basePrice: 1500,
-    assetPath: '${AssetPaths.items}/fishing_pole_4.png',
+    assetPath: FishingPoleAsset.spritesheetPath,
     tier: 4,
+    spriteColumn: 21,
+    spriteRow: 3,
   );
 
   // --- Lures ---
