@@ -255,7 +255,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   bool _wouldCollideWithWater(Vector2 newPos) {
     // Player hitbox is roughly 50x50, so use ~25px as player "radius"
     const playerHitboxRadius = 25.0;
-    
+
     // Check points around player hitbox
     final checkPoints = [
       newPos,
@@ -264,19 +264,17 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       Vector2(newPos.x, newPos.y - playerHitboxRadius),
       Vector2(newPos.x, newPos.y + playerHitboxRadius),
     ];
-    
-    // Check tiled water bodies
-    for (final tiledWater in game.allTiledWaterData) {
-      for (final point in checkPoints) {
-        if (tiledWater.containsPoint(point.x, point.y)) {
-          // Check if this point is on a dock (docks allow walking over water)
-          if (!_isOnDock(point)) {
-            return true;
-          }
+
+    // Use collision detection (checks tile collision objects + collision layer)
+    for (final point in checkPoints) {
+      if (game.isCollisionAt(point.x, point.y)) {
+        // Check if this point is on a dock (docks allow walking over water)
+        if (!_isOnDock(point)) {
+          return true;
         }
       }
     }
-    
+
     return false;
   }
   

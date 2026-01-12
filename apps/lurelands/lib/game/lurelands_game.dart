@@ -16,7 +16,7 @@ import 'components/quest_sign.dart';
 import 'components/shop.dart';
 import 'components/tiled_water.dart';
 import 'components/tree.dart';
-import 'world/lurelands_world.dart';
+import 'world/tiled_map_world.dart';
 
 /// Fishing state machine states
 enum FishingState {
@@ -64,19 +64,22 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   });
 
   Player? _player;
-  late LurelandsWorld _lurelandsWorld;
+  late TiledMapWorld _tiledMapWorld;
 
   // Public getter for player (used by other components)
   Player? get player => _player;
 
   // Public getter for trees (used by player for collision checking)
-  List<Tree> get trees => _lurelandsWorld.treeComponents;
+  // TODO: Trees will be loaded from object layer later
+  List<Tree> get trees => [];
 
   // Public getter for shops
-  List<Shop> get shops => _lurelandsWorld.shopComponents;
+  // TODO: Shops will be loaded from object layer later
+  List<Shop> get shops => [];
 
   // Public getter for quest signs
-  List<QuestSign> get questSigns => _lurelandsWorld.questSignComponents;
+  // TODO: Quest signs will be loaded from object layer later
+  List<QuestSign> get questSigns => [];
 
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
@@ -123,10 +126,17 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   final Random _random = Random();
   
   /// All tiled water data for collision/spawning checks
-  List<TiledWaterData> get allTiledWaterData => _lurelandsWorld.allTiledWaterData;
-  
+  List<TiledWaterData> get allTiledWaterData => _tiledMapWorld.allTiledWaterData;
+
   /// All dock walkable areas (player can walk on docks over water)
-  List<Rect> get dockAreas => _lurelandsWorld.dockAreas;
+  /// TODO: Docks will be loaded from object layer later
+  List<Rect> get dockAreas => _tiledMapWorld.dockAreas;
+
+  /// Check if a world position is inside water (tile-based, accurate)
+  bool isInsideWater(double x, double y) => _tiledMapWorld.isInsideWater(x, y);
+
+  /// Check if a world position collides with tile collision objects or collision layer
+  bool isCollisionAt(double x, double y) => _tiledMapWorld.isCollisionAt(x, y);
 
   /// Get current game time for animations
   double currentTime() => _gameTime;
@@ -175,24 +185,21 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       'plants/tree_01_strip4.png',
       'plants/tree_02_strip4.png',
       'plants/sunflower.png',
-      // Tilesets
-      'tiles/nature.png',
     ]);
 
-    // Get world state from server and build WorldState
-    final serverWorldState = stdbService.worldState;
-    final worldState = _buildWorldState(serverWorldState);
+    // Create and set the Tiled map world
+    debugPrint('[LurelandsGame] Creating TiledMapWorld...');
+    _tiledMapWorld = TiledMapWorld();
+    world = _tiledMapWorld;
 
-    // Create and set the custom world
-    _lurelandsWorld = LurelandsWorld(worldState: worldState);
-    world = _lurelandsWorld;
-
-    // Join the world and get spawn position
+    // Join the world and get spawn position from server (or use Tiled spawn point)
     final spawnPosition = await stdbService.joinWorld(playerId, playerName, playerColor);
 
-    // Determine player spawn position
-    final spawnX = spawnPosition?.x ?? 1000.0;
-    final spawnY = spawnPosition?.y ?? 1000.0;
+    // Use server spawn if available, otherwise use Tiled map spawn point
+    final spawnX = spawnPosition?.x ?? _tiledMapWorld.playerSpawnPoint.x;
+    final spawnY = spawnPosition?.y ?? _tiledMapWorld.playerSpawnPoint.y;
+
+    debugPrint('[LurelandsGame] Player spawn position: ($spawnX, $spawnY)');
 
     // Create the player at spawn position
     _player = Player(
@@ -201,6 +208,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       playerName: playerName,
     );
     await world.add(_player!);
+    debugPrint('[LurelandsGame] Player added to world');
 
     // Set up camera to follow player with smooth tracking
     camera.viewfinder.anchor = Anchor.center;
@@ -210,25 +218,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Mark game as loaded
     isLoadedNotifier.value = true;
-  }
-
-  /// Build WorldState from server data with fallbacks
-  WorldState _buildWorldState(WorldState serverWorldState) {
-    final ponds = serverWorldState.ponds.isNotEmpty
-        ? serverWorldState.ponds
-        : fallbackWorldState.ponds;
-
-    final rivers = serverWorldState.rivers.isNotEmpty
-        ? serverWorldState.rivers
-        : fallbackWorldState.rivers;
-
-    final ocean = serverWorldState.ocean ?? fallbackWorldState.ocean;
-
-    return WorldState(
-      ponds: ponds,
-      rivers: rivers,
-      ocean: ocean,
-    );
   }
 
   @override
@@ -779,15 +768,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       }
     }
 
-    for (final water in _lurelandsWorld.tiledWaterComponents) {
-      for (final child in water.children) {
-        if (child is ShapeHitbox) {
-          child.debugMode = enabled;
-        }
-      }
-    }
-
-    for (final tree in _lurelandsWorld.treeComponents) {
+    // Debug mode for trees (when loaded from object layer)
+    for (final tree in trees) {
       for (final child in tree.children) {
         if (child is ShapeHitbox) {
           child.debugMode = enabled;
