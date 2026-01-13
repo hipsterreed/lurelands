@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "notes/Quest list.md",
+                "file": "notes/npcs/caleb - young optimist.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "Quest list"
+              "title": "caleb - young optimist"
             }
           }
         ]
@@ -94,7 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
-                "file": "notes/Quest list.md",
+                "file": "notes/npcs/caleb - young optimist.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -104,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "Backlinks for Quest list"
+              "title": "Backlinks for caleb - young optimist"
             }
           },
           {
@@ -113,12 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
-                "file": "notes/Quest list.md",
+                "file": "notes/npcs/caleb - young optimist.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "Outgoing links from Quest list"
+              "title": "Outgoing links from caleb - young optimist"
             }
           },
           {
@@ -156,13 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
-                "file": "notes/Quest list.md",
+                "file": "notes/npcs/caleb - young optimist.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "Outline of Quest list"
+              "title": "Outline of caleb - young optimist"
             }
           }
         ]
@@ -185,10 +185,14 @@
   },
   "active": "df4e0e5e9d0365a5",
   "lastOpenFiles": [
-    "notes/quests",
+    "product/world_progression.md",
     "product/world_map_and_biomes.md",
-    "notes/Quest list.md",
     "product/story_overview.md",
+    "product/quest_design.md",
+    "product/player_progression.md",
+    "product/narrative_acts.md",
+    "notes/Quest list.md",
+    "notes/quests",
     "notes/npcs/caleb - young optimist.md",
     "notes/npcs/ellie - town clerk.md",
     "notes/npcs/harlan - reclusive local.md",
@@ -197,10 +201,6 @@
     "notes/npcs/eli - dockkeeper.md",
     "notes/npcs/lena - shopkeeper.md",
     "product/environmental_storytelling.md",
-    "notes/npcs",
-    "product/world_progression.md",
-    "product/player_progression.md",
-    "product/quest_design.md",
-    "product/narrative_acts.md"
+    "notes/npcs"
   ]
 }
