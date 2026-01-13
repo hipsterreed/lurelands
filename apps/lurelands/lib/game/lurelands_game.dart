@@ -701,12 +701,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// Reset player to a safe spawn position
+  /// Reset player to the map spawn position
   void resetPlayerPosition() {
     if (_player != null) {
-      _player!.position = Vector2(800, 800);
-      saveService.updatePlayerPosition(800, 800, 0);
-      debugPrint('[LurelandsGame] Reset player position to (800, 800)');
+      final spawnPoint = _tiledMapWorld.playerSpawnPoint;
+      _player!.position = spawnPoint.clone();
+      saveService.updatePlayerPosition(spawnPoint.x, spawnPoint.y, 0);
+      debugPrint('[LurelandsGame] Reset player position to spawn point: $spawnPoint');
     }
   }
 

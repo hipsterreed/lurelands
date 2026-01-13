@@ -286,11 +286,18 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
       return;
     }
 
-    // Look for spawn point marker (tile ID 1198 in color_pallette_tiles)
+    final tileMap = _tiledMap.tileMap.map;
+
+    // Look for spawn point marker (tile with is_spawn property)
     for (int y = 0; y < mapHeightTiles; y++) {
       for (int x = 0; x < mapWidthTiles; x++) {
         final gid = logicLayer.tileData?[y][x].tile;
-        if (gid == 1198) {
+        if (gid == null || gid == 0) continue;
+
+        final tile = tileMap.tileByGid(gid);
+        final isSpawn = tile?.properties.getValue<bool>('is_spawn') ?? false;
+
+        if (isSpawn) {
           // Found spawn point - convert tile position to world position
           _playerSpawnPoint = Vector2(
             (x + 0.5) * renderedTileSize,
