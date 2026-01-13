@@ -49,10 +49,6 @@ class GameConstants {
   // Bar size bonus: adds to base bar size (helps with harder fish)
   static const List<double> poleBarSizeBonus = [0.0, 0.02, 0.04, 0.07];
 
-  // Pond settings
-  static const double minPondRadius = 80.0;
-  static const double maxPondRadius = 150.0;
-
   // Camera settings
   static const double cameraZoom = 1.0;
 }
