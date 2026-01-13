@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../services/spacetimedb/stdb_service.dart';
+import '../services/game_save_service.dart';
 import '../utils/constants.dart';
+
+/// Type alias for backward compatibility - panels now use InventoryItem
+typedef InventoryEntry = InventoryItem;
 
 /// Shop panel colors - rustic market theme
 class _ShopColors {

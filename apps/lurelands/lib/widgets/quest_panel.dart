@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../services/spacetimedb/stdb_service.dart';
+import '../services/game_save_service.dart';
 import '../utils/constants.dart';
 import 'panel_frame.dart';
 

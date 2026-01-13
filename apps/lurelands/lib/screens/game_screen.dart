@@ -6,25 +6,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../game/lurelands_game.dart';
-import '../models/player_state.dart';
+import '../services/game_save_service.dart';
 import '../services/game_settings.dart';
-import '../services/item_service.dart';
-import '../services/spacetimedb/stdb_service.dart';
 import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
-import '../widgets/quest_dialog.dart';
 import '../widgets/quest_panel.dart';
 import '../widgets/shop_panel.dart';
 import '../game/components/quest_sign.dart';
 import '../game/components/shop.dart';
 
-/// Bridge server URL (Bun/Elysia bridge to SpacetimeDB)
-const String _bridgeUrl = 'wss://api.lurelands.com/ws';
-
 /// Screen that hosts the Flame GameWidget with mobile touch controls
+/// Now uses local save instead of server connection
 class GameScreen extends StatefulWidget {
   final String playerName;
-  
+
   const GameScreen({super.key, this.playerName = 'Fisher'});
 
   @override
@@ -33,309 +28,205 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   LurelandsGame? _game;
-  late SpacetimeDBService _stdbService;
-  StreamSubscription<StdbConnectionState>? _connectionSubscription;
-  StreamSubscription<List<InventoryEntry>>? _inventorySubscription;
-  StreamSubscription<List<PlayerState>>? _playerSubscription;
-  VoidCallback? _shopNotifierListener;
-  final TextEditingController _nameController = TextEditingController();
+  final GameSaveService _saveService = GameSaveService.instance;
 
-  // Connection state (unused but kept for potential future use)
-  // ignore: unused_field
-  StdbConnectionState _connectionState = StdbConnectionState.disconnected;
-  bool _isConnecting = true;
-  String? _connectionError;
-  
+  StreamSubscription<List<InventoryItem>>? _inventorySubscription;
+  StreamSubscription<GameSaveData>? _statsSubscription;
+  StreamSubscription<int>? _levelUpSubscription;
+  StreamSubscription<List<QuestProgress>>? _questSubscription;
+
+  VoidCallback? _shopNotifierListener;
+  VoidCallback? _questSignNotifierListener;
+
+  bool _isLoading = true;
+  String? _loadError;
+
   // Inventory state
   bool _showInventory = false;
-  List<InventoryEntry> _inventoryItems = [];
+  List<InventoryItem> _inventoryItems = [];
   int _playerGold = 0;
-  String? _equippedPoleId; // Currently equipped fishing pole
-  
+  String? _equippedPoleId;
+
   // Shop state
   bool _showShop = false;
   Shop? _nearbyShop;
-  
+
   // Quest state
   bool _showQuestPanel = false;
-  bool _showQuestDialog = false;
   QuestSign? _nearbyQuestSign;
-  List<Quest> _quests = [];
-  List<PlayerQuest> _playerQuests = [];
-  VoidCallback? _questSignNotifierListener;
-  StreamSubscription<({List<Quest> quests, List<PlayerQuest> playerQuests})>? _questSubscription;
+  List<QuestProgress> _questProgress = [];
 
-  // Player stats (level/XP)
-  PlayerStats? _playerStats;
-  StreamSubscription<PlayerStats>? _playerStatsSubscription;
-  StreamSubscription<LevelUpEvent>? _levelUpSubscription;
+  // Player stats
+  int _playerLevel = 1;
+  int _playerXp = 0;
+  int _playerXpToNextLevel = 100;
   bool _showLevelUpNotification = false;
   int _levelUpNewLevel = 1;
 
   @override
   void initState() {
     super.initState();
-    _initializeConnection();
+    _initializeGame();
   }
 
-  Future<void> _initializeConnection() async {
+  Future<void> _initializeGame() async {
     setState(() {
-      _isConnecting = true;
-      _connectionError = null;
+      _isLoading = true;
+      _loadError = null;
     });
 
-    // Load item definitions from API before connecting
-    final httpUrl = _wsUrlToHttpUrl(_bridgeUrl);
-    final itemsLoaded = await ItemService.instance.loadItems(httpUrl);
+    try {
+      final settings = GameSettings.instance;
+      await settings.init();
 
-    // Check if items loaded successfully - show error if items are missing
-    if (!itemsLoaded && ItemService.instance.missingItems.isNotEmpty) {
+      final playerId = await settings.getPlayerId();
+      final playerColor = await settings.getPlayerColor();
+      final playerName = widget.playerName;
+
+      debugPrint('[GameScreen] Initializing with playerId: "$playerId", playerName: "$playerName"');
+
+      // Load or create save
+      final save = await _saveService.loadOrCreateSave(
+        playerId: playerId,
+        playerName: playerName,
+        playerColor: playerColor,
+      );
+
       if (!mounted) return;
-      setState(() {
-        _isConnecting = false;
-        _connectionError = 'Missing items in database:\n${ItemService.instance.missingItems.join(", ")}';
-      });
-      return;
-    }
 
-    // Use BridgeSpacetimeDBService to connect via Bun/Elysia bridge
-    _stdbService = BridgeSpacetimeDBService();
-
-    // Health check - verify bridge is healthy and SpacetimeDB is connected
-    debugPrint('[GameScreen] Performing health check...');
-    final healthResult = await _stdbService.checkHealth(_bridgeUrl);
-
-    if (!healthResult.healthy) {
-      if (!mounted) return;
-      final errorMsg = healthResult.spacetimedb == 'disconnected'
-          ? 'Server database is disconnected. Please try again later.'
-          : healthResult.spacetimedb == 'unreachable'
-              ? 'Could not reach server. Check your internet connection.'
-              : 'Server is experiencing issues (${healthResult.status})';
-      setState(() {
-        _isConnecting = false;
-        _connectionError = errorMsg;
-      });
-      return;
-    }
-    debugPrint('[GameScreen] Health check passed!');
-
-    // Listen to connection state changes
-    _connectionSubscription = _stdbService.connectionStateStream.listen((state) {
-      debugPrint('[GameScreen] Connection state: $state');
-      if (mounted) {
-        setState(() {
-          _connectionState = state;
-        });
-      }
-    });
-
-    debugPrint('[GameScreen] Connecting to bridge at: $_bridgeUrl');
-
-    // Attempt to connect to bridge
-    final connected = await _stdbService.connect(_bridgeUrl);
-    
-    debugPrint('[GameScreen] Connection result: $connected');
-
-    if (!mounted) return;
-
-    if (connected) {
-      // Successfully connected - create the game
-      debugPrint('[GameScreen] Connected! Creating game...');
-      await _createGame();
-    } else {
-      // Connection failed - show error screen
-      debugPrint('[GameScreen] Connection FAILED');
-      setState(() {
-        _isConnecting = false;
-        _connectionError = 'Could not connect to server at $_bridgeUrl';
-      });
-    }
-  }
-
-  /// Convert WebSocket URL to HTTP URL for API calls
-  String _wsUrlToHttpUrl(String wsUrl) {
-    return wsUrl
-        .replaceFirst('wss://', 'https://')
-        .replaceFirst('ws://', 'http://')
-        .replaceFirst('/ws', '');
-  }
-
-  Future<void> _createGame() async {
-    final settings = GameSettings.instance;
-    
-    // Get player data from centralized settings
-    final playerId = await settings.getPlayerId();
-    final playerColor = await settings.getPlayerColor();
-
-    // Use player name passed from main menu (will be saved to DB when joining)
-    final playerName = widget.playerName;
-    debugPrint('[GameScreen] Creating game with playerId: "$playerId", playerName: "$playerName"');
-
-    // Subscribe to inventory updates
-    _inventorySubscription = _stdbService.inventoryUpdates.listen((items) {
-      if (mounted) {
-        setState(() {
-          _inventoryItems = items;
-        });
-      }
-    });
-    
-    // Subscribe to player updates to track gold and equipped pole
-    _playerSubscription = _stdbService.playerUpdates.listen((players) {
-      if (mounted) {
-        // Find local player and update state
-        final localPlayer = players.where((p) => p.id == playerId).firstOrNull;
-        if (localPlayer != null) {
-          bool needsUpdate = false;
-          if (localPlayer.gold != _playerGold) {
-            _playerGold = localPlayer.gold;
-            needsUpdate = true;
-          }
-          if (localPlayer.equippedPoleId != _equippedPoleId) {
-            _equippedPoleId = localPlayer.equippedPoleId;
-            needsUpdate = true;
-            
-            // Sync the equipped pole tier to the game's Player component
-            // This affects cast distance and pole sprite
-            if (_game?.player != null) {
-              _game!.player!.equippedPoleTier = localPlayer.equippedPoleTier;
-            }
-          }
-          if (needsUpdate) {
-            setState(() {});
-          }
+      // Subscribe to inventory updates
+      _inventorySubscription = _saveService.inventoryUpdates.listen((items) {
+        if (mounted) {
+          setState(() {
+            _inventoryItems = items;
+          });
         }
-      }
-    });
-    
-    // Initialize inventory from current state
-    _inventoryItems = _stdbService.inventory;
+      });
 
-    final game = LurelandsGame(
-      stdbService: _stdbService,
-      playerId: playerId,
-      playerName: playerName,
-      playerColor: playerColor,
-    );
-    
-    // Listen to nearby shop changes
-    _shopNotifierListener = () {
+      // Subscribe to stats updates
+      _statsSubscription = _saveService.statsUpdates.listen((saveData) {
+        if (mounted) {
+          setState(() {
+            _playerGold = saveData.gold;
+            _equippedPoleId = saveData.equippedPoleId;
+            _playerLevel = saveData.level;
+            _playerXp = saveData.xp;
+            _playerXpToNextLevel = saveData.xpToNextLevel;
+          });
+        }
+      });
+
+      // Subscribe to level up events
+      _levelUpSubscription = _saveService.levelUpStream.listen((newLevel) {
+        if (mounted) {
+          setState(() {
+            _showLevelUpNotification = true;
+            _levelUpNewLevel = newLevel;
+          });
+          // Auto-hide after 3 seconds
+          Future.delayed(const Duration(seconds: 3), () {
+            if (mounted) {
+              setState(() {
+                _showLevelUpNotification = false;
+              });
+            }
+          });
+        }
+      });
+
+      // Subscribe to quest progress updates
+      _questSubscription = _saveService.questProgressUpdates.listen((progress) {
+        if (mounted) {
+          setState(() {
+            _questProgress = progress;
+          });
+        }
+      });
+
+      // Initialize from current save
+      _inventoryItems = save.inventory;
+      _playerGold = save.gold;
+      _equippedPoleId = save.equippedPoleId;
+      _playerLevel = save.level;
+      _playerXp = save.xp;
+      _playerXpToNextLevel = save.xpToNextLevel;
+      _questProgress = save.questProgress;
+
+      // Create the game
+      final game = LurelandsGame(
+        saveService: _saveService,
+        playerId: playerId,
+        playerName: playerName,
+        playerColor: playerColor,
+      );
+
+      // Listen to nearby shop changes
+      _shopNotifierListener = () {
+        if (mounted) {
+          setState(() {
+            _nearbyShop = game.nearbyShopNotifier.value;
+          });
+        }
+      };
+      game.nearbyShopNotifier.addListener(_shopNotifierListener!);
+
+      // Listen to nearby quest sign changes
+      _questSignNotifierListener = () {
+        if (mounted) {
+          setState(() {
+            _nearbyQuestSign = game.nearbyQuestSignNotifier.value;
+          });
+        }
+      };
+      game.nearbyQuestSignNotifier.addListener(_questSignNotifierListener!);
+
+      setState(() {
+        _isLoading = false;
+        _game = game;
+      });
+
+      debugPrint('[GameScreen] Game initialized successfully');
+    } catch (e) {
+      debugPrint('[GameScreen] Error initializing game: $e');
       if (mounted) {
         setState(() {
-          _nearbyShop = game.nearbyShopNotifier.value;
+          _isLoading = false;
+          _loadError = 'Error loading game: $e';
         });
       }
-    };
-    game.nearbyShopNotifier.addListener(_shopNotifierListener!);
-    
-    // Listen to nearby quest sign changes
-    _questSignNotifierListener = () {
-      if (mounted) {
-        setState(() {
-          _nearbyQuestSign = game.nearbyQuestSignNotifier.value;
-        });
-      }
-    };
-    game.nearbyQuestSignNotifier.addListener(_questSignNotifierListener!);
-    
-    // Subscribe to quest updates
-    _questSubscription = _stdbService.questUpdates.listen((data) {
-      if (mounted) {
-        setState(() {
-          _quests = data.quests;
-          _playerQuests = data.playerQuests;
-        });
-        // Update quest sign indicators
-        _updateQuestSignIndicators();
-      }
-    });
-
-    // Subscribe to player stats updates (level/XP)
-    _playerStatsSubscription = _stdbService.playerStatsStream.listen((stats) {
-      if (mounted) {
-        setState(() {
-          _playerStats = stats;
-        });
-      }
-    });
-
-    // Subscribe to level up events for notifications
-    _levelUpSubscription = _stdbService.levelUpStream.listen((event) {
-      if (mounted) {
-        setState(() {
-          _showLevelUpNotification = true;
-          _levelUpNewLevel = event.newLevel;
-        });
-        // Auto-hide after 3 seconds
-        Future.delayed(const Duration(seconds: 3), () {
-          if (mounted) {
-            setState(() {
-              _showLevelUpNotification = false;
-            });
-          }
-        });
-      }
-    });
-
-    // Initialize with current data
-    _quests = _stdbService.quests;
-    _playerQuests = _stdbService.playerQuests;
-    _playerStats = _stdbService.playerStats;
-
-    setState(() {
-      _isConnecting = false;
-      _game = game;
-    });
-    
-    // Update quest sign indicators with initial data
-    // Need to delay slightly to ensure game world is loaded
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) _updateQuestSignIndicators();
-    });
-  }
-
-  Future<void> _retryConnection() async {
-    // Dispose old service
-    _stdbService.dispose();
-    _connectionSubscription?.cancel();
-
-    // Try again
-    await _initializeConnection();
+    }
   }
 
   @override
   void dispose() {
-    _connectionSubscription?.cancel();
     _inventorySubscription?.cancel();
-    _playerSubscription?.cancel();
-    _questSubscription?.cancel();
-    _playerStatsSubscription?.cancel();
+    _statsSubscription?.cancel();
     _levelUpSubscription?.cancel();
+    _questSubscription?.cancel();
     if (_shopNotifierListener != null && _game != null) {
       _game!.nearbyShopNotifier.removeListener(_shopNotifierListener!);
     }
     if (_questSignNotifierListener != null && _game != null) {
       _game!.nearbyQuestSignNotifier.removeListener(_questSignNotifierListener!);
     }
-    _stdbService.dispose();
-    _nameController.dispose();
+    // Save on dispose
+    _saveService.save();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Show connecting screen
-    if (_isConnecting) {
+    // Show loading screen
+    if (_isLoading) {
       return Scaffold(
-        body: _buildConnectingScreen(),
+        body: _buildLoadingScreen(),
       );
     }
 
-    // Show connection error screen
-    if (_connectionError != null || _game == null) {
+    // Show error screen
+    if (_loadError != null || _game == null) {
       return Scaffold(
-        body: _buildConnectionErrorScreen(),
+        body: _buildErrorScreen(_loadError ?? 'Unknown error'),
       );
     }
 
@@ -347,7 +238,7 @@ class _GameScreenState extends State<GameScreen> {
           GameWidget(
             game: _game!,
             loadingBuilder: (context) => _buildLoadingScreen(),
-            errorBuilder: (context, error) => _buildErrorScreen(error),
+            errorBuilder: (context, error) => _buildErrorScreen(error.toString()),
           ),
           // Mobile controls overlay
           _buildMobileControls(),
@@ -355,7 +246,7 @@ class _GameScreenState extends State<GameScreen> {
           _buildHUD(),
           // Fishing minigame overlay
           _buildFishingMinigameOverlay(),
-          // Fishing state messages (bite alert, caught, escaped)
+          // Fishing state messages (escaped)
           _buildFishingStateOverlay(),
           // Inventory panel overlay
           if (_showInventory)
@@ -367,68 +258,71 @@ class _GameScreenState extends State<GameScreen> {
               onClose: () => setState(() => _showInventory = false),
               onToggleDebug: () {
                 _game?.toggleDebugMode();
-                setState(() {}); // Refresh to show debug state
+                setState(() {});
               },
               onUpdatePlayerName: (newName) async {
                 await GameSettings.instance.setPlayerName(newName);
-                _stdbService.updatePlayerName(newName);
+                _saveService.updatePlayerName(newName);
               },
               equippedPoleId: _equippedPoleId,
               onEquipPole: (poleItemId) {
-                _stdbService.equipPole(poleItemId);
+                _saveService.equipPole(poleItemId);
+                // Update player component pole tier
+                if (_game?.player != null) {
+                  _game!.player!.equippedPoleTier = _getPoleTierFromId(poleItemId);
+                }
               },
               onUnequipPole: () {
-                _stdbService.unequipPole();
+                _saveService.unequipPole();
+                if (_game?.player != null) {
+                  _game!.player!.equippedPoleTier = 1;
+                }
               },
               onResetGold: () {
-                _stdbService.setGold(0);
-                setState(() {
-                  _playerGold = 0;
-                });
+                _saveService.setGold(0);
               },
               onResetPosition: () {
                 _game?.resetPlayerPosition();
                 setState(() => _showInventory = false);
               },
               onResetQuests: () {
-                _stdbService.resetAllQuests();
-                setState(() {
-                  _playerQuests = [];
-                });
+                _saveService.resetAllQuests();
               },
               onExitToMenu: () {
+                _saveService.save();
                 setState(() => _showInventory = false);
                 Navigator.of(context).pushReplacementNamed('/');
               },
-              quests: _quests,
-              playerQuests: _playerQuests,
+              quests: [], // Local quests will be defined in constants later
+              playerQuests: [], // Using _questProgress instead
               onAcceptQuest: _onAcceptQuest,
               onCompleteQuest: _onCompleteQuest,
-              playerLevel: _playerStats?.level ?? 1,
-              playerXp: _playerStats?.xp ?? 0,
-              playerXpToNextLevel: _playerStats?.xpToNextLevel ?? 100,
+              playerLevel: _playerLevel,
+              playerXp: _playerXp,
+              playerXpToNextLevel: _playerXpToNextLevel,
             ),
           // Shop panel overlay
           if (_showShop && _nearbyShop != null)
             ShopPanel(
-              // Filter out equipped items - they shouldn't be sellable while equipped
               playerItems: _equippedPoleId == null
                   ? _inventoryItems
-                  : _inventoryItems.where((item) => item.itemId != _equippedPoleId).toList(),
+                  : _inventoryItems
+                      .where((item) => item.itemId != _equippedPoleId)
+                      .toList(),
               playerGold: _playerGold,
               shopName: _nearbyShop!.name,
               onClose: () => setState(() => _showShop = false),
               onSellItem: _onSellItem,
               onBuyItem: _onBuyItem,
             ),
-          // Shop interaction button (when near shop)
+          // Shop interaction button
           if (_nearbyShop != null && !_showShop && !_showInventory && !_showQuestPanel)
             _buildShopButton(),
-          // Quest panel overlay (full quest journal or sign-filtered view)
+          // Quest panel overlay
           if (_showQuestPanel)
             QuestPanel(
-              quests: _quests,
-              playerQuests: _playerQuests,
+              quests: [], // Local quests - can be defined in constants
+              playerQuests: [], // Using local _questProgress
               onClose: () => setState(() => _showQuestPanel = false),
               onAcceptQuest: _onAcceptQuest,
               onCompleteQuest: _onCompleteQuest,
@@ -436,80 +330,20 @@ class _GameScreenState extends State<GameScreen> {
               signName: _nearbyQuestSign?.name,
               storylines: _nearbyQuestSign?.storylines,
             ),
-          // Quest dialog overlay (WoW-style) - only for new quests
-          if (_showQuestDialog && _nearbyQuestSign != null)
-            Builder(
-              builder: (context) {
-                final questToShow = QuestSignHelper.getQuestToShow(
-                  allQuests: _quests,
-                  playerQuests: _playerQuests,
-                  signId: _nearbyQuestSign!.id,
-                  storylines: _nearbyQuestSign!.storylines,
-                );
-                
-                if (questToShow == null) {
-                  // No quests available - close dialog
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) setState(() => _showQuestDialog = false);
-                  });
-                  return const SizedBox.shrink();
-                }
-                
-                final playerQuest = _playerQuests
-                    .where((pq) => pq.questId == questToShow.id)
-                    .firstOrNull;
-                
-                // Only show dialog for new/available quests, not active ones
-                if (playerQuest?.isActive == true) {
-                  WidgetsBinding.instance.addPostFrameCallback((_) {
-                    if (mounted) {
-                      setState(() {
-                        _showQuestDialog = false;
-                        _showQuestPanel = true;
-                      });
-                    }
-                  });
-                  return const SizedBox.shrink();
-                }
-                
-                return QuestOfferDialog(
-                  quest: questToShow,
-                  playerQuest: playerQuest,
-                  signName: _nearbyQuestSign!.name,
-                  onClose: () => setState(() => _showQuestDialog = false),
-                  onAccept: () {
-                    _onAcceptQuest(questToShow.id);
-                    // Close after accepting - player can view in backpack
-                    setState(() => _showQuestDialog = false);
-                  },
-                  onComplete: (playerQuest?.isActive ?? false) && 
-                              playerQuest!.areRequirementsMet(questToShow)
-                      ? () {
-                          _onCompleteQuest(questToShow.id);
-                          // Stay open to show next quest or close if none
-                        }
-                      : null,
-                );
-              },
-            ),
-          // Quest sign interaction button (when near quest sign with available, completable, or active quests)
-          if (_nearbyQuestSign != null && !_showQuestPanel && !_showQuestDialog && !_showInventory && !_showShop &&
-              (QuestSignHelper.hasAvailableOrCompletableQuests(
-                allQuests: _quests,
-                playerQuests: _playerQuests,
-                signId: _nearbyQuestSign!.id,
-                storylines: _nearbyQuestSign!.storylines,
-              ) ||
-              QuestSignHelper.hasActiveQuest(
-                allQuests: _quests,
-                playerQuests: _playerQuests,
-                signId: _nearbyQuestSign!.id,
-                storylines: _nearbyQuestSign!.storylines,
-              )))
+          // Quest sign button
+          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop)
             _buildQuestSignButton(),
         ],
       ),
     );
+  }
+
+  int _getPoleTierFromId(String? poleId) {
+    if (poleId == null) return 1;
+    if (poleId.startsWith('pole_')) {
+      return int.tryParse(poleId.split('_').last) ?? 1;
+    }
+    return 1;
   }
 
   Widget _buildFishingMinigameOverlay() {
@@ -543,11 +377,9 @@ class _GameScreenState extends State<GameScreen> {
     return ValueListenableBuilder<FishingState>(
       valueListenable: _game!.fishingStateNotifier,
       builder: (context, state, _) {
-        // Show "ESCAPED" message only - caught state just shows the fish animation
         if (state == FishingState.escaped) {
           return _buildEscapedMessage();
         }
-
         return const SizedBox.shrink();
       },
     );
@@ -577,14 +409,13 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  Widget _buildConnectingScreen() {
+  Widget _buildLoadingScreen() {
     return Container(
       color: GameColors.menuBackground,
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Animated fishing pole icon
             TweenAnimationBuilder<double>(
               tween: Tween(begin: 0, end: 1),
               duration: const Duration(milliseconds: 1500),
@@ -595,7 +426,6 @@ class _GameScreenState extends State<GameScreen> {
                   child: child,
                 );
               },
-              onEnd: () {},
               child: Icon(
                 Icons.phishing,
                 color: GameColors.pondBlue,
@@ -604,7 +434,7 @@ class _GameScreenState extends State<GameScreen> {
             ),
             const SizedBox(height: 32),
             Text(
-              'Connecting to Server...',
+              'Loading Game...',
               style: TextStyle(
                 color: GameColors.textPrimary,
                 fontSize: 24,
@@ -619,176 +449,13 @@ class _GameScreenState extends State<GameScreen> {
                 valueColor: AlwaysStoppedAnimation(GameColors.pondBlue),
               ),
             ),
-            const SizedBox(height: 24),
-            Text(
-              _bridgeUrl,
-              style: TextStyle(
-                color: GameColors.textSecondary,
-                fontSize: 12,
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildConnectionErrorScreen() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            GameColors.menuBackground,
-            const Color(0xFF0D1117),
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 48, vertical: 24),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Left side - Error icon
-                Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: GameColors.playerDefault.withAlpha(30),
-                    border: Border.all(
-                      color: GameColors.playerDefault.withAlpha(100),
-                      width: 3,
-                    ),
-                  ),
-                  child: Icon(
-                    Icons.cloud_off_rounded,
-                    color: GameColors.playerDefault,
-                    size: 48,
-                  ),
-                ),
-                const SizedBox(width: 40),
-                // Right side - Text and buttons
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Cannot Connect to Server',
-                      style: TextStyle(
-                        color: GameColors.textPrimary,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'The game server is not available.\nPlease check your connection and try again.',
-                      style: TextStyle(
-                        color: GameColors.textSecondary,
-                        fontSize: 14,
-                        height: 1.4,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                      decoration: BoxDecoration(
-                        color: GameColors.menuAccent,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        _bridgeUrl,
-                        style: TextStyle(
-                          color: GameColors.textSecondary.withAlpha(180),
-                          fontSize: 11,
-                          fontFamily: 'monospace',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    // Buttons row
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        SizedBox(
-                          height: 44,
-                          child: ElevatedButton.icon(
-                            onPressed: _retryConnection,
-                            icon: const Icon(Icons.refresh_rounded, size: 20),
-                            label: const Text(
-                              'Retry Connection',
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: GameColors.pondBlue,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 20),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              elevation: 4,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        TextButton.icon(
-                          onPressed: () {
-                            Navigator.of(context).pushReplacementNamed('/');
-                          },
-                          icon: Icon(
-                            Icons.arrow_back_rounded,
-                            color: GameColors.textSecondary,
-                            size: 18,
-                          ),
-                          label: Text(
-                            'Back to Menu',
-                            style: TextStyle(
-                              color: GameColors.textSecondary,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLoadingScreen() {
-    return Container(
-      color: GameColors.menuBackground,
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircularProgressIndicator(color: GameColors.pondBlue),
-            const SizedBox(height: 24),
-            Text(
-              'Loading world...',
-              style: TextStyle(color: GameColors.textPrimary, fontSize: 18),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorScreen(Object error) {
+  Widget _buildErrorScreen(String error) {
     return Container(
       color: GameColors.menuBackground,
       child: Center(
@@ -802,9 +469,21 @@ class _GameScreenState extends State<GameScreen> {
               style: TextStyle(color: GameColors.textPrimary, fontSize: 20),
             ),
             const SizedBox(height: 8),
-            Text(
-              error.toString(),
-              style: TextStyle(color: GameColors.textSecondary, fontSize: 14),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                error,
+                style: TextStyle(color: GameColors.textSecondary, fontSize: 14),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => Navigator.of(context).pushReplacementNamed('/'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: GameColors.pondBlue,
+              ),
+              child: const Text('Back to Menu'),
             ),
           ],
         ),
@@ -818,13 +497,7 @@ class _GameScreenState extends State<GameScreen> {
     return SafeArea(
       child: Stack(
         children: [
-          // Connection quality indicator (top left)
-          Positioned(
-            top: 16,
-            left: 16,
-            child: _buildConnectionIndicator(),
-          ),
-          // Level up notification (center top)
+          // Level up notification
           if (_showLevelUpNotification)
             Positioned(
               top: 80,
@@ -832,7 +505,7 @@ class _GameScreenState extends State<GameScreen> {
               right: 0,
               child: _buildLevelUpNotification(),
             ),
-          // Inventory/Backpack button (top right)
+          // Inventory/Backpack button
           Positioned(
             top: 16,
             right: 16,
@@ -851,7 +524,6 @@ class _GameScreenState extends State<GameScreen> {
                       color: GameColors.textPrimary.withAlpha(204),
                       size: 28,
                     ),
-                    // Item count badge
                     if (_inventoryItems.isNotEmpty)
                       Positioned(
                         right: -2,
@@ -882,53 +554,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Build connection quality indicator
-  Widget _buildConnectionIndicator() {
-    return StreamBuilder<ConnectionQuality>(
-      stream: _stdbService.connectionQualityStream,
-      initialData: _stdbService.connectionQuality,
-      builder: (context, snapshot) {
-        final quality = snapshot.data ?? ConnectionQuality.excellent;
-
-        // Only show if not excellent (don't clutter good connections)
-        if (quality == ConnectionQuality.excellent) {
-          return const SizedBox.shrink();
-        }
-
-        final (icon, color, label) = switch (quality) {
-          ConnectionQuality.excellent => (Icons.signal_cellular_4_bar, Colors.green, 'Excellent'),
-          ConnectionQuality.good => (Icons.signal_cellular_4_bar, Colors.green, 'Good'),
-          ConnectionQuality.fair => (Icons.signal_cellular_alt, Colors.yellow, 'Fair'),
-          ConnectionQuality.poor => (Icons.signal_cellular_alt_2_bar, Colors.orange, 'Poor'),
-          ConnectionQuality.critical => (Icons.signal_cellular_0_bar, Colors.red, 'Poor Connection'),
-        };
-
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: GameColors.menuBackground.withAlpha(180),
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: color, size: 16),
-              if (quality == ConnectionQuality.poor || quality == ConnectionQuality.critical)
-                Padding(
-                  padding: const EdgeInsets.only(left: 4),
-                  child: Text(
-                    label,
-                    style: TextStyle(color: color, fontSize: 10),
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  /// Build level up notification toast
   Widget _buildLevelUpNotification() {
     return Center(
       child: TweenAnimationBuilder<double>(
@@ -959,11 +584,6 @@ class _GameScreenState extends State<GameScreen> {
                 color: const Color(0xFFFFD700).withAlpha(100),
                 blurRadius: 20,
                 spreadRadius: 2,
-              ),
-              BoxShadow(
-                color: Colors.black.withAlpha(150),
-                blurRadius: 8,
-                offset: const Offset(0, 4),
               ),
             ],
           ),
@@ -1009,11 +629,9 @@ class _GameScreenState extends State<GameScreen> {
       builder: (context, isLoaded, _) {
         if (!isLoaded) return const SizedBox.shrink();
 
-        // Hide controls during minigame (it handles its own input)
         return ValueListenableBuilder<FishingState>(
           valueListenable: _game!.fishingStateNotifier,
           builder: (context, fishingState, _) {
-            // Hide during minigame or escaped states (allow movement during caught)
             if (fishingState == FishingState.minigame ||
                 fishingState == FishingState.escaped) {
               return const SizedBox.shrink();
@@ -1022,7 +640,6 @@ class _GameScreenState extends State<GameScreen> {
             return SafeArea(
               child: Stack(
                 children: [
-                  // Virtual joystick on the left (hide during bite)
                   if (fishingState != FishingState.bite)
                     Positioned(
                       left: 30,
@@ -1033,7 +650,6 @@ class _GameScreenState extends State<GameScreen> {
                         },
                       ),
                     ),
-                  // Action buttons on the right
                   Positioned(right: 30, bottom: 30, child: _buildActionButtons()),
                 ],
               ),
@@ -1050,12 +666,10 @@ class _GameScreenState extends State<GameScreen> {
     return ValueListenableBuilder<FishingState>(
       valueListenable: _game!.fishingStateNotifier,
       builder: (context, fishingState, _) {
-        // Special pulsing button during bite
         if (fishingState == FishingState.bite) {
           return _buildBiteTapButton();
         }
 
-        // Check if player has a pole equipped
         final hasPoleEquipped = _equippedPoleId != null;
 
         return ValueListenableBuilder<bool>(
@@ -1064,7 +678,6 @@ class _GameScreenState extends State<GameScreen> {
             return ValueListenableBuilder<bool>(
               valueListenable: _game!.isCastingNotifier,
               builder: (context, isCasting, _) {
-                // If no pole equipped, show disabled state
                 if (!hasPoleEquipped) {
                   return _buildNoPoleButton();
                 }
@@ -1073,7 +686,6 @@ class _GameScreenState extends State<GameScreen> {
                 return Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Cast/Reel button
                     GestureDetector(
                       onTapDown: (_) => _game!.onCastHoldStart(),
                       onTapUp: (_) => _game!.onCastRelease(),
@@ -1106,14 +718,8 @@ class _GameScreenState extends State<GameScreen> {
                         child: Center(
                           child: Builder(
                             builder: (context) {
-                              // Use cached _equippedPoleId to derive tier, avoiding flicker
-                              // from server broadcast timing during walking
-                              int poleTier = 1;
-                              if (_equippedPoleId != null && _equippedPoleId!.startsWith('pole_')) {
-                                poleTier = int.tryParse(_equippedPoleId!.split('_').last) ?? 1;
-                              }
+                              int poleTier = _getPoleTierFromId(_equippedPoleId);
                               final poleAsset = ItemAssets.getFishingPole(poleTier);
-                              // Rotate 30 degrees forward when casting
                               final castRotation = isCasting ? pi / 6 : 0.0;
                               return SpritesheetSprite(
                                 column: poleAsset.spriteColumn,
@@ -1150,7 +756,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Build the cast button when no fishing pole is equipped
   Widget _buildNoPoleButton() {
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1172,13 +777,11 @@ class _GameScreenState extends State<GameScreen> {
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Faded pole icon
                   Icon(
                     Icons.phishing,
                     size: 36,
                     color: GameColors.textSecondary.withAlpha(100),
                   ),
-                  // Red X overlay
                   Icon(
                     Icons.close,
                     size: 48,
@@ -1202,7 +805,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Show a message when the player tries to fish without a pole
   void _showNoPoleMessage() {
     showDialog(
       context: context,
@@ -1257,7 +859,7 @@ class _GameScreenState extends State<GameScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      "If you lost yours, you can get a free one from the shop!",
+                      "Open your backpack to equip your fishing pole!",
                       style: TextStyle(
                         color: GameColors.textPrimary,
                         fontSize: 13,
@@ -1290,7 +892,6 @@ class _GameScreenState extends State<GameScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Pulsing tap button
         TweenAnimationBuilder<double>(
           tween: Tween(begin: 0.9, end: 1.1),
           duration: const Duration(milliseconds: 150),
@@ -1321,7 +922,7 @@ class _GameScreenState extends State<GameScreen> {
                   ),
                 ],
               ),
-              child: Center(
+              child: const Center(
                 child: Icon(
                   Icons.touch_app,
                   color: Colors.white,
@@ -1338,7 +939,7 @@ class _GameScreenState extends State<GameScreen> {
             color: GameColors.progressOrange,
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            shadows: [
+            shadows: const [
               Shadow(
                 color: Colors.black,
                 blurRadius: 4,
@@ -1350,7 +951,6 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Build the shop interaction button (appears when near a shop)
   Widget _buildShopButton() {
     return Positioned(
       bottom: 160,
@@ -1402,73 +1002,26 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Build the quest sign interaction button (appears when near a quest sign)
   Widget _buildQuestSignButton() {
-    // Check if there's a quest ready to turn in (filtered by this sign's id and storylines)
-    final hasCompletable = QuestSignHelper.hasCompletableQuest(
-      allQuests: _quests,
-      playerQuests: _playerQuests,
-      signId: _nearbyQuestSign?.id,
-      storylines: _nearbyQuestSign?.storylines,
-    );
-    final hasAvailable = QuestSignHelper.hasAvailableOrCompletableQuests(
-      allQuests: _quests,
-      playerQuests: _playerQuests,
-      signId: _nearbyQuestSign?.id,
-      storylines: _nearbyQuestSign?.storylines,
-    );
-    final hasActive = QuestSignHelper.hasActiveQuest(
-      allQuests: _quests,
-      playerQuests: _playerQuests,
-      signId: _nearbyQuestSign?.id,
-      storylines: _nearbyQuestSign?.storylines,
-    );
-    
-    // Colors based on quest state (priority: completable > available > active)
-    final Color buttonColor;
-    final String buttonText;
-    final IconData buttonIcon;
-    
-    if (hasCompletable) {
-      buttonColor = const Color(0xFF4CAF50);  // Green for turn-in
-      buttonText = 'TURN IN QUEST';
-      buttonIcon = Icons.check_circle;
-    } else if (hasAvailable) {
-      buttonColor = const Color(0xFFFFD700); // Gold for new quest
-      buttonText = 'NEW QUEST!';
-      buttonIcon = Icons.priority_high;
-    } else if (hasActive) {
-      buttonColor = const Color(0xFF888888); // Gray for in-progress
-      buttonText = 'VIEW QUEST';
-      buttonIcon = Icons.assignment;
-    } else {
-      buttonColor = const Color(0xFF888888);
-      buttonText = 'VIEW QUESTS';
-      buttonIcon = Icons.assignment;
-    }
-    
     return Positioned(
       bottom: 160,
       left: 0,
       right: 0,
       child: Center(
         child: GestureDetector(
-          onTap: () {
-            // Always show the panel (list → details view)
-            setState(() => _showQuestPanel = true);
-          },
+          onTap: () => setState(() => _showQuestPanel = true),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             decoration: BoxDecoration(
               color: GameColors.menuBackground.withAlpha(230),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: buttonColor,
+                color: const Color(0xFFFFD700),
                 width: 3,
               ),
               boxShadow: [
                 BoxShadow(
-                  color: buttonColor.withAlpha(100),
+                  color: const Color(0xFFFFD700).withAlpha(100),
                   blurRadius: 12,
                   spreadRadius: 0,
                 ),
@@ -1477,14 +1030,14 @@ class _GameScreenState extends State<GameScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  buttonIcon,
-                  color: buttonColor,
+                const Icon(
+                  Icons.assignment,
+                  color: Color(0xFFFFD700),
                   size: 24,
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  buttonText,
+                  'VIEW QUESTS',
                   style: TextStyle(
                     color: GameColors.textPrimary,
                     fontSize: 16,
@@ -1500,94 +1053,24 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
-  /// Handle accepting a quest
   void _onAcceptQuest(String questId) {
-    _stdbService.acceptQuest(questId);
+    _saveService.acceptQuest(questId);
   }
 
-  /// Handle completing a quest
   void _onCompleteQuest(String questId) {
-    _stdbService.completeQuest(questId);
+    // TODO: Get rewards from quest definition
+    _saveService.completeQuest(questId, goldReward: 50, xpReward: 25);
   }
 
-  /// Update quest sign indicators based on current quest state
-  void _updateQuestSignIndicators() {
-    if (_game == null) return;
-
-    _game!.updateQuestSignIndicators(
-      allQuests: _quests,
-      playerQuests: _playerQuests,
-      hasCompletableCheck: ({
-        required List<dynamic> allQuests,
-        required List<dynamic> playerQuests,
-        String? signId,
-        List<String>? storylines,
-      }) => QuestSignHelper.hasCompletableQuest(
-        allQuests: allQuests.cast<Quest>(),
-        playerQuests: playerQuests.cast<PlayerQuest>(),
-        signId: signId,
-        storylines: storylines,
-      ),
-      hasAvailableCheck: ({
-        required List<dynamic> allQuests,
-        required List<dynamic> playerQuests,
-        String? signId,
-        List<String>? storylines,
-      }) => QuestSignHelper.hasAvailableOrCompletableQuests(
-        allQuests: allQuests.cast<Quest>(),
-        playerQuests: playerQuests.cast<PlayerQuest>(),
-        signId: signId,
-        storylines: storylines,
-      ),
-      hasActiveCheck: ({
-        required List<dynamic> allQuests,
-        required List<dynamic> playerQuests,
-        String? signId,
-        List<String>? storylines,
-      }) => QuestSignHelper.hasActiveQuest(
-        allQuests: allQuests.cast<Quest>(),
-        playerQuests: playerQuests.cast<PlayerQuest>(),
-        signId: signId,
-        storylines: storylines,
-      ),
-    );
-  }
-
-  /// Handle selling an item
-  void _onSellItem(InventoryEntry item, int quantity) {
+  void _onSellItem(dynamic item, int quantity) {
     final itemDef = GameItems.get(item.itemId);
     if (itemDef == null) return;
 
-    final sellPrice = itemDef.getSellPrice(item.rarity);
-    final totalGold = sellPrice * quantity;
-
-    debugPrint('[GameScreen] Selling ${item.itemId} x$quantity for ${totalGold}g');
-    
-    // Call the sell item method on the service
-    _stdbService.sellItem(item.itemId, item.rarity, quantity);
-    
-    // Optimistically update local gold
-    setState(() {
-      _playerGold += totalGold;
-    });
+    _saveService.sellItem(item.itemId, item.rarity, quantity);
   }
 
-  /// Handle buying an item from the shop
   void _onBuyItem(String itemId, int price) {
-    if (_playerGold < price) {
-      debugPrint('[GameScreen] Not enough gold to buy $itemId');
-      return;
-    }
-
-    debugPrint('[GameScreen] Buying $itemId for ${price}g');
-    
-    // Call the buy item method on the service
-    _stdbService.buyItem(itemId, price);
-    
-    // Optimistically update local gold
-    setState(() {
-      _playerGold -= price;
-    });
+    _saveService.buyItem(itemId, price);
   }
 }
 
@@ -1596,7 +1079,7 @@ class FishingMinigameOverlay extends StatefulWidget {
   final HookedFish fish;
   final VoidCallback onCaught;
   final VoidCallback onEscaped;
-  final int poleTier; // Equipped pole tier (1-4) affects control and bar size
+  final int poleTier;
 
   const FishingMinigameOverlay({
     super.key,
@@ -1612,31 +1095,26 @@ class FishingMinigameOverlay extends StatefulWidget {
 
 class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
     with SingleTickerProviderStateMixin {
-  // Minigame dimensions
   static const double meterWidth = 60.0;
   static const double meterHeight = 320.0;
   static const double progressMeterWidth = 24.0;
   static const double frameThickness = 8.0;
 
-  // Game state
-  late double _fishPosition; // 0.0 (bottom) to 1.0 (top)
-  late double _fishTarget;   // Where fish is moving to
+  late double _fishPosition;
+  late double _fishTarget;
   late double _fishVelocity;
-  late double _barPosition;  // 0.0 (bottom) to 1.0 (top)
+  late double _barPosition;
   late double _barVelocity;
-  late double _progress;     // 0.0 to 1.0
-  late double _barSize;      // As fraction of meter height
-  late double _gravityMultiplier; // Pole tier bonus for control
+  late double _progress;
+  late double _barSize;
+  late double _gravityMultiplier;
 
-  // Fish movement AI
   double _directionChangeTimer = 0.0;
   double _fishSpeed = 1.0;
 
-  // Timeout timer
   late double _timeRemaining;
   late double _totalTime;
 
-  // Animation
   late AnimationController _animController;
   DateTime? _lastUpdate;
 
@@ -1644,23 +1122,18 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   void initState() {
     super.initState();
 
-    // Initialize based on fish tier
     final fishTierIndex = widget.fish.tier - 1;
     _fishSpeed = GameConstants.fishSpeedByTier[fishTierIndex];
     _totalTime = GameConstants.minigameTimeoutByTier[fishTierIndex];
     _timeRemaining = _totalTime;
-    
-    // Calculate pole tier bonuses
+
     final poleTierIndex = (widget.poleTier - 1).clamp(0, 3);
     _gravityMultiplier = GameConstants.poleGravityMultiplier[poleTierIndex];
-    
-    // Bar size = base size (from fish tier) + pole bonus
-    // Better poles give bigger bar, especially helpful for harder fish
+
     final baseBarSize = GameConstants.barSizeByTier[fishTierIndex];
     final poleBonus = GameConstants.poleBarSizeBonus[poleTierIndex];
     _barSize = baseBarSize + poleBonus;
 
-    // Start positions
     _fishPosition = 0.5;
     _fishTarget = 0.5;
     _fishVelocity = 0.0;
@@ -1669,10 +1142,9 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
     _progress = GameConstants.minigameStartProgress;
     _directionChangeTimer = 0.5;
 
-    // Start game loop
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(hours: 1), // Runs indefinitely
+      duration: const Duration(hours: 1),
     )..addListener(_gameLoop);
     _animController.forward();
     _lastUpdate = DateTime.now();
@@ -1691,7 +1163,7 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
         : 0.016;
     _lastUpdate = now;
 
-    if (dt > 0.1) return; // Skip large dt (e.g., from background)
+    if (dt > 0.1) return;
 
     setState(() {
       _updateFish(dt);
@@ -1700,7 +1172,6 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
       _updateTimeout(dt);
     });
 
-    // Check win/lose conditions
     if (_progress >= 1.0) {
       widget.onCaught();
     } else if (_progress <= 0.0 || _timeRemaining <= 0.0) {
@@ -1714,46 +1185,39 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   }
 
   void _updateFish(double dt) {
-    // Fish AI - periodically pick new target
     _directionChangeTimer -= dt;
     if (_directionChangeTimer <= 0) {
-      // More frequent direction changes for harder fish
       _directionChangeTimer = 0.5 + (1.0 - _fishSpeed / 2.0) * Random().nextDouble();
       _fishTarget = Random().nextDouble();
     }
 
-    // Move towards target with smooth acceleration
     final targetDiff = _fishTarget - _fishPosition;
     _fishVelocity += targetDiff * 8.0 * _fishSpeed * dt;
-    _fishVelocity *= 0.95; // Damping
+    _fishVelocity *= 0.95;
     _fishVelocity = _fishVelocity.clamp(-2.0 * _fishSpeed, 2.0 * _fishSpeed);
-    
+
     _fishPosition += _fishVelocity * dt;
     _fishPosition = _fishPosition.clamp(0.0, 1.0);
   }
 
   void _updateBar(double dt) {
-    // Apply gravity (higher tier poles = more gravity = more control)
     _barVelocity -= GameConstants.minigameBarGravity * _gravityMultiplier * dt / meterHeight;
-    
-    // Clamp velocity
+
     final maxVel = GameConstants.minigameBarMaxSpeed / meterHeight;
     _barVelocity = _barVelocity.clamp(-maxVel, maxVel);
-    
-    // Update position
+
     _barPosition += _barVelocity * dt;
     _barPosition = _barPosition.clamp(0.0, 1.0 - _barSize);
   }
 
   void _updateProgress(double dt) {
-    // Check if bar overlaps fish
     final fishCenter = _fishPosition;
-    final fishHalfSize = 0.08; // Fish hitbox size as fraction
+    const fishHalfSize = 0.08;
     final barTop = _barPosition + _barSize;
     final barBottom = _barPosition;
 
     final isOnFish = fishCenter >= barBottom - fishHalfSize &&
-                     fishCenter <= barTop + fishHalfSize;
+        fishCenter <= barTop + fishHalfSize;
 
     if (isOnFish) {
       _progress += GameConstants.minigameProgressFillRate * dt;
@@ -1764,7 +1228,6 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   }
 
   void _onTap() {
-    // Boost bar upward
     _barVelocity = GameConstants.minigameBarBoost / meterHeight;
     HapticFeedback.lightImpact();
   }
@@ -1781,18 +1244,14 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Timer display
                 _buildTimerDisplay(),
                 const SizedBox(height: 16),
-                // Meters row
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    // Main fishing meter
                     _buildFishingMeter(),
                     const SizedBox(width: 12),
-                    // Progress meter
                     _buildProgressMeter(),
                   ],
                 ),
@@ -1807,8 +1266,7 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   Widget _buildTimerDisplay() {
     final timePercent = _timeRemaining / _totalTime;
     final seconds = _timeRemaining.ceil();
-    
-    // Color changes as time runs low
+
     Color timerColor;
     if (timePercent > 0.5) {
       timerColor = Colors.white;
@@ -1820,20 +1278,18 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
 
     return Column(
       children: [
-        // Time text
         Text(
           '${seconds}s',
           style: TextStyle(
             color: timerColor,
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            shadows: [
+            shadows: const [
               Shadow(color: Colors.black, blurRadius: 4),
             ],
           ),
         ),
         const SizedBox(height: 8),
-        // Timer bar
         Container(
           width: meterWidth + progressMeterWidth + frameThickness * 3 + 12,
           height: 8,
@@ -1898,11 +1354,8 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
             ),
             child: Stack(
               children: [
-                // Water bubbles/decoration
                 ..._buildWaterDecorations(),
-                // Control bar (green rectangle)
                 _buildControlBar(),
-                // Fish (on top so it's visible over the bar)
                 _buildFish(),
               ],
             ),
@@ -1913,7 +1366,6 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   }
 
   List<Widget> _buildWaterDecorations() {
-    // Simple animated bubbles
     return [
       Positioned(
         left: 8,
@@ -1944,16 +1396,14 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
 
   Widget _buildFish() {
     final fishY = (1.0 - _fishPosition) * (meterHeight - 40);
-    // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
     final rarity = widget.fish.tier <= 2 ? 1 : (widget.fish.tier == 3 ? 2 : 3);
-    
+
     return Positioned(
       left: (meterWidth - 32) / 2,
       top: fishY,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Stars above the fish
           Row(
             mainAxisSize: MainAxisSize.min,
             children: List.generate(
@@ -1973,7 +1423,6 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
             ),
           ),
           const SizedBox(height: 2),
-          // Fish image
           Image.asset(
             widget.fish.assetPath,
             width: 32,
@@ -2031,7 +1480,6 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
   }
 
   Widget _buildProgressMeter() {
-    // Color interpolation based on progress
     Color progressColor;
     if (_progress < 0.33) {
       progressColor = Color.lerp(
@@ -2128,9 +1576,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
         ),
         child: Stack(
           children: [
-            // Direction indicators
             _buildDirectionIndicators(),
-            // Knob
             Center(
               child: Transform.translate(
                 offset: _knobPosition,
@@ -2187,7 +1633,6 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
     final center = Offset(widget.size / 2, widget.size / 2);
     final localPosition = details.localPosition - center;
 
-    // Clamp to max distance
     final distance = localPosition.distance;
     final clampedDistance = min(distance, _maxKnobDistance);
 
@@ -2205,7 +1650,6 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
       _knobPosition = newPosition;
     });
 
-    // Normalize direction to 0-1 range
     final normalizedDirection = Offset(
       newPosition.dx / _maxKnobDistance,
       newPosition.dy / _maxKnobDistance,
@@ -2222,7 +1666,6 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
   }
 }
 
-/// Painter for direction indicators on joystick
 class _DirectionIndicatorPainter extends CustomPainter {
   final Color color;
 
@@ -2237,13 +1680,9 @@ class _DirectionIndicatorPainter extends CustomPainter {
     final center = Offset(size.width / 2, size.height / 2);
     final arrowSize = size.width * 0.15;
 
-    // Up arrow
     _drawArrow(canvas, center, -pi / 2, arrowSize, paint);
-    // Down arrow
     _drawArrow(canvas, center, pi / 2, arrowSize, paint);
-    // Left arrow
     _drawArrow(canvas, center, pi, arrowSize, paint);
-    // Right arrow
     _drawArrow(canvas, center, 0, arrowSize, paint);
   }
 

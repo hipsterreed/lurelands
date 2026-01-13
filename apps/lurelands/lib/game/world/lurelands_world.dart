@@ -4,7 +4,6 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../services/spacetimedb/stdb_service.dart';
 import '../../utils/constants.dart';
 import '../components/quest_sign.dart';
 import '../components/shop.dart';
@@ -15,8 +14,20 @@ import '../lurelands_game.dart';
 import 'nature_tileset.dart';
 import 'world_decorations.dart';
 
-/// Default fallback world state when server data is unavailable
-/// Note: Ponds and rivers are now defined as tiled water bodies in _addTiledWaterBodies()
+/// Simple world state for local-only game (water bodies defined in tiled maps)
+class WorldState {
+  final List<dynamic> ponds;
+  final List<dynamic> rivers;
+  final dynamic ocean;
+
+  const WorldState({
+    this.ponds = const [],
+    this.rivers = const [],
+    this.ocean,
+  });
+}
+
+/// Default world state - water bodies are defined as tiled water in _addTiledWaterBodies()
 const WorldState fallbackWorldState = WorldState(
   ponds: [],
   rivers: [],

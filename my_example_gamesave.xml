@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="utf-8"?>
+<SaveGame
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <gameVersion>1.5.1</gameVersion>
+
+	<player>
+		<name>HipsterReed</name>
+    <level> 3 </level>
+    <experiencePoints> 28000 </experiencePoints>
+    <money>26611</money>
+		<isGlowing>false</isGlowing>
+		<glowingTransparency>0.3</glowingTransparency>
+		<glowRate>0.05</glowRate>
+		<Position>
+			<X>1344</X>
+			<Y>288</Y>
+		</Position>
+		<Speed>5</Speed>
+		<FacingDirection>1</FacingDirection>
+    <questLog>
+			<Quest>
+				<_currentObjective>Reach the bottom of the mine.</_currentObjective>
+				<_questDescription>So far, there's no sign of the bottom. How low does it go?</_questDescription>
+				<_questTitle>To The Bottom?</_questTitle>
+				<rewardDescription>-1</rewardDescription>
+				<accepted>false</accepted>
+				<completed>false</completed>
+				<dailyQuest>false</dailyQuest>
+				<showNew>false</showNew>
+				<canBeCancelled>false</canBeCancelled>
+				<destroy>false</destroy>
+				<id>18</id>
+				<moneyReward>0</moneyReward>
+				<questType>1</questType>
+				<daysLeft>0</daysLeft>
+				<dayQuestAccepted>-1</dayQuestAccepted>
+				<nextQuests>
+					<int>-1</int>
+				</nextQuests>
+				<questTitle>To The Bottom?</questTitle>
+			</Quest>
+			<Quest xsi:type="LostItemQuest">
+				<_currentObjective>Find and return Mayor Lewis' purple shorts.</_currentObjective>
+				<_questDescription>Mayor Lewis has lost his purple "shorts". He's asking you to find and return them... Discreetly.</_questDescription>
+				<_questTitle>Mayor's "Shorts"</_questTitle>
+				<rewardDescription>-1</rewardDescription>
+				<accepted>false</accepted>
+				<completed>false</completed>
+				<dailyQuest>false</dailyQuest>
+				<showNew>false</showNew>
+				<canBeCancelled>true</canBeCancelled>
+				<destroy>false</destroy>
+				<id>102</id>
+				<moneyReward>750</moneyReward>
+				<questType>9</questType>
+				<daysLeft>0</daysLeft>
+				<dayQuestAccepted>-1</dayQuestAccepted>
+				<nextQuests>
+					<int>-1</int>
+				</nextQuests>
+				<questTitle>Mayor's "Shorts"</questTitle>
+				<npcName>Lewis</npcName>
+				<locationOfItem>AnimalShop</locationOfItem>
+				<itemIndex>789</itemIndex>
+				<tileX>13</tileX>
+				<tileY>7</tileY>
+				<itemFound>false</itemFound>
+			</Quest>
+			<Quest xsi:type="ItemDeliveryQuest">
+				<_currentObjective>Bring Pam a pale ale.</_currentObjective>
+				<_questDescription>Pam is hankerin' for a pale ale. Regular old beer won't do. You can brew one yourself if you have hops and a keg.</_questDescription>
+				<_questTitle>Pam Is Thirsty</_questTitle>
+				<rewardDescription>-1</rewardDescription>
+				<accepted>false</accepted>
+				<completed>false</completed>
+				<dailyQuest>false</dailyQuest>
+				<showNew>false</showNew>
+				<canBeCancelled>true</canBeCancelled>
+				<destroy>false</destroy>
+				<id>103</id>
+				<moneyReward>350</moneyReward>
+				<questType>3</questType>
+				<daysLeft>0</daysLeft>
+				<dayQuestAccepted>-1</dayQuestAccepted>
+				<nextQuests>
+					<int>-1</int>
+				</nextQuests>
+				<questTitle>Pam Is Thirsty</questTitle>
+				<targetMessage>Gimme that. *slurp*... Ahh, that's the stuff.#$b#It's real nice and hoppy... notes of citrus and pine, but with a robust body to keep it grounded.#$b#Thanks, kid. This means a lot to me. I knew I could count on you.$h</targetMessage>
+				<target>Pam</target>
+				<item>303</item>
+				<number>1</number>
+				<parts />
+				<dialogueparts />
+			</Quest>
+		</questLog>
+    <eventsSeen>
+			<int>60367</int>
+			<int>739330</int>
+		</eventsSeen>
+    <achievements>
+			<int>24</int>
+			<int>27</int>
+			<int>0</int>
+			<int>25</int>
+			<int>32</int>
+			<int>1</int>
+			<int>18</int>
+		</achievements>
+    <mailReceived>
+			<string>button_tut_1</string>
+			<string>button_tut_2</string>
+			<string>BackpackTip</string>
+			<string>pierreBackpack</string>
+		</mailReceived>
+    <stats>
+    	<TimesFished>794</TimesFished>
+			<FishCaught>362</FishCaught>
+      <QuestsCompleted>7</QuestsCompleted>
+			<NotesFound>1</NotesFound>
+			<DaysPlayed>96</DaysPlayed>
+			<GoldFound>106</GoldFound>
+			<StepsTaken>123076</StepsTaken>
+			<GiftsGiven>13</GiftsGiven>
+		<totalMoneyEarned>113230</totalMoneyEarned>
+			<specificFishCaught>
+				<item>
+					<key>
+						<string>Trout</string>
+					</key>
+					<value>
+						<int>20</int>
+					</value>
+				</item>
+				<item>
+					<key>
+						<string>Bass</string>
+					</key>
+					<value>
+						<int>31</int>
+					</value>
+				</item>
+			</specificFishCaught>
+		</stats>
+    <acceptedDailyQuest>false</acceptedDailyQuest>
+    <hat>
+			<name>Sailor's Cap</name>
+			<DisplayName>Sailor's Cap</DisplayName>
+			<Name>Sailor's Cap</Name>
+			<Stack>1</Stack>
+      <price>250</price>
+		</hat>
+		<boots>
+			<name>Firewalker Boots</name>
+			<DisplayName>Firewalker Boots</DisplayName>
+			<Name>Firewalker Boots</Name>
+			<Stack>1</Stack>
+			<price>250</price>
+		</boots>
+		<ring>
+			<name>Glow Ring</name>
+			<DisplayName>Glow Ring</DisplayName>
+			<Stack>1</Stack>
+			<price>200</price>
+		</ring>
+    <fishingPole>
+			<name>Basic Pole</name>
+			<DisplayName>Basic Pole</DisplayName>
+			<Stack>1</Stack>
+			<price>200</price>
+		</fishingPole>
+		<shirtItem>
+			<name>Clothing</name>
+			<DisplayName>Shirt</DisplayName>
+			<Stack>1</Stack>
+			<price>0</price>
+			<Price>0</Price>
+		</shirtItem>
+		<pantsItem>
+			<name>Farmer Pants</name>
+			<DisplayName>Farmer Pants</DisplayName>
+			<Stack>1</Stack>
+			<price>50</price>
+			<Price>50</Price>
+		</pantsItem>
+		<hasRustyKey>false</hasRustyKey>
+		<hasSkullKey>false</hasSkullKey>
+    		<HasTownKey>false</HasTownKey>
+
+  </player>
+  <farmCaveReady>true</farmCaveReady>
+  <hasSeenGrandpaNote>false</hasSeenGrandpaNote>
+  <isRaining>false</isRaining>
+	<musicVolume>0.21</musicVolume>
+	<soundVolume>1</soundVolume>
+
+  </SaveGame>

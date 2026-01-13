@@ -1,7 +1,5 @@
 import 'dart:ui';
 
-import '../services/item_service.dart';
-
 /// Game-wide constants for Lurelands
 class GameConstants {
   // Prevent instantiation
@@ -606,19 +604,13 @@ class GameItems {
     'lure_4': lure4,
   };
 
-  /// Get item definition by ID (from service if loaded, fallback otherwise)
+  /// Get item definition by ID
   static ItemDefinition? get(String id) {
-    if (ItemService.instance.isLoaded) {
-      return ItemService.instance.get(id);
-    }
     return all[id];
   }
 
   /// Get all fish items
   static List<ItemDefinition> get allFish {
-    if (ItemService.instance.isLoaded) {
-      return ItemService.instance.allFish;
-    }
     return all.values.where((item) => item.type == ItemType.fish).toList();
   }
 

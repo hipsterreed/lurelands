@@ -8,7 +8,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-import '../services/spacetimedb/stdb_service.dart';
+import '../services/game_save_service.dart';
 import '../utils/constants.dart';
 import 'components/caught_fish_animation.dart';
 import 'components/player.dart';
@@ -43,9 +43,10 @@ class HookedFish {
 }
 
 /// Main game class for Lurelands
+/// Now uses local save instead of server sync
 class LurelandsGame extends FlameGame with HasCollisionDetection {
-  /// SpacetimeDB service for multiplayer sync
-  final SpacetimeDBService stdbService;
+  /// Game save service for local persistence
+  final GameSaveService saveService;
 
   /// Player ID for the local player
   final String playerId;
@@ -57,7 +58,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   final int playerColor;
 
   LurelandsGame({
-    required this.stdbService,
+    required this.saveService,
     required this.playerId,
     this.playerName = 'Player',
     this.playerColor = 0xFFE74C3C,
@@ -70,15 +71,12 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Player? get player => _player;
 
   // Public getter for trees (used by player for collision checking)
-  // TODO: Trees will be loaded from object layer later
   List<Tree> get trees => [];
 
   // Public getter for shops
-  // TODO: Shops will be loaded from object layer later
   List<Shop> get shops => [];
 
   // Public getter for quest signs
-  // TODO: Quest signs will be loaded from object layer later
   List<QuestSign> get questSigns => [];
 
   // Movement direction from joystick (set by UI)
@@ -93,14 +91,14 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   final ValueNotifier<bool> isCastingNotifier = ValueNotifier(false);
   final ValueNotifier<bool> debugModeNotifier = ValueNotifier(false);
   final ValueNotifier<double> castPowerNotifier = ValueNotifier(0.0);
-  
+
   // Fishing state notifiers
   final ValueNotifier<FishingState> fishingStateNotifier = ValueNotifier(FishingState.idle);
   final ValueNotifier<HookedFish?> hookedFishNotifier = ValueNotifier(null);
-  
+
   // Shop notifiers
   final ValueNotifier<Shop?> nearbyShopNotifier = ValueNotifier(null);
-  
+
   // Quest sign notifiers
   final ValueNotifier<QuestSign?> nearbyQuestSignNotifier = ValueNotifier(null);
 
@@ -111,25 +109,24 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
   // Lure sit timer (auto-reel after duration)
   double _lureSitTimer = 0.0;
-  
+
   // Game time for animations
   double _gameTime = 0.0;
-  
+
   // Fish bite state
   double _biteTimer = 0.0;
   double _biteReactionTimer = 0.0;
-  
+
   // Current water info for fishing
   WaterType? _currentWaterType;
   String? _currentWaterBodyId;
-  
+
   final Random _random = Random();
-  
+
   /// All tiled water data for collision/spawning checks
   List<TiledWaterData> get allTiledWaterData => _tiledMapWorld.allTiledWaterData;
 
   /// All dock walkable areas (player can walk on docks over water)
-  /// TODO: Docks will be loaded from object layer later
   List<Rect> get dockAreas => _tiledMapWorld.dockAreas;
 
   /// Check if a world position is inside water (tile-based, accurate)
@@ -151,17 +148,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   }
 
   /// Update camera bounds to account for viewport size
-  /// This ensures the camera stops at the world edge so the player
-  /// can walk to the edge without the camera panning beyond it
   void _updateCameraBounds() {
     final viewportSize = size;
     final halfWidth = viewportSize.x / 2;
     final halfHeight = viewportSize.y / 2;
 
-    // Only set bounds if we have a valid viewport size
     if (halfWidth <= 0 || halfHeight <= 0) return;
 
-    // Ensure bounds don't become inverted if world is smaller than viewport
     final minX = halfWidth.clamp(0.0, GameConstants.worldWidth / 2);
     final minY = halfHeight.clamp(0.0, GameConstants.worldHeight / 2);
     final maxX = (GameConstants.worldWidth - halfWidth).clamp(GameConstants.worldWidth / 2, GameConstants.worldWidth);
@@ -176,12 +169,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Preload all game assets to prevent frame drops during gameplay
+    // Preload all game assets
     await images.loadAll([
-      // Character sprites
       'characters/base_walk_strip8.png',
       'characters/base_idle_strip9.png',
-      // Plant sprites
       'plants/tree_01_strip4.png',
       'plants/tree_02_strip4.png',
       'plants/sunflower.png',
@@ -192,19 +183,18 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     _tiledMapWorld = TiledMapWorld();
     world = _tiledMapWorld;
 
-    // Join the world and get spawn position from server (or use Tiled spawn point)
-    final spawnPosition = await stdbService.joinWorld(playerId, playerName, playerColor);
-
-    // Use server spawn if available, otherwise use Tiled map spawn point
-    final spawnX = spawnPosition?.x ?? _tiledMapWorld.playerSpawnPoint.x;
-    final spawnY = spawnPosition?.y ?? _tiledMapWorld.playerSpawnPoint.y;
+    // Get spawn position from save or use map default
+    final save = saveService.currentSave;
+    final spawnX = save?.playerX ?? _tiledMapWorld.playerSpawnPoint.x;
+    final spawnY = save?.playerY ?? _tiledMapWorld.playerSpawnPoint.y;
+    final equippedPoleTier = _getPoleTierFromId(save?.equippedPoleId);
 
     debugPrint('[LurelandsGame] Player spawn position: ($spawnX, $spawnY)');
 
     // Create the player at spawn position
     _player = Player(
       position: Vector2(spawnX, spawnY),
-      equippedPoleTier: 1,
+      equippedPoleTier: equippedPoleTier,
       playerName: playerName,
     );
     await world.add(_player!);
@@ -214,38 +204,41 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     camera.viewfinder.anchor = Anchor.center;
     camera.follow(_player!, maxSpeed: 800);
 
-    // Camera bounds will be set in onGameResize once we know viewport size
-
     // Mark game as loaded
     isLoadedNotifier.value = true;
+  }
+
+  /// Get pole tier from pole ID (e.g., "pole_2" -> 2)
+  int _getPoleTierFromId(String? poleId) {
+    if (poleId == null) return 1;
+    if (poleId.startsWith('pole_')) {
+      return int.tryParse(poleId.split('_').last) ?? 1;
+    }
+    return 1;
   }
 
   @override
   void update(double dt) {
     super.update(dt);
-    
-    // Update game time
+
     _gameTime += dt;
 
     final player = _player;
     if (player == null) return;
 
-    // Handle player movement based on joystick input (not during minigame)
+    // Handle player movement (not during minigame)
     if (fishingStateNotifier.value != FishingState.minigame) {
       player.move(joystickDirection, dt);
 
       final isMovingNow = joystickDirection.length > 0.1;
 
-      // Sync position to server periodically (throttled in the service)
+      // Save position periodically when moving (throttled by save service)
       if (isMovingNow) {
-        stdbService.updatePlayerPosition(
+        saveService.updatePlayerPosition(
           player.position.x,
           player.position.y,
           player.facingAngle,
         );
-      } else if (_wasMovingLastFrame) {
-        // Player just stopped moving - log it
-        stdbService.logMovementStopped(player.position.x, player.position.y);
       }
 
       _wasMovingLastFrame = isMovingNow;
@@ -253,10 +246,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Update casting state notifiers
     _updateCastingState(player);
-    
+
     // Update nearby shop
     _updateNearbyShop(player);
-    
+
     // Update nearby quest sign
     _updateNearbyQuestSign(player);
 
@@ -267,20 +260,17 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       castPowerNotifier.value = _castPower;
     }
 
-    // Handle cast animation timer (hide power bar when lure lands)
+    // Handle cast animation timer
     if (_castAnimationTimer > 0) {
       _castAnimationTimer -= dt;
       if (_castAnimationTimer <= 0) {
         _castPower = 0.0;
         castPowerNotifier.value = 0.0;
-        // Transition to waiting state when cast animation completes
         if (fishingStateNotifier.value == FishingState.casting) {
-          // Check if bobber landed in water
           final castLine = player.castLine;
           if (castLine != null && _isBobberInWater(castLine.endPosition)) {
             _startWaitingForBite();
           } else {
-            // Bobber didn't land in water - auto reel
             _cancelFishing(player);
           }
         }
@@ -296,18 +286,15 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     switch (fishingStateNotifier.value) {
       case FishingState.idle:
       case FishingState.casting:
-        // Handled elsewhere
         break;
 
       case FishingState.waiting:
-        // Count down to fish bite
         if (_biteTimer > 0) {
           _biteTimer -= dt;
           if (_biteTimer <= 0) {
             _triggerBite();
           }
         }
-        // Auto-reel timeout
         if (_lureSitTimer > 0) {
           _lureSitTimer -= dt;
           if (_lureSitTimer <= 0) {
@@ -317,23 +304,19 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         break;
 
       case FishingState.bite:
-        // Count down reaction window
         if (_biteReactionTimer > 0) {
           _biteReactionTimer -= dt;
           if (_biteReactionTimer <= 0) {
-            // Player missed the bite - fish escapes
             _fishEscaped(player);
           }
         }
         break;
 
       case FishingState.minigame:
-        // Minigame is handled by the overlay widget
         break;
 
       case FishingState.caught:
       case FishingState.escaped:
-        // Terminal states - will be reset when starting new cast
         break;
     }
   }
@@ -341,26 +324,22 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   /// Start waiting for a fish to bite
   void _startWaitingForBite() {
     fishingStateNotifier.value = FishingState.waiting;
-    // Random bite time between min and max
     _biteTimer = GameConstants.minBiteWait +
         _random.nextDouble() * (GameConstants.maxBiteWait - GameConstants.minBiteWait);
   }
 
-  /// Trigger a fish bite - shake bobber and vibrate
+  /// Trigger a fish bite
   void _triggerBite() {
     fishingStateNotifier.value = FishingState.bite;
     _biteReactionTimer = GameConstants.biteReactionWindow;
 
-    // Select a random fish based on water type and luck
     _selectHookedFish();
 
-    // Trigger bobber shake animation
     final castLine = _player?.castLine;
     if (castLine != null) {
       castLine.startBiteAnimation();
     }
 
-    // Haptic feedback
     HapticFeedback.mediumImpact();
   }
 
@@ -369,9 +348,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     if (_currentWaterType == null) return;
 
     final waterType = _currentWaterType!;
-    
-    // Weighted random tier selection (lower tiers more common)
-    // Weights: Tier 1 = 50%, Tier 2 = 30%, Tier 3 = 15%, Tier 4 = 5%
+
+    // Weighted random tier selection
     final roll = _random.nextDouble();
     int tier;
     if (roll < 0.50) {
@@ -396,13 +374,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   void onBiteTapped() {
     if (fishingStateNotifier.value != FishingState.bite) return;
 
-    // Stop bobber shake
     final castLine = _player?.castLine;
     if (castLine != null) {
       castLine.stopBiteAnimation();
     }
 
-    // Enter minigame
     fishingStateNotifier.value = FishingState.minigame;
   }
 
@@ -410,12 +386,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   void _fishEscaped(Player player) {
     fishingStateNotifier.value = FishingState.escaped;
     hookedFishNotifier.value = null;
-    
-    // Reel in automatically
+
     player.reelIn();
-    stdbService.stopCasting();
-    
-    // Reset after a short delay (handled by UI showing message)
+
     Future.delayed(const Duration(milliseconds: 1500), () {
       if (fishingStateNotifier.value == FishingState.escaped) {
         fishingStateNotifier.value = FishingState.idle;
@@ -428,70 +401,54 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final fish = hookedFishNotifier.value;
     final player = _player;
     final castLine = player?.castLine;
-    
+
     if (fish != null && player != null && castLine != null) {
-      // Get the bobber position (where the fish is caught)
       final bobberPosition = castLine.endPosition.clone();
-      
-      // Calculate target position: above the player's name label
-      // Player name label is at Vector2(size.x / 2 + 20, 60) relative to player
-      // In world coordinates, this is player.position + offset accounting for anchor
+
       final targetPosition = Vector2(
         player.position.x,
-        player.position.y - 60, // Above the player's head/name
+        player.position.y - 60,
       );
-      
-      // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
+
+      // Map tier to star rarity
       final rarity = fish.tier <= 2 ? 1 : (fish.tier == 3 ? 2 : 3);
-      
-      // Create the caught fish animation
+
       final fishAnimation = CaughtFishAnimation(
         startPosition: bobberPosition,
         targetPosition: targetPosition,
         fishAssetPath: fish.assetPath,
         rarity: rarity,
         onComplete: () {
-          // Animation complete - now show the "CAUGHT!" UI
           _completeFishCatch(fish);
         },
       );
-      
-      // Add animation to world
+
       world.add(fishAnimation);
-      
-      // Reel in the line immediately (fish is flying to player)
+
       player.reelIn();
-      stdbService.stopCasting();
-      
-      // Set state to caught (but UI won't show full overlay until animation completes)
+
       fishingStateNotifier.value = FishingState.caught;
     } else {
-      // Fallback if something is missing
       _completeFishCatch(fish);
     }
   }
-  
+
   /// Complete the fish catch after animation
   void _completeFishCatch(HookedFish? fish) {
-    // Add fish to inventory via server
     if (fish != null) {
       final itemId = GameItems.getFishId(fish.waterType, fish.tier);
-      // Map tier to star rarity: tier 1-2 = 1 star, tier 3 = 2 stars, tier 4 = 3 stars
       final rarity = fish.tier <= 2 ? 1 : (fish.tier == 3 ? 2 : 3);
-      final waterBodyId = _currentWaterBodyId ?? 'unknown';
-      
-      debugPrint('[Game] Caught fish: $itemId ($rarity star) from $waterBodyId');
-      stdbService.catchFish(itemId, rarity, waterBodyId);
+
+      debugPrint('[Game] Caught fish: $itemId ($rarity star)');
+
+      // Add to local save
+      saveService.catchFish(itemId, rarity);
     }
-    
-    // Reel in if not already
+
     if (_player?.isCasting == true) {
       _player?.reelIn();
-      stdbService.stopCasting();
     }
-    
-    // Reset state immediately - player can already move during caught state
-    // and the animation has already played the celebration
+
     fishingStateNotifier.value = FishingState.idle;
     hookedFishNotifier.value = null;
   }
@@ -506,7 +463,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   /// Cancel fishing and reset state
   void _cancelFishing(Player player) {
     player.reelIn();
-    stdbService.stopCasting();
     fishingStateNotifier.value = FishingState.idle;
     hookedFishNotifier.value = null;
     _biteTimer = 0.0;
@@ -515,13 +471,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   }
 
   void _updateCastingState(Player player) {
-    // Update can cast
     final canCast = _isPlayerNearWater(player);
     if (canCastNotifier.value != canCast) {
       canCastNotifier.value = canCast;
     }
 
-    // Update is casting
     if (isCastingNotifier.value != player.isCasting) {
       isCastingNotifier.value = player.isCasting;
     }
@@ -531,23 +485,19 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final playerPos = player.position;
     const castingBuffer = 50.0;
 
-    // Check if player is on a dock (can fish from dock even though it's over water)
     final onDock = _isOnDock(playerPos);
-    
+
     for (final tiledWater in allTiledWaterData) {
-      // If on a dock, check if over this water body (can cast into it)
       if (onDock && tiledWater.containsPoint(playerPos.x, playerPos.y)) {
         return true;
       }
-      // Otherwise use normal casting range check
       if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
         return true;
       }
     }
     return false;
   }
-  
-  /// Check if a position is on a walkable dock
+
   bool _isOnDock(Vector2 pos) {
     for (final dockRect in dockAreas) {
       if (dockRect.contains(Offset(pos.x, pos.y))) {
@@ -557,7 +507,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     return false;
   }
 
-  /// Check if a position is inside any water body
   bool _isBobberInWater(Vector2 position) {
     for (final tiledWater in allTiledWaterData) {
       if (tiledWater.containsPoint(position.x, position.y)) {
@@ -567,7 +516,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     return false;
   }
 
-  /// Update the nearby shop notifier
   void _updateNearbyShop(Player player) {
     Shop? nearestShop;
     for (final shop in shops) {
@@ -581,7 +529,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// Update the nearby quest sign notifier
   void _updateNearbyQuestSign(Player player) {
     QuestSign? nearestSign;
     for (final sign in questSigns) {
@@ -596,8 +543,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   }
 
   /// Update quest sign indicators based on quest data
-  /// Called from UI when quest data changes
-  /// Each sign is updated based on its own storyline filter
   void updateQuestSignIndicators({
     required List<dynamic> allQuests,
     required List<dynamic> playerQuests,
@@ -653,28 +598,24 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   }
 
   /// Get info about nearby water the player can cast into
-  /// Returns (waterType, id) if near water, null otherwise
   ({WaterType waterType, String id})? getNearbyWaterInfo() {
     final player = _player;
     if (player == null) return null;
 
     final playerPos = player.position;
     const castingBuffer = 50.0;
-    
-    // Check if player is on a dock
+
     final onDock = _isOnDock(playerPos);
 
     for (final tiledWater in allTiledWaterData) {
-      // If on a dock over this water, can cast into it
       if (onDock && tiledWater.containsPoint(playerPos.x, playerPos.y)) {
         return (waterType: tiledWater.waterType, id: tiledWater.id);
       }
-      // Otherwise use normal casting range check
       if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
         return (waterType: tiledWater.waterType, id: tiledWater.id);
       }
     }
-    
+
     return null;
   }
 
@@ -683,16 +624,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final player = _player;
     if (player == null) return;
 
-    // Handle based on current fishing state
     final state = fishingStateNotifier.value;
-    
-    // If fish is biting, this tap enters the minigame
+
     if (state == FishingState.bite) {
       onBiteTapped();
       return;
     }
 
-    // If already casting/waiting, reel in instead
     if (player.isCasting || state == FishingState.waiting || state == FishingState.casting) {
       _cancelFishing(player);
       _castPower = 0.0;
@@ -701,7 +639,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       return;
     }
 
-    // Start charging if we can cast and are idle
     if (canCastNotifier.value && state == FishingState.idle) {
       _isCharging = true;
       _castPower = 0.0;
@@ -714,7 +651,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final player = _player;
     if (player == null) return;
 
-    // If we were charging, execute the cast
     if (_isCharging) {
       _isCharging = false;
       final waterInfo = getNearbyWaterInfo();
@@ -723,21 +659,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         _currentWaterType = waterInfo.waterType;
         _currentWaterBodyId = waterInfo.id;
 
-        // Notify server about casting
-        final castLine = player.castLine;
-        if (castLine != null) {
-          stdbService.startCasting(castLine.endPosition.x, castLine.endPosition.y);
-        }
-
-        // Set fishing state to casting
         fishingStateNotifier.value = FishingState.casting;
-
-        // Start timer to hide power bar when lure lands
         _castAnimationTimer = GameConstants.castAnimationDuration;
-        // Start lure sit timer for auto-reel
         _lureSitTimer = GameConstants.lureSitDuration;
       } else {
-        // No water body nearby, reset power
         _castPower = 0.0;
         castPowerNotifier.value = 0.0;
       }
@@ -754,12 +679,11 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// Toggle debug mode for player, ponds, and trees
+  /// Toggle debug mode
   void toggleDebugMode() {
     debugModeNotifier.value = !debugModeNotifier.value;
     final enabled = debugModeNotifier.value;
 
-    // Only set debug mode on hitboxes (not parent components) to avoid clutter
     if (_player != null) {
       for (final child in _player!.children) {
         if (child is ShapeHitbox) {
@@ -768,7 +692,6 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       }
     }
 
-    // Debug mode for trees (when loaded from object layer)
     for (final tree in trees) {
       for (final child in tree.children) {
         if (child is ShapeHitbox) {
@@ -778,19 +701,19 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
-  /// Reset player to a safe spawn position (for debugging stuck states)
+  /// Reset player to a safe spawn position
   void resetPlayerPosition() {
     if (_player != null) {
-      // Reset to a safe position away from water bodies
       _player!.position = Vector2(800, 800);
+      saveService.updatePlayerPosition(800, 800, 0);
       debugPrint('[LurelandsGame] Reset player position to (800, 800)');
     }
   }
 
   @override
   void onRemove() {
-    // Leave the world when game is disposed
-    stdbService.leaveWorld();
+    // Save before disposing
+    saveService.save();
 
     isLoadedNotifier.dispose();
     canCastNotifier.dispose();
