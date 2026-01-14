@@ -90,6 +90,9 @@
  </tile>
  <tile id="29">
   <image source="../../images/structures/House_1_Wood_Base_Black.png" width="96" height="128"/>
+  <objectgroup draworder="index" id="3">
+   <object id="4" x="15.25" y="49.25" width="67.5" height="65"/>
+  </objectgroup>
  </tile>
  <tile id="30">
   <image source="../../images/structures/House_1_Wood_Base_Blue.png" width="96" height="128"/>

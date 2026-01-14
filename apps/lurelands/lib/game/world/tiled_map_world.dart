@@ -267,15 +267,24 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
         final shopX = scaledX + scaledWidth / 2;
         final shopY = scaledY;
 
-        final shop = Shop(
-          position: Vector2(shopX, shopY),
-          id: obj.name.isNotEmpty ? obj.name : 'shop_$shopCount',
-          name: obj.name.isNotEmpty ? obj.name : 'Shop',
-        );
-        await add(shop);
-        _shops.add(shop);
-        shopCount++;
-        debugPrint('[TiledMapWorld] Created shop "${shop.id}" at ($shopX, $shopY)');
+        try {
+          final image = await game.images.load(resolvedPath);
+          final shopSprite = Sprite(image);
+
+          final shop = Shop(
+            position: Vector2(shopX, shopY),
+            id: obj.name.isNotEmpty ? obj.name : 'shop_$shopCount',
+            name: obj.name.isNotEmpty ? obj.name : 'Shop',
+            sprite: shopSprite,
+            spriteSize: Vector2(scaledWidth, scaledHeight),
+          );
+          await add(shop);
+          _shops.add(shop);
+          shopCount++;
+          debugPrint('[TiledMapWorld] Created shop "${shop.id}" at ($shopX, $shopY)');
+        } catch (e) {
+          debugPrint('[TiledMapWorld] Failed to load shop image $resolvedPath: $e');
+        }
       } else {
         // Regular building - just render as sprite
         try {

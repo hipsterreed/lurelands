@@ -10,37 +10,45 @@ import '../lurelands_game.dart';
 class Shop extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
   /// Unique identifier for this shop
   final String id;
-  
+
   /// Display name of the shop
   final String name;
-  
+
+  /// Pre-loaded sprite for the shop (from Tiled map)
+  final Sprite? sprite;
+
+  /// Size of the shop sprite
+  final Vector2? spriteSize;
+
   /// Interaction radius - how close player needs to be to interact
   static const double interactionRadius = 80.0;
-  
+
   // Shake animation state (when player is near)
   double _shakeTime = 0;
   bool _isShaking = false;
   static const double _shakeDuration = 0.3;
   static const double _shakeIntensity = 0.02;
-  
+
   // Track player proximity
   bool _playerNearby = false;
   bool get isPlayerNearby => _playerNearby;
-  
+
   // Shop building sprite
   Sprite? _shopSprite;
-  
+
   // Hitbox for collision detection
-  late RectangleHitbox _hitbox;
-  
+  RectangleHitbox? _hitbox;
+
   // Getters for collision checking
-  Vector2 get hitboxWorldPosition => _hitbox.absoluteCenter;
-  Vector2 get hitboxSize => _hitbox.size;
+  Vector2 get hitboxWorldPosition => _hitbox?.absoluteCenter ?? position;
+  Vector2 get hitboxSize => _hitbox?.size ?? size;
 
   Shop({
     required Vector2 position,
     required this.id,
     this.name = 'Shop',
+    this.sprite,
+    this.spriteSize,
   }) : super(
          position: position,
          anchor: Anchor.bottomCenter,
@@ -49,28 +57,33 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    
-    // Load the fish house sprite
-    _shopSprite = await game.loadSprite('structures/fish_house1.png');
-    
-    // Set size based on sprite dimensions (scaled up for visibility)
-    if (_shopSprite != null) {
+
+    // Use pre-loaded sprite if provided
+    _shopSprite = sprite;
+
+    // Set size from provided spriteSize or use a default
+    if (spriteSize != null) {
+      size = spriteSize!;
+    } else if (_shopSprite != null) {
       final srcSize = _shopSprite!.srcSize;
-      // Scale up the sprite (2x for pixel art)
       size = Vector2(srcSize.x * 2, srcSize.y * 2);
+    } else {
+      // Default size if no sprite
+      size = Vector2(100, 100);
     }
-    
+
     // Add rectangular hitbox at the base of the building
     // Make it smaller than the full sprite to feel natural (just the base/foundation)
     final hitboxWidth = size.x * 0.8;
     final hitboxHeight = size.y * 0.35; // Just the bottom portion
-    final hitboxOffsetY = 40.0; // Move hitbox up from the very bottom
-    _hitbox = RectangleHitbox(
+    final hitboxOffsetY = size.y * 0.1; // Move hitbox up from the very bottom
+    final hitbox = RectangleHitbox(
       size: Vector2(hitboxWidth, hitboxHeight),
       position: Vector2((size.x - hitboxWidth) / 2, size.y - hitboxHeight - hitboxOffsetY),
     );
-    await add(_hitbox);
-    
+    _hitbox = hitbox;
+    await add(hitbox);
+
     // Set priority based on Y position for depth sorting
     priority = position.y.toInt();
   }
