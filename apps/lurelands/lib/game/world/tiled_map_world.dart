@@ -94,6 +94,9 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
       // Parse game logic layer for spawn points
       _parseGameLogicLayer();
 
+      // Render tile objects from object layers (buildings, trees, etc.)
+      await _renderObjectLayerTiles('Buildings');
+
       debugPrint('[TiledMapWorld] Loaded map with ${_waterData.length} water regions');
       debugPrint('[TiledMapWorld] Tile collision cache: ${_tileCollisionCache.length} tiles with collision');
       debugPrint('[TiledMapWorld] Collision layer rects: ${_collisionLayerRects.length}');
@@ -164,6 +167,47 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
     }
 
     debugPrint('[TiledMapWorld] Parsed ${_collisionLayerRects.length} collision objects from layer');
+  }
+
+  /// Render tile objects from an object layer (for buildings, trees, etc.)
+  Future<void> _renderObjectLayerTiles(String layerName) async {
+    final objectLayer = _tiledMap.tileMap.getLayer<ObjectGroup>(layerName);
+    if (objectLayer == null) {
+      debugPrint('[TiledMapWorld] No object layer "$layerName" found');
+      return;
+    }
+
+    int count = 0;
+    for (final obj in objectLayer.objects) {
+      // Only process tile objects (those with a gid)
+      final gid = obj.gid;
+      if (gid == null || gid == 0) continue;
+
+      // Get the tile's sprite from the tileset
+      final sprite = _tiledMap.tileMap.getSpriteById(gid);
+      if (sprite == null) {
+        debugPrint('[TiledMapWorld] Could not get sprite for gid $gid');
+        continue;
+      }
+
+      // In Tiled, tile objects are positioned at bottom-left
+      // We need to adjust y position since Flame uses top-left anchor
+      final scaledX = obj.x * mapScale;
+      final scaledY = (obj.y - obj.height) * mapScale;
+      final scaledWidth = obj.width * mapScale;
+      final scaledHeight = obj.height * mapScale;
+
+      final spriteComponent = SpriteComponent(
+        sprite: sprite,
+        position: Vector2(scaledX, scaledY),
+        size: Vector2(scaledWidth, scaledHeight),
+      );
+
+      await add(spriteComponent);
+      count++;
+    }
+
+    debugPrint('[TiledMapWorld] Rendered $count tile objects from "$layerName" layer');
   }
 
   /// Parse the water layer to find fishable tiles and build water regions
