@@ -85,7 +85,6 @@ flutter:
     - assets/items/
     - assets/images/characters/
     - assets/images/fish/
-    - assets/images/plants/
     - assets/images/structures/
     - assets/images/terrain/
     - assets/images/logic/

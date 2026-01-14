@@ -120,7 +120,6 @@ class AssetPaths {
   static const String images = 'assets/images';
   static const String characters = 'assets/images/characters';
   static const String fish = 'assets/images/fish';
-  static const String plants = 'assets/images/plants';
 }
 
 /// Fishing pole asset loaded from spritesheet
@@ -770,9 +769,4 @@ class ImageAssets {
   // Character sprites
   static const String characterIdle = '${AssetPaths.characters}/base_idle_strip9.png';
   static const String characterWalk = '${AssetPaths.characters}/base_walk_strip8.png';
-
-  // Plant sprites
-  static const String sunflower = '${AssetPaths.plants}/sunflower.png';
-  static const String tree01 = '${AssetPaths.plants}/tree_01_strip4.png';
-  static const String tree02 = '${AssetPaths.plants}/tree_02_strip4.png';
 }
