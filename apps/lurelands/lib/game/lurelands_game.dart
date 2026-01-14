@@ -276,6 +276,13 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Handle fishing state machine
     _updateFishingState(dt, player);
+
+    // Snap camera to whole pixels to prevent tile seam artifacts
+    final cameraPos = camera.viewfinder.position;
+    camera.viewfinder.position = Vector2(
+      cameraPos.x.roundToDouble(),
+      cameraPos.y.roundToDouble(),
+    );
   }
 
   /// Update the fishing state machine
