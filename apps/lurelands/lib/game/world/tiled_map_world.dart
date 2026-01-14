@@ -32,8 +32,8 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
   static const double renderedTileSize = originalTileSize * mapScale;
 
   /// Map dimensions in tiles
-  static const int mapWidthTiles = 50;
-  static const int mapHeightTiles = 50;
+  static const int mapWidthTiles = 128;
+  static const int mapHeightTiles = 128;
 
   /// Water tile data extracted from the water layer (for fishing regions)
   final List<TiledWaterData> _waterData = [];
@@ -67,7 +67,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
       // Load the Tiled map with scaling
       // flame_tiled needs the path relative to project root (including 'assets/')
       _tiledMap = await TiledComponent.load(
-        'map1.tmx',
+        'map2.tmx',
         Vector2.all(renderedTileSize),
         prefix: 'assets/maps/',
       );
