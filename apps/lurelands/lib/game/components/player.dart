@@ -9,7 +9,6 @@ import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import 'cast_line.dart';
 import 'player_name_label.dart';
-import 'pond.dart';
 import 'power_meter.dart';
 import 'quest_sign.dart';
 import 'shop.dart';
@@ -47,7 +46,6 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   
   // Track current collisions
   final Set<Tree> _collidingTrees = {};
-  final Set<Pond> _collidingPonds = {};
   final Set<Shop> _collidingShops = {};
   final Set<QuestSign> _collidingQuestSigns = {};
 
@@ -416,9 +414,6 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     if (other is Tree) {
       _collidingTrees.add(other);
     }
-    if (other is Pond) {
-      _collidingPonds.add(other);
-    }
     if (other is Shop) {
       _collidingShops.add(other);
     }
@@ -432,9 +427,6 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     super.onCollisionEnd(other);
     if (other is Tree) {
       _collidingTrees.remove(other);
-    }
-    if (other is Pond) {
-      _collidingPonds.remove(other);
     }
     if (other is Shop) {
       _collidingShops.remove(other);
