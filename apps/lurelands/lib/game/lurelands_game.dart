@@ -73,8 +73,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Public getter for trees (used by player for collision checking)
   List<Tree> get trees => [];
 
-  // Public getter for shops
-  List<Shop> get shops => [];
+  // Public getter for shops (from the Tiled map world)
+  List<Shop> get shops => isLoadedNotifier.value ? _tiledMapWorld.shops : [];
 
   // Public getter for quest signs
   List<QuestSign> get questSigns => [];

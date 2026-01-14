@@ -6,6 +6,7 @@ import 'package:flame_tiled/flame_tiled.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../utils/constants.dart';
+import '../components/shop.dart';
 import '../components/tiled_water.dart';
 import '../lurelands_game.dart';
 
@@ -55,8 +56,14 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
   /// Spawn point extracted from game_logic layer
   Vector2? _playerSpawnPoint;
 
+  /// Shops created from building objects
+  final List<Shop> _shops = [];
+
   /// All tiled water data for fishing proximity checks
   List<TiledWaterData> get allTiledWaterData => _waterData;
+
+  /// All shops in the world
+  List<Shop> get shops => _shops;
 
   /// Get player spawn point (or center of map if not found)
   Vector2 get playerSpawnPoint =>
@@ -180,6 +187,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
     final tileMap = _tiledMap.tileMap.map;
     int count = 0;
+    int shopCount = 0;
 
     for (final obj in objectLayer.objects) {
       // Only process tile objects (those with a gid)
@@ -241,31 +249,58 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
         resolvedPath = resolvedPath.substring(7);
       }
 
-      try {
-        final image = await game.images.load(resolvedPath);
-        final sprite = Sprite(image);
+      // Check if this building should be a shop via is_shop property
+      final isShop = obj.properties.getValue<bool>('is_shop') ??
+          tile?.properties.getValue<bool>('is_shop') ??
+          false;
 
-        // In Tiled, tile objects are positioned at bottom-left
-        // We need to adjust y position since Flame uses top-left anchor
-        final scaledX = obj.x * mapScale;
-        final scaledY = (obj.y - imageHeight) * mapScale;
-        final scaledWidth = imageWidth * mapScale;
-        final scaledHeight = imageHeight * mapScale;
+      // In Tiled, tile objects are positioned at bottom-left
+      // Calculate position - for shops we use bottomCenter anchor
+      final scaledX = obj.x * mapScale;
+      final scaledY = obj.y * mapScale; // Bottom position for shop
+      final scaledWidth = imageWidth * mapScale;
+      final scaledHeight = imageHeight * mapScale;
 
-        final spriteComponent = SpriteComponent(
-          sprite: sprite,
-          position: Vector2(scaledX, scaledY),
-          size: Vector2(scaledWidth, scaledHeight),
+      if (isShop) {
+        // Create a Shop component for interactive buildings
+        // Shop uses bottomCenter anchor, so position at center-bottom
+        final shopX = scaledX + scaledWidth / 2;
+        final shopY = scaledY;
+
+        final shop = Shop(
+          position: Vector2(shopX, shopY),
+          id: obj.name.isNotEmpty ? obj.name : 'shop_$shopCount',
+          name: obj.name.isNotEmpty ? obj.name : 'Shop',
         );
+        await add(shop);
+        _shops.add(shop);
+        shopCount++;
+        debugPrint('[TiledMapWorld] Created shop "${shop.id}" at ($shopX, $shopY)');
+      } else {
+        // Regular building - just render as sprite
+        try {
+          final image = await game.images.load(resolvedPath);
+          final sprite = Sprite(image);
 
-        await add(spriteComponent);
-        count++;
-      } catch (e) {
-        debugPrint('[TiledMapWorld] Failed to load image $resolvedPath: $e');
+          // Adjust y position since Flame uses top-left anchor
+          final topLeftY = (obj.y - imageHeight) * mapScale;
+
+          final spriteComponent = SpriteComponent(
+            sprite: sprite,
+            position: Vector2(scaledX, topLeftY),
+            size: Vector2(scaledWidth, scaledHeight),
+          );
+
+          await add(spriteComponent);
+          count++;
+        } catch (e) {
+          debugPrint('[TiledMapWorld] Failed to load image $resolvedPath: $e');
+        }
       }
     }
 
     debugPrint('[TiledMapWorld] Rendered $count tile objects from "$layerName" layer');
+    debugPrint('[TiledMapWorld] Created $shopCount shops');
   }
 
   /// Parse the water layer to find fishable tiles and build water regions
