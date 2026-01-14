@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flame/components.dart';
+import 'package:flame/sprite.dart';
 import 'package:flame_tiled/flame_tiled.dart';
 import 'package:flutter/foundation.dart';
 
@@ -177,34 +178,91 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
       return;
     }
 
+    final tileMap = _tiledMap.tileMap.map;
     int count = 0;
+
     for (final obj in objectLayer.objects) {
       // Only process tile objects (those with a gid)
       final gid = obj.gid;
       if (gid == null || gid == 0) continue;
 
-      // Get the tile's sprite from the tileset
-      final sprite = _tiledMap.tileMap.getSpriteById(gid);
-      if (sprite == null) {
-        debugPrint('[TiledMapWorld] Could not get sprite for gid $gid');
+      // Find the tileset and local tile ID for this gid
+      Tileset? tileset;
+      int localId = 0;
+      for (final ts in tileMap.tilesets) {
+        final firstGid = ts.firstGid ?? 0;
+        final tileCount = ts.tileCount ?? 0;
+        if (gid >= firstGid && gid < firstGid + tileCount) {
+          tileset = ts;
+          localId = gid - firstGid;
+          break;
+        }
+      }
+
+      if (tileset == null) {
+        debugPrint('[TiledMapWorld] Could not find tileset for gid $gid');
         continue;
       }
 
-      // In Tiled, tile objects are positioned at bottom-left
-      // We need to adjust y position since Flame uses top-left anchor
-      final scaledX = obj.x * mapScale;
-      final scaledY = (obj.y - obj.height) * mapScale;
-      final scaledWidth = obj.width * mapScale;
-      final scaledHeight = obj.height * mapScale;
+      // Get the image source for this tile
+      String? imageSource;
+      double imageWidth = obj.width;
+      double imageHeight = obj.height;
 
-      final spriteComponent = SpriteComponent(
-        sprite: sprite,
-        position: Vector2(scaledX, scaledY),
-        size: Vector2(scaledWidth, scaledHeight),
-      );
+      // Check if this is an image collection tileset (individual tile images)
+      final tile = tileset.tiles.where((t) => t.localId == localId).firstOrNull;
+      if (tile?.image != null) {
+        // Image collection tileset - each tile has its own image
+        imageSource = tile!.image!.source;
+        imageWidth = tile.image!.width?.toDouble() ?? obj.width;
+        imageHeight = tile.image!.height?.toDouble() ?? obj.height;
+      } else if (tileset.image != null) {
+        // Spritesheet tileset - we'd need to extract from the sheet
+        // For now, skip these as they're more complex
+        debugPrint('[TiledMapWorld] Spritesheet tileset objects not yet supported');
+        continue;
+      } else {
+        continue;
+      }
 
-      await add(spriteComponent);
-      count++;
+      if (imageSource == null) continue;
+
+      // Load the image - path is relative to the tileset, need to resolve
+      // The tsx files are in assets/tilesets/v2/, images referenced as ../../images/...
+      // Flame's image loader expects paths relative to assets/images/
+      // So ../../images/structures/X.png -> structures/X.png
+      var resolvedPath = imageSource;
+      // Remove relative path prefixes
+      while (resolvedPath.startsWith('../')) {
+        resolvedPath = resolvedPath.substring(3);
+      }
+      // Remove 'images/' prefix since Flame loads from assets/images/
+      if (resolvedPath.startsWith('images/')) {
+        resolvedPath = resolvedPath.substring(7);
+      }
+
+      try {
+        final image = await game.images.load(resolvedPath);
+        final sprite = Sprite(image);
+
+        // In Tiled, tile objects are positioned at bottom-left
+        // We need to adjust y position since Flame uses top-left anchor
+        final scaledX = obj.x * mapScale;
+        final scaledY = (obj.y - imageHeight) * mapScale;
+        final scaledWidth = imageWidth * mapScale;
+        final scaledHeight = imageHeight * mapScale;
+
+        final spriteComponent = SpriteComponent(
+          sprite: sprite,
+          position: Vector2(scaledX, scaledY),
+          size: Vector2(scaledWidth, scaledHeight),
+        );
+
+        await add(spriteComponent);
+        count++;
+      } catch (e) {
+        debugPrint('[TiledMapWorld] Failed to load image $resolvedPath: $e');
+      }
     }
 
     debugPrint('[TiledMapWorld] Rendered $count tile objects from "$layerName" layer');
