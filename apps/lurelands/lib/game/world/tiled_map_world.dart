@@ -35,6 +35,10 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
   static const int mapWidthTiles = 128;
   static const int mapHeightTiles = 128;
 
+  /// Calculated world dimensions based on map size and scale
+  static const double worldWidth = mapWidthTiles * renderedTileSize;
+  static const double worldHeight = mapHeightTiles * renderedTileSize;
+
   /// Water tile data extracted from the water layer (for fishing regions)
   final List<TiledWaterData> _waterData = [];
 
@@ -55,7 +59,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Get player spawn point (or center of map if not found)
   Vector2 get playerSpawnPoint =>
-      _playerSpawnPoint ?? Vector2(GameConstants.worldWidth / 2, GameConstants.worldHeight / 2);
+      _playerSpawnPoint ?? Vector2(worldWidth / 2, worldHeight / 2);
 
   @override
   Future<void> onLoad() async {

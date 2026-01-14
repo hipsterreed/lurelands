@@ -7,6 +7,7 @@ import 'package:flame/sprite.dart';
 
 import '../../utils/constants.dart';
 import '../lurelands_game.dart';
+import '../world/tiled_map_world.dart';
 import 'cast_line.dart';
 import 'player_name_label.dart';
 import 'power_meter.dart';
@@ -143,8 +144,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     final newPosition = position + movement;
 
     // Clamp to world bounds
-    newPosition.x = newPosition.x.clamp(GameConstants.playerSize / 2, GameConstants.worldWidth - GameConstants.playerSize / 2);
-    newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, GameConstants.worldHeight - GameConstants.playerSize / 2);
+    newPosition.x = newPosition.x.clamp(GameConstants.playerSize / 2, TiledMapWorld.worldWidth - GameConstants.playerSize / 2);
+    newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, TiledMapWorld.worldHeight - GameConstants.playerSize / 2);
 
     // Axis-separated collision resolution (wall sliding)
     // Try full movement first, then fall back to single-axis movement

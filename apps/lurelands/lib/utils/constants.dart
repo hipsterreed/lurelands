@@ -5,9 +5,7 @@ class GameConstants {
   // Prevent instantiation
   GameConstants._();
 
-  // World dimensions
-  static const double worldWidth = 2000.0;
-  static const double worldHeight = 2000.0;
+  // World dimensions are now derived from TiledMapWorld.worldWidth/worldHeight
 
   // Player settings
   static const double playerSize = 32.0;

@@ -155,10 +155,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     if (halfWidth <= 0 || halfHeight <= 0) return;
 
-    final minX = halfWidth.clamp(0.0, GameConstants.worldWidth / 2);
-    final minY = halfHeight.clamp(0.0, GameConstants.worldHeight / 2);
-    final maxX = (GameConstants.worldWidth - halfWidth).clamp(GameConstants.worldWidth / 2, GameConstants.worldWidth);
-    final maxY = (GameConstants.worldHeight - halfHeight).clamp(GameConstants.worldHeight / 2, GameConstants.worldHeight);
+    final minX = halfWidth.clamp(0.0, TiledMapWorld.worldWidth / 2);
+    final minY = halfHeight.clamp(0.0, TiledMapWorld.worldHeight / 2);
+    final maxX = (TiledMapWorld.worldWidth - halfWidth).clamp(TiledMapWorld.worldWidth / 2, TiledMapWorld.worldWidth);
+    final maxY = (TiledMapWorld.worldHeight - halfHeight).clamp(TiledMapWorld.worldHeight / 2, TiledMapWorld.worldHeight);
 
     camera.setBounds(
       Rect.fromLTRB(minX, minY, maxX, maxY).toFlameRectangle(),
