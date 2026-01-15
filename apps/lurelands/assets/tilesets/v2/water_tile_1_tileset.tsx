@@ -3,7 +3,7 @@
  <image source="../../images/terrain/Water_Tile_1.png" width="48" height="80"/>
  <tile id="0">
   <objectgroup draworder="index" id="3">
-   <object id="3" x="11.0435" y="11.913" width="4.91304" height="4.13043"/>
+   <object id="6" x="11" y="11.913" width="4.95652" height="4.13043"/>
   </objectgroup>
  </tile>
  <tile id="1">
@@ -11,9 +11,63 @@
    <object id="1" x="0" y="9.95652" width="16" height="6"/>
   </objectgroup>
  </tile>
+ <tile id="2">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0.0434783" y="11.913" width="5" height="4"/>
+  </objectgroup>
+ </tile>
+ <tile id="3">
+  <objectgroup draworder="index" id="3">
+   <object id="2" x="9" y="0" width="7" height="16"/>
+  </objectgroup>
+ </tile>
  <tile id="4">
   <objectgroup draworder="index" id="2">
    <object id="3" x="0" y="0" width="16" height="16"/>
+  </objectgroup>
+ </tile>
+ <tile id="5">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0.0434783" y="0" width="6.91304" height="16.0435"/>
+  </objectgroup>
+ </tile>
+ <tile id="6">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="11" y="-0.0434783" width="5" height="6"/>
+  </objectgroup>
+ </tile>
+ <tile id="7">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0.0434783" y="-0.0869565" width="15.9565" height="8.04348"/>
+  </objectgroup>
+ </tile>
+ <tile id="8">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0.0434783" y="0" width="6.08696" height="5.95652"/>
+  </objectgroup>
+ </tile>
+ <tile id="9">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="-0.0869565" y="-0.0434783" width="16.087" height="8.73913"/>
+   <object id="2" x="-0.0869565" y="-0.0869565" width="8" height="15.9565"/>
+  </objectgroup>
+ </tile>
+ <tile id="10">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0.0869565" y="0" width="15.9565" height="7.91304"/>
+   <object id="4" x="9" y="0" width="7" height="15.9565"/>
+  </objectgroup>
+ </tile>
+ <tile id="12">
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="0.0869565" y="0" width="6.91304" height="16.0435"/>
+   <object id="2" x="0.0434783" y="7.91304" width="16" height="8.17391"/>
+  </objectgroup>
+ </tile>
+ <tile id="13">
+  <objectgroup draworder="index" id="4">
+   <object id="4" x="9" y="-0.0434783" width="7" height="16.0435"/>
+   <object id="5" x="-0.0434783" y="8.95652" width="16.0435" height="7"/>
   </objectgroup>
  </tile>
  <wangsets>

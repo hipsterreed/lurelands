@@ -20,6 +20,9 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
   /// Size of the shop sprite
   final Vector2? spriteSize;
 
+  /// Collision rectangles from Tiled (in local coordinates, already scaled)
+  final List<Rect>? collisionRects;
+
   /// Interaction radius - how close player needs to be to interact
   static const double interactionRadius = 80.0;
 
@@ -49,6 +52,7 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
     this.name = 'Shop',
     this.sprite,
     this.spriteSize,
+    this.collisionRects,
   }) : super(
          position: position,
          anchor: Anchor.bottomCenter,
@@ -72,17 +76,32 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
       size = Vector2(100, 100);
     }
 
-    // Add rectangular hitbox at the base of the building
-    // Make it smaller than the full sprite to feel natural (just the base/foundation)
-    final hitboxWidth = size.x * 0.8;
-    final hitboxHeight = size.y * 0.35; // Just the bottom portion
-    final hitboxOffsetY = size.y * 0.1; // Move hitbox up from the very bottom
-    final hitbox = RectangleHitbox(
-      size: Vector2(hitboxWidth, hitboxHeight),
-      position: Vector2((size.x - hitboxWidth) / 2, size.y - hitboxHeight - hitboxOffsetY),
-    );
-    _hitbox = hitbox;
-    await add(hitbox);
+    // Add collision hitboxes - use Tiled collision data if available
+    if (collisionRects != null && collisionRects!.isNotEmpty) {
+      // Use collision rectangles from Tiled map
+      // These are in local coordinates relative to the sprite's top-left
+      // But our anchor is bottomCenter, so we need to adjust
+      for (final rect in collisionRects!) {
+        final hitbox = RectangleHitbox(
+          size: Vector2(rect.width, rect.height),
+          // Adjust position: rect is relative to top-left, we're anchored at bottom-center
+          position: Vector2(rect.left, rect.top),
+        );
+        _hitbox ??= hitbox; // Store first hitbox for collision checking
+        await add(hitbox);
+      }
+    } else {
+      // Fallback: create default hitbox at the base of the building
+      final hitboxWidth = size.x * 0.8;
+      final hitboxHeight = size.y * 0.35;
+      final hitboxOffsetY = size.y * 0.1;
+      final hitbox = RectangleHitbox(
+        size: Vector2(hitboxWidth, hitboxHeight),
+        position: Vector2((size.x - hitboxWidth) / 2, size.y - hitboxHeight - hitboxOffsetY),
+      );
+      _hitbox = hitbox;
+      await add(hitbox);
+    }
 
     // Set priority based on Y position for depth sorting
     priority = position.y.toInt();

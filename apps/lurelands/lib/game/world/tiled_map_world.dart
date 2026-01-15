@@ -271,22 +271,51 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
           final image = await game.images.load(resolvedPath);
           final shopSprite = Sprite(image);
 
+          // Get collision rectangles from the tile (if any)
+          final tileCollisions = _tileCollisionCache[gid];
+          List<Rect>? scaledCollisions;
+          if (tileCollisions != null && tileCollisions.isNotEmpty) {
+            // Scale collision rects from tile coordinates to world coordinates
+            scaledCollisions = tileCollisions.map((rect) => Rect.fromLTWH(
+              rect.left * mapScale,
+              rect.top * mapScale,
+              rect.width * mapScale,
+              rect.height * mapScale,
+            )).toList();
+            debugPrint('[TiledMapWorld] Shop has ${scaledCollisions.length} collision rects from Tiled');
+          }
+
           final shop = Shop(
             position: Vector2(shopX, shopY),
             id: obj.name.isNotEmpty ? obj.name : 'shop_$shopCount',
             name: obj.name.isNotEmpty ? obj.name : 'Shop',
             sprite: shopSprite,
             spriteSize: Vector2(scaledWidth, scaledHeight),
+            collisionRects: scaledCollisions,
           );
           await add(shop);
           _shops.add(shop);
           shopCount++;
+
+          // Add shop collision to world collision layer for player movement
+          if (tileCollisions != null && tileCollisions.isNotEmpty) {
+            final topLeftY = (obj.y - imageHeight) * mapScale;
+            for (final rect in tileCollisions) {
+              _collisionLayerRects.add(Rect.fromLTWH(
+                scaledX + rect.left * mapScale,
+                topLeftY + rect.top * mapScale,
+                rect.width * mapScale,
+                rect.height * mapScale,
+              ));
+            }
+          }
+
           debugPrint('[TiledMapWorld] Created shop "${shop.id}" at ($shopX, $shopY)');
         } catch (e) {
           debugPrint('[TiledMapWorld] Failed to load shop image $resolvedPath: $e');
         }
       } else {
-        // Regular building - just render as sprite
+        // Regular building - render as sprite and add collision
         try {
           final image = await game.images.load(resolvedPath);
           final sprite = Sprite(image);
@@ -302,6 +331,22 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
           await add(spriteComponent);
           count++;
+
+          // Add collision rectangles from the tile (if any)
+          final tileCollisions = _tileCollisionCache[gid];
+          if (tileCollisions != null && tileCollisions.isNotEmpty) {
+            for (final rect in tileCollisions) {
+              // Scale and position collision rect in world coordinates
+              // rect is relative to tile's top-left, sprite is at (scaledX, topLeftY)
+              _collisionLayerRects.add(Rect.fromLTWH(
+                scaledX + rect.left * mapScale,
+                topLeftY + rect.top * mapScale,
+                rect.width * mapScale,
+                rect.height * mapScale,
+              ));
+            }
+            debugPrint('[TiledMapWorld] Building has ${tileCollisions.length} collision rects');
+          }
         } catch (e) {
           debugPrint('[TiledMapWorld] Failed to load image $resolvedPath: $e');
         }

@@ -69,6 +69,11 @@
  </tile>
  <tile id="22">
   <image source="../../images/structures/House_5_Wood_Base_Red.png" width="192" height="128"/>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="12.75" y="32.75">
+    <polygon points="0,0 -0.5,33.75 4.25,34 3.75,66.5 51,66.25 51.25,80.5 116,80.5 115.5,64.75 163.25,65 163.75,1.25"/>
+   </object>
+  </objectgroup>
  </tile>
  <tile id="23">
   <image source="../../images/structures/House_5_Wood_Green_Black.png" width="192" height="128"/>
@@ -91,7 +96,7 @@
  <tile id="29">
   <image source="../../images/structures/House_1_Wood_Base_Black.png" width="96" height="128"/>
   <objectgroup draworder="index" id="3">
-   <object id="4" x="15.25" y="49.25" width="67.5" height="65"/>
+   <object id="4" x="15.5" y="52.5" width="67.5" height="49.5"/>
   </objectgroup>
  </tile>
  <tile id="30">
