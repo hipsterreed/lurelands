@@ -6,6 +6,7 @@ import 'package:flame/components.dart';
 import 'package:flame/extensions.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 
 import '../services/game_save_service.dart';
@@ -200,6 +201,19 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     // Set up camera to follow player with smooth tracking
     camera.viewfinder.anchor = Anchor.center;
     camera.follow(_player!, maxSpeed: 800);
+
+    // Add FPS counter for performance debugging
+    add(FpsTextComponent(
+      position: Vector2(60, 50),
+      textRenderer: TextPaint(
+        style: const TextStyle(
+          color: Color(0xFFFFFFFF),
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
+          shadows: [Shadow(color: Color(0xFF000000), blurRadius: 2)],
+        ),
+      ),
+    ));
 
     // Mark game as loaded
     isLoadedNotifier.value = true;

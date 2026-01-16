@@ -21,10 +21,10 @@ packages:
     dependency: transitive
     description:
       name: archive
-      sha256: cb6a278ef2dbb298455e1a713bda08524a175630ec643a242c399c932a0a1f7d
+      sha256: "2fde1607386ab523f7a36bb3e7edb43bd58e6edaf2ffb29d8a6d578b297fdbbd"
       url: "https://pub.dev"
     source: hosted
-    version: "3.6.1"
+    version: "4.0.7"
   args:
     dependency: transitive
     description:
@@ -213,10 +213,10 @@ packages:
     dependency: "direct main"
     description:
       name: flame_tiled
-      sha256: "243851c2609cee2a65c7a1deaf3a1364a73ef985d34bd10b01482a9008122cb4"
+      sha256: "518561af847b5b8af49a007796964db0acd1d4682d9335f5bab24594f523d083"
       url: "https://pub.dev"
     source: hosted
-    version: "1.21.2"
+    version: "3.0.9"
   flutter:
     dependency: "direct main"
     description: flutter
@@ -480,6 +480,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.5.2"
+  posix:
+    dependency: transitive
+    description:
+      name: posix
+      sha256: "6323a5b0fa688b6a010df4905a56b00181479e6d10534cecfecede2aa55add61"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.0.3"
   pub_semver:
     dependency: transitive
     description:
@@ -649,10 +657,10 @@ packages:
     dependency: transitive
     description:
       name: tiled
-      sha256: "988a57a07df280bb4a5d722c9e400b282d8d9a652b5a2afc8b68e1308bbf8222"
+      sha256: f321ce0f27d103527b0d66878c60d9b000ce16c4ef4ae3ce77ce6f5ba4cf5db0
       url: "https://pub.dev"
     source: hosted
-    version: "0.10.2"
+    version: "0.11.1"
   typed_data:
     dependency: transitive
     description:

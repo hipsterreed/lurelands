@@ -1,4 +1,5 @@
-import 'dart:ui';
+import 'dart:ui' as ui;
+import 'dart:ui' show Rect, Offset;
 
 import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
@@ -21,10 +22,13 @@ import '../lurelands_game.dart';
 class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
   TiledMapWorld();
 
-  /// The loaded Tiled map component
+  /// The loaded Tiled map component (used for parsing, not rendering)
   late TiledComponent _tiledMap;
 
-  /// Scale factor to match world size (800px map -> 2000px world)
+  /// Pre-rendered map image (eliminates tile seams)
+  ui.Image? _bakedMapImage;
+
+  /// Scale factor to match world size
   static const double mapScale = 2.5;
 
   /// Original tile size in the Tiled map
@@ -66,8 +70,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
   List<Shop> get shops => _shops;
 
   /// Get player spawn point (or center of map if not found)
-  Vector2 get playerSpawnPoint =>
-      _playerSpawnPoint ?? Vector2(worldWidth / 2, worldHeight / 2);
+  Vector2 get playerSpawnPoint => _playerSpawnPoint ?? Vector2(worldWidth / 2, worldHeight / 2);
 
   @override
   Future<void> onLoad() async {
@@ -78,17 +81,14 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
     try {
       // Load the Tiled map with scaling
       // flame_tiled needs the path relative to project root (including 'assets/')
-      _tiledMap = await TiledComponent.load(
-        'map2.tmx',
-        Vector2.all(renderedTileSize),
-        prefix: 'assets/maps/',
-      );
+      _tiledMap = await TiledComponent.load('map2.tmx', Vector2.all(renderedTileSize), prefix: 'assets/maps/');
 
       debugPrint('[TiledMapWorld] TiledComponent loaded successfully');
 
-      await add(_tiledMap);
+      // Bake the entire map to a single image to eliminate tile seams
+      await _bakeMapToImage();
 
-      debugPrint('[TiledMapWorld] TiledComponent added to world');
+      debugPrint('[TiledMapWorld] Map baked to single image');
 
       // Parse tilesets for collision objects and properties
       _parseTilesetCollisions();
@@ -115,6 +115,41 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
     }
   }
 
+  /// Bake specific tile layers to a single image to eliminate tile seams
+  /// Only bakes ground/path layers - other layers render normally
+  Future<void> _bakeMapToImage() async {
+    final recorder = ui.PictureRecorder();
+    final canvas = ui.Canvas(recorder);
+
+    // Layers to bake (static ground layers that cause seams)
+    const layersToBake = ['Ground', 'Paths'];
+
+    // Render only the specified layers
+    for (final layer in _tiledMap.tileMap.renderableLayers) {
+      if (layersToBake.contains(layer.layer.name)) {
+        layer.render(canvas, CameraComponent());
+      }
+    }
+
+    // Convert to image
+    final picture = recorder.endRecording();
+    _bakedMapImage = await picture.toImage(worldWidth.toInt(), worldHeight.toInt());
+
+    // Create a sprite from the baked image and add it
+    final sprite = Sprite(_bakedMapImage!);
+    await add(SpriteComponent(sprite: sprite, position: Vector2.zero(), size: Vector2(worldWidth, worldHeight), priority: 0));
+
+    // Hide the baked layers in TiledComponent so they don't double-render
+    for (final layer in _tiledMap.tileMap.renderableLayers) {
+      if (layersToBake.contains(layer.layer.name)) {
+        layer.layer.visible = false;
+      }
+    }
+
+    // Add TiledComponent for remaining layers (water, decorations, etc.)
+    await add(_tiledMap);
+  }
+
   /// Parse all tilesets for tile collision objects and properties
   void _parseTilesetCollisions() {
     final tileMap = _tiledMap.tileMap.map;
@@ -132,12 +167,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
           for (final obj in objectGroup.objects) {
             // Convert to Rect (tile-local coordinates, unscaled)
-            collisionRects.add(Rect.fromLTWH(
-              obj.x,
-              obj.y,
-              obj.width,
-              obj.height,
-            ));
+            collisionRects.add(Rect.fromLTWH(obj.x, obj.y, obj.width, obj.height));
           }
 
           if (collisionRects.isNotEmpty) {
@@ -166,12 +196,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
     for (final obj in collisionLayer.objects) {
       // Convert to world coordinates with scaling
-      _collisionLayerRects.add(Rect.fromLTWH(
-        obj.x * mapScale,
-        obj.y * mapScale,
-        obj.width * mapScale,
-        obj.height * mapScale,
-      ));
+      _collisionLayerRects.add(Rect.fromLTWH(obj.x * mapScale, obj.y * mapScale, obj.width * mapScale, obj.height * mapScale));
     }
 
     debugPrint('[TiledMapWorld] Parsed ${_collisionLayerRects.length} collision objects from layer');
@@ -250,9 +275,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
       }
 
       // Check if this building should be a shop via is_shop property
-      final isShop = obj.properties.getValue<bool>('is_shop') ??
-          tile?.properties.getValue<bool>('is_shop') ??
-          false;
+      final isShop = obj.properties.getValue<bool>('is_shop') ?? tile?.properties.getValue<bool>('is_shop') ?? false;
 
       // In Tiled, tile objects are positioned at bottom-left
       // Calculate position - for shops we use bottomCenter anchor
@@ -276,12 +299,9 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
           List<Rect>? scaledCollisions;
           if (tileCollisions != null && tileCollisions.isNotEmpty) {
             // Scale collision rects from tile coordinates to world coordinates
-            scaledCollisions = tileCollisions.map((rect) => Rect.fromLTWH(
-              rect.left * mapScale,
-              rect.top * mapScale,
-              rect.width * mapScale,
-              rect.height * mapScale,
-            )).toList();
+            scaledCollisions = tileCollisions
+                .map((rect) => Rect.fromLTWH(rect.left * mapScale, rect.top * mapScale, rect.width * mapScale, rect.height * mapScale))
+                .toList();
             debugPrint('[TiledMapWorld] Shop has ${scaledCollisions.length} collision rects from Tiled');
           }
 
@@ -301,12 +321,14 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
           if (tileCollisions != null && tileCollisions.isNotEmpty) {
             final topLeftY = (obj.y - imageHeight) * mapScale;
             for (final rect in tileCollisions) {
-              _collisionLayerRects.add(Rect.fromLTWH(
-                scaledX + rect.left * mapScale,
-                topLeftY + rect.top * mapScale,
-                rect.width * mapScale,
-                rect.height * mapScale,
-              ));
+              _collisionLayerRects.add(
+                Rect.fromLTWH(
+                  scaledX + rect.left * mapScale,
+                  topLeftY + rect.top * mapScale,
+                  rect.width * mapScale,
+                  rect.height * mapScale,
+                ),
+              );
             }
           }
 
@@ -338,12 +360,14 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
             for (final rect in tileCollisions) {
               // Scale and position collision rect in world coordinates
               // rect is relative to tile's top-left, sprite is at (scaledX, topLeftY)
-              _collisionLayerRects.add(Rect.fromLTWH(
-                scaledX + rect.left * mapScale,
-                topLeftY + rect.top * mapScale,
-                rect.width * mapScale,
-                rect.height * mapScale,
-              ));
+              _collisionLayerRects.add(
+                Rect.fromLTWH(
+                  scaledX + rect.left * mapScale,
+                  topLeftY + rect.top * mapScale,
+                  rect.width * mapScale,
+                  rect.height * mapScale,
+                ),
+              );
             }
             debugPrint('[TiledMapWorld] Building has ${tileCollisions.length} collision rects');
           }
@@ -494,10 +518,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
         if (isSpawn) {
           // Found spawn point - convert tile position to world position
-          _playerSpawnPoint = Vector2(
-            (x + 0.5) * renderedTileSize,
-            (y + 0.5) * renderedTileSize,
-          );
+          _playerSpawnPoint = Vector2((x + 0.5) * renderedTileSize, (y + 0.5) * renderedTileSize);
           debugPrint('[TiledMapWorld] Found spawn point at tile ($x, $y) -> world $_playerSpawnPoint');
         }
       }
@@ -543,12 +564,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
         // Check each collision rect (need to scale from tile coords to world coords)
         for (final rect in collisionRects) {
-          final scaledRect = Rect.fromLTWH(
-            rect.left * mapScale,
-            rect.top * mapScale,
-            rect.width * mapScale,
-            rect.height * mapScale,
-          );
+          final scaledRect = Rect.fromLTWH(rect.left * mapScale, rect.top * mapScale, rect.width * mapScale, rect.height * mapScale);
 
           if (scaledRect.contains(Offset(tileLocalX, tileLocalY))) {
             return true;
