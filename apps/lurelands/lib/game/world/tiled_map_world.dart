@@ -275,7 +275,7 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
       }
 
       // Check if this building should be a shop via is_shop property
-      final isShop = obj.properties.getValue<bool>('is_shop') ?? tile?.properties.getValue<bool>('is_shop') ?? false;
+      final isShop = obj.properties.getValue<bool>('is_shop') ?? tile.properties.getValue<bool>('is_shop') ?? false;
 
       // In Tiled, tile objects are positioned at bottom-left
       // Calculate position - for shops we use bottomCenter anchor

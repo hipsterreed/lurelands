@@ -3,10 +3,52 @@
     "expandedProjectPaths": [
     ],
     "fileStates": {
+        "_catalog/asset_catalogtmx.tmx": {
+            "scale": 1.5,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 903,
+                "y": 578.6666666666666
+            }
+        },
+        "assetCatalog.tmx": {
+            "scale": 1,
+            "selectedLayer": 0,
+            "viewCenter": {
+                "x": 706.5,
+                "y": 493
+            }
+        },
+        "maps/map2.tmx": {
+            "scale": 4,
+            "selectedLayer": 6,
+            "viewCenter": {
+                "x": 1052.875,
+                "y": 876.5
+            }
+        },
+        "tilesets/characters/Fisherman_Fin.tsx": {
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "tilesets/v2/bridge_stone_horizontal.tsx": {
+            "dynamicWrapping": false
+        },
+        "tilesets/v2/buildings.tsx": {
+            "dynamicWrapping": true
+        }
     },
+    "last.imagePath": "D:/Development/personal/project-game/apps/lurelands/assets/images/characters",
     "openFiles": [
     ],
     "project": "lureland.tiled-project",
     "recentFiles": [
-    ]
+        "tilesets/characters/Fisherman_Fin.tsx",
+        "assetCatalog.tmx"
+    ],
+    "tileset.lastUsedFormat": "tsx",
+    "tileset.tileSize": {
+        "height": 64,
+        "width": 64
+    }
 }
