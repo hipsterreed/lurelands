@@ -15,8 +15,33 @@ import 'quest_sign.dart';
 import 'shop.dart';
 import 'tree.dart';
 
+/// Player facing direction for 4-directional movement
+enum PlayerDirection {
+  down,
+  left,
+  up,
+  right,
+}
+
+/// Player movement state
+enum PlayerMovementState {
+  idle,
+  walking,
+  running,
+}
+
 /// Player component - animated sprite that can move and fish
 class Player extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
+  // Sprite configuration constants
+  static const int _frameSize = 64;
+  static const int _frameCount = 6;
+  static const double _spriteScale = 2.5; // 64 * 2.5 = 160px
+  static const double _walkStepTime = 0.12;
+  static const double _runStepTime = 0.08;
+  static const double _idleStepTime = 0.3;
+  static const double _runThreshold = 0.7; // Joystick magnitude threshold for running
+  static const double _runSpeedMultiplier = 1.5;
+
   Player({
     required Vector2 position,
     int equippedPoleTier = 1,
@@ -27,7 +52,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
         _playerName = playerName,
         super(
           position: position,
-          size: Vector2(216, 144), // 2.25x scale of sprite frame (96x64)
+          size: Vector2.all(_frameSize * _spriteScale), // 160x160
           anchor: Anchor.center,
         );
 
@@ -37,13 +62,18 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
 
   // Sprite animation
   late SpriteAnimationComponent _animationComponent;
-  late SpriteAnimation _walkAnimation;
-  late SpriteAnimation _idleAnimation;
-  bool _isMoving = false;
-  bool _facingRight = true;
+
+  // Animation maps by direction
+  late Map<PlayerDirection, SpriteAnimation> _walkAnimations;
+  late Map<PlayerDirection, SpriteAnimation> _runAnimations;
+  late Map<PlayerDirection, SpriteAnimation> _idleAnimations;
+
+  // Current state
+  PlayerDirection _currentDirection = PlayerDirection.down;
+  PlayerMovementState _movementState = PlayerMovementState.idle;
 
   // Movement state
-  double _facingAngle = 0.0; // Radians, 0 = right
+  double _facingAngle = 0.0; // Radians, 0 = right (used for fishing cast direction)
   
   // Track current collisions
   final Set<Tree> _collidingTrees = {};
@@ -77,42 +107,131 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Load walk sprite sheet (768x64, 8 frames, each 96x64)
-    final walkSheet = SpriteSheet(image: await game.images.load('characters/base_walk_strip8.png'), srcSize: Vector2(96, 64));
+    // Load the new character spritesheet (16x16 frames, 6 columns x 6 rows)
+    final spritesheet = SpriteSheet(
+      image: await game.images.load('characters/Fisherman_Fin.png'),
+      srcSize: Vector2.all(_frameSize.toDouble()),
+    );
 
-    // Load idle sprite sheet (864x64, 9 frames, each 96x64)
-    final idleSheet = SpriteSheet(image: await game.images.load('characters/base_idle_strip9.png'), srcSize: Vector2(96, 64));
+    // Create walk animations for each direction
+    // Rows: 0=down, 1=left, 2=up (right mirrors left)
+    _walkAnimations = {
+      PlayerDirection.down: spritesheet.createAnimation(
+        row: 0,
+        stepTime: _walkStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+      PlayerDirection.left: spritesheet.createAnimation(
+        row: 1,
+        stepTime: _walkStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+      PlayerDirection.up: spritesheet.createAnimation(
+        row: 2,
+        stepTime: _walkStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+      // Right uses left animation with horizontal flip (handled in _updateAnimation)
+      PlayerDirection.right: spritesheet.createAnimation(
+        row: 1,
+        stepTime: _walkStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+    };
 
-    // Create walk animation (8 frames)
-    _walkAnimation = walkSheet.createAnimation(row: 0, stepTime: 0.1, from: 0, to: 8);
+    // Create run animations for each direction
+    // Rows: 3=down, 4=left, 5=up (right mirrors left)
+    _runAnimations = {
+      PlayerDirection.down: spritesheet.createAnimation(
+        row: 3,
+        stepTime: _runStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+      PlayerDirection.left: spritesheet.createAnimation(
+        row: 4,
+        stepTime: _runStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+      PlayerDirection.up: spritesheet.createAnimation(
+        row: 5,
+        stepTime: _runStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+      // Right uses left animation with horizontal flip
+      PlayerDirection.right: spritesheet.createAnimation(
+        row: 4,
+        stepTime: _runStepTime,
+        from: 0,
+        to: _frameCount,
+      ),
+    };
 
-    // Create idle animation (9 frames)
-    _idleAnimation = idleSheet.createAnimation(row: 0, stepTime: 0.15, from: 0, to: 9);
+    // Create idle animations (subtle breathing using first 3 frames of walk)
+    _idleAnimations = {
+      PlayerDirection.down: spritesheet.createAnimation(
+        row: 0,
+        stepTime: _idleStepTime,
+        from: 0,
+        to: 3,
+      ),
+      PlayerDirection.left: spritesheet.createAnimation(
+        row: 1,
+        stepTime: _idleStepTime,
+        from: 0,
+        to: 3,
+      ),
+      PlayerDirection.up: spritesheet.createAnimation(
+        row: 2,
+        stepTime: _idleStepTime,
+        from: 0,
+        to: 3,
+      ),
+      PlayerDirection.right: spritesheet.createAnimation(
+        row: 1,
+        stepTime: _idleStepTime,
+        from: 0,
+        to: 3,
+      ),
+    };
 
-    // Add animation component
-    _animationComponent = SpriteAnimationComponent(animation: _idleAnimation, size: size, anchor: Anchor.center, position: size / 2);
+    // Initialize animation component with idle facing down
+    _animationComponent = SpriteAnimationComponent(
+      animation: _idleAnimations[PlayerDirection.down],
+      size: size,
+      anchor: Anchor.center,
+      position: size / 2,
+    );
     await add(_animationComponent);
 
-    // Add smaller collision hitbox (centered on character body, not full sprite frame)
-    // Compact hitbox matching character body - reduced top portion
-    const hitboxWidth = 50.0;
-    const hitboxHeight = 50.0; // Reduced from 60 to reduce top collision area
+    // Add collision hitbox (proportionally scaled for 160x160 sprite)
+    const hitboxWidth = 45.0;
+    const hitboxHeight = 45.0;
     final playerHitbox = RectangleHitbox(
       size: Vector2(hitboxWidth, hitboxHeight),
-      position: Vector2((size.x - hitboxWidth) / 2, size.y - 95), // Adjusted to keep bottom edge aligned
+      position: Vector2(
+        (size.x - hitboxWidth) / 2,
+        size.y - hitboxHeight - 25, // Position at feet area
+      ),
     );
     await add(playerHitbox);
 
-    // Add power meter next to player
+    // Add power meter next to player (adjusted for new sprite size)
     final powerMeter = PowerMeter()
-      ..position = Vector2(size.x / 2 + 25, size.y / 2 + 55);
+      ..position = Vector2(size.x / 2 + 20, size.y / 2 + 45);
     await add(powerMeter);
 
-    // Add player name label above the character
+    // Add player name label above the character (adjusted for new sprite size)
     if (_playerName != null && _playerName.isNotEmpty) {
       final nameLabel = PlayerNameLabel(
         playerName: _playerName,
-        position: Vector2(size.x / 2 + 20, 60), // Positioned above the sprite
+        position: Vector2(size.x / 2, 20), // Positioned above the sprite
       );
       await add(nameLabel);
     }
@@ -126,26 +245,105 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     priority = (position.y + 20).toInt();
   }
 
+  /// Determine player direction from movement vector (dominant axis)
+  PlayerDirection _getDirectionFromMovement(Vector2 direction) {
+    if (direction.length < 0.1) {
+      return _currentDirection; // Keep current direction when not moving
+    }
+
+    final absX = direction.x.abs();
+    final absY = direction.y.abs();
+
+    if (absX > absY) {
+      // Horizontal movement is dominant
+      return direction.x > 0 ? PlayerDirection.right : PlayerDirection.left;
+    } else {
+      // Vertical movement is dominant
+      return direction.y > 0 ? PlayerDirection.down : PlayerDirection.up;
+    }
+  }
+
+  /// Determine movement state from direction magnitude
+  PlayerMovementState _getMovementState(Vector2 direction) {
+    final magnitude = direction.length;
+    if (magnitude < 0.1) {
+      return PlayerMovementState.idle;
+    } else if (magnitude >= _runThreshold) {
+      return PlayerMovementState.running;
+    } else {
+      return PlayerMovementState.walking;
+    }
+  }
+
+  /// Update the animation based on current direction and movement state
+  void _updateAnimation() {
+    final SpriteAnimation targetAnimation;
+
+    switch (_movementState) {
+      case PlayerMovementState.idle:
+        targetAnimation = _idleAnimations[_currentDirection]!;
+        break;
+      case PlayerMovementState.walking:
+        targetAnimation = _walkAnimations[_currentDirection]!;
+        break;
+      case PlayerMovementState.running:
+        targetAnimation = _runAnimations[_currentDirection]!;
+        break;
+    }
+
+    // Only update if animation changed
+    if (_animationComponent.animation != targetAnimation) {
+      _animationComponent.animation = targetAnimation;
+      _animationComponent.animationTicker?.reset();
+    }
+
+    // Handle horizontal flip for right direction
+    final shouldFlip = _currentDirection == PlayerDirection.right;
+    if (_animationComponent.isFlippedHorizontally != shouldFlip) {
+      _animationComponent.flipHorizontally();
+    }
+  }
+
   /// Move the player in a direction
   void move(Vector2 direction, double dt) {
     if (_isCasting) return; // Can't move while casting
 
-    final isMovingNow = direction.length > 0;
+    // Determine new direction and movement state
+    final newDirection = _getDirectionFromMovement(direction);
+    final newMovementState = _getMovementState(direction);
 
-    // Switch animation based on movement state
-    if (isMovingNow != _isMoving) {
-      _isMoving = isMovingNow;
-      _animationComponent.animation = _isMoving ? _walkAnimation : _idleAnimation;
+    // Check if state changed
+    final stateChanged = newDirection != _currentDirection ||
+        newMovementState != _movementState;
+
+    // Update state
+    _currentDirection = newDirection;
+    _movementState = newMovementState;
+
+    // Update animation if state changed
+    if (stateChanged) {
+      _updateAnimation();
     }
 
-    if (!isMovingNow) return;
+    if (newMovementState == PlayerMovementState.idle) return;
 
-    final movement = direction * GameConstants.playerSpeed * dt;
+    // Calculate movement with speed based on state
+    final speed = newMovementState == PlayerMovementState.running
+        ? GameConstants.playerSpeed * _runSpeedMultiplier
+        : GameConstants.playerSpeed;
+
+    final movement = direction.normalized() * speed * dt;
     final newPosition = position + movement;
 
     // Clamp to world bounds
-    newPosition.x = newPosition.x.clamp(GameConstants.playerSize / 2, TiledMapWorld.worldWidth - GameConstants.playerSize / 2);
-    newPosition.y = newPosition.y.clamp(GameConstants.playerSize / 2, TiledMapWorld.worldHeight - GameConstants.playerSize / 2);
+    newPosition.x = newPosition.x.clamp(
+      GameConstants.playerSize / 2,
+      TiledMapWorld.worldWidth - GameConstants.playerSize / 2,
+    );
+    newPosition.y = newPosition.y.clamp(
+      GameConstants.playerSize / 2,
+      TiledMapWorld.worldHeight - GameConstants.playerSize / 2,
+    );
 
     // Axis-separated collision resolution (wall sliding)
     // Try full movement first, then fall back to single-axis movement
@@ -155,10 +353,10 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       // Full movement blocked - try sliding along each axis
       final xOnlyPosition = Vector2(newPosition.x, position.y);
       final yOnlyPosition = Vector2(position.x, newPosition.y);
-      
+
       final canMoveX = !_wouldCollide(xOnlyPosition);
       final canMoveY = !_wouldCollide(yOnlyPosition);
-      
+
       if (canMoveX && canMoveY) {
         // Both axes work individually - prefer the dominant movement direction
         if (movement.x.abs() >= movement.y.abs()) {
@@ -179,16 +377,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       }
     }
 
-    // Update facing direction (flip sprite for left/right)
-    if (direction.x != 0) {
-      final shouldFaceRight = direction.x > 0;
-      if (shouldFaceRight != _facingRight) {
-        _facingRight = shouldFaceRight;
-        _animationComponent.flipHorizontally();
-      }
-    }
-
-    // Update facing angle based on movement direction
+    // Update facing angle based on movement direction (used for fishing cast)
     _facingAngle = atan2(direction.y, direction.x);
   }
 

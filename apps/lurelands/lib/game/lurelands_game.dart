@@ -172,8 +172,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Preload all game assets
     await images.loadAll([
-      'characters/base_walk_strip8.png',
-      'characters/base_idle_strip9.png',
+      'characters/Fisherman_Fin.png',
     ]);
 
     // Create and set the Tiled map world

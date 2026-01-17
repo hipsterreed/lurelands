@@ -764,7 +764,10 @@ class FishAssets {
 class ImageAssets {
   ImageAssets._();
 
-  // Character sprites
+  // Character sprites - New player spritesheet
+  static const String playerSpritesheet = '${AssetPaths.characters}/Fisherman_Fin.png';
+
+  // Legacy character sprites (can be removed after migration is complete)
   static const String characterIdle = '${AssetPaths.characters}/base_idle_strip9.png';
   static const String characterWalk = '${AssetPaths.characters}/base_walk_strip8.png';
 }
