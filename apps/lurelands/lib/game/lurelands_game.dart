@@ -17,6 +17,7 @@ import 'components/quest_sign.dart';
 import 'components/shop.dart';
 import 'components/tiled_water.dart';
 import 'components/tree.dart';
+import 'components/wandering_npc.dart';
 import 'world/tiled_map_world.dart';
 
 /// Fishing state machine states
@@ -172,7 +173,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Preload all game assets
     await images.loadAll([
+      // Player sprite
       'characters/Fisherman_Fin.png',
+      // NPC sprites
+      'characters/lumberjack_male.png',
+      'characters/miner_male.png',
+      'characters/bartender_male.png',
+      'characters/bartender_female.png',
+      'characters/chef_female.png',
+      'characters/farmer_male.png',
+      'characters/farmer_female.png',
     ]);
 
     // Create and set the Tiled map world
@@ -196,6 +206,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     );
     await world.add(_player!);
     debugPrint('[LurelandsGame] Player added to world');
+
+    // Spawn wandering NPCs near the spawn point
+    await _spawnWanderingNpcs(Vector2(spawnX, spawnY));
 
     // Set up camera to follow player with smooth tracking
     camera.viewfinder.anchor = Anchor.center;
@@ -225,6 +238,55 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       return int.tryParse(poleId.split('_').last) ?? 1;
     }
     return 1;
+  }
+
+  /// Spawn wandering NPCs around the given center position
+  Future<void> _spawnWanderingNpcs(Vector2 center) async {
+    // Define NPC spawn positions relative to center (spread around the area)
+    final npcConfigs = <WanderingNpc>[
+      LumberjackNpc(
+        id: 'npc_lumberjack',
+        position: center + Vector2(-120, -80),
+        name: 'Jack',
+      ),
+      MinerNpc(
+        id: 'npc_miner',
+        position: center + Vector2(150, -60),
+        name: 'Dusty',
+      ),
+      BartenderMaleNpc(
+        id: 'npc_bartender_m',
+        position: center + Vector2(-80, 120),
+        name: 'Barney',
+      ),
+      BartenderFemaleNpc(
+        id: 'npc_bartender_f',
+        position: center + Vector2(100, 140),
+        name: 'Bella',
+      ),
+      ChefNpc(
+        id: 'npc_chef',
+        position: center + Vector2(-150, 50),
+        name: 'Cookie',
+      ),
+      FarmerMaleNpc(
+        id: 'npc_farmer_m',
+        position: center + Vector2(180, 80),
+        name: 'Hank',
+      ),
+      FarmerFemaleNpc(
+        id: 'npc_farmer_f',
+        position: center + Vector2(-50, -150),
+        name: 'Daisy',
+      ),
+    ];
+
+    // Add all NPCs to the world
+    for (final npc in npcConfigs) {
+      await world.add(npc);
+    }
+
+    debugPrint('[LurelandsGame] Spawned ${npcConfigs.length} wandering NPCs');
   }
 
   @override
