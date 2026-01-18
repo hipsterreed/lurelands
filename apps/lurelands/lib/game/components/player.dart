@@ -9,7 +9,6 @@ import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import '../world/tiled_map_world.dart';
 import 'cast_line.dart';
-import 'player_name_label.dart';
 import 'power_meter.dart';
 import 'quest_sign.dart';
 import 'shop.dart';
@@ -227,14 +226,6 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       ..position = Vector2(size.x / 2 + 20, size.y / 2 + 45);
     await add(powerMeter);
 
-    // Add player name label above the character (adjusted for new sprite size)
-    if (_playerName != null && _playerName.isNotEmpty) {
-      final nameLabel = PlayerNameLabel(
-        playerName: _playerName,
-        position: Vector2(size.x / 2, 20), // Positioned above the sprite
-      );
-      await add(nameLabel);
-    }
   }
 
   @override

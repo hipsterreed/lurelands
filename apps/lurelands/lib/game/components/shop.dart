@@ -36,6 +36,10 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
   bool _playerNearby = false;
   bool get isPlayerNearby => _playerNearby;
 
+  // Track if player is behind building (for transparency)
+  bool _playerBehind = false;
+  static const double _transparentOpacity = 0.4;
+
   // Shop building sprite
   Sprite? _shopSprite;
 
@@ -111,7 +115,7 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
   void update(double dt) {
     super.update(dt);
 
-    // Check if player is nearby
+    // Check if player is nearby and/or behind the building
     final player = game.player;
     if (player != null) {
       final dx = player.position.x - position.x;
@@ -119,12 +123,25 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
       final distance = sqrt(dx * dx + dy * dy);
       final wasNearby = _playerNearby;
       _playerNearby = distance < interactionRadius;
-      
+
       // Trigger shake when player enters proximity
       if (_playerNearby && !wasNearby) {
         _isShaking = true;
         _shakeTime = 0;
       }
+
+      // Check if player is behind the building (player Y is above building base, X overlaps)
+      // Building anchor is bottomCenter, so position.y is the bottom of the building
+      final buildingTop = position.y - size.y;
+      final buildingLeft = position.x - size.x / 2;
+      final buildingRight = position.x + size.x / 2;
+
+      // Player is "behind" if their Y is less than building bottom (higher on screen)
+      // and their X overlaps with building width
+      _playerBehind = player.position.y < position.y &&
+          player.position.y > buildingTop - 40 && // Give some buffer
+          player.position.x > buildingLeft - 20 &&
+          player.position.x < buildingRight + 20;
     }
 
     // Animate shake
@@ -158,10 +175,21 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
 
   void _drawShopBuilding(Canvas canvas) {
     if (_shopSprite != null) {
-      _shopSprite!.render(
-        canvas,
-        size: size,
-      );
+      if (_playerBehind) {
+        // Draw semi-transparent when player is behind
+        final paint = Paint()
+          ..color = Color.fromRGBO(255, 255, 255, _transparentOpacity);
+        _shopSprite!.render(
+          canvas,
+          size: size,
+          overridePaint: paint,
+        );
+      } else {
+        _shopSprite!.render(
+          canvas,
+          size: size,
+        );
+      }
     }
   }
 
