@@ -155,6 +155,7 @@
    <object id="3" x="130" y="75.6667" width="17.6667" height="23"/>
    <object id="4" x="125.667" y="95.6667" width="13" height="12"/>
    <object id="5" x="13.3333" y="104.667" width="14.6667" height="15"/>
+   <object id="6" x="27.25" y="103.75" width="24.625" height="8.125"/>
   </objectgroup>
  </tile>
  <tile id="47">
@@ -175,8 +176,9 @@
  <tile id="51">
   <image source="../../images/structures/Inn_Red.png" width="240" height="192"/>
   <objectgroup draworder="index" id="3">
-   <object id="2" x="9.33333" y="10.3333" width="230.333" height="145.667"/>
+   <object id="2" x="14.2083" y="10.3333" width="223.208" height="145.667"/>
    <object id="3" x="62.6667" y="149.667" width="67.3333" height="24.3333"/>
+   <object id="4" x="10.25" y="123.875" width="8.375" height="21.625"/>
   </objectgroup>
  </tile>
  <tile id="52">

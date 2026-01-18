@@ -427,6 +427,24 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
           _fountains.add(fountain);
           fountainCount++;
 
+          // Add collision from tileset (if any)
+          final tileCollisions = _tileCollisionCache[gid];
+          if (tileCollisions != null && tileCollisions.isNotEmpty) {
+            // Calculate top-left position (Tiled positions tile objects at bottom-left)
+            final topLeftY = (obj.y - obj.height) * mapScale;
+            for (final rect in tileCollisions) {
+              _collisionLayerRects.add(
+                Rect.fromLTWH(
+                  scaledX + rect.left * mapScale,
+                  topLeftY + rect.top * mapScale,
+                  rect.width * mapScale,
+                  rect.height * mapScale,
+                ),
+              );
+            }
+            debugPrint('[TiledMapWorld] Fountain has ${tileCollisions.length} collision rects');
+          }
+
           debugPrint('[TiledMapWorld] Created fountain at ($fountainX, $fountainY)');
           break;
 
