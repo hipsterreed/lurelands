@@ -2,6 +2,11 @@
 <tileset version="1.10" tiledversion="1.11.2" name="Fisherman_Fin" tilewidth="64" tileheight="64" tilecount="117" columns="9">
  <image source="../../images/characters/Fisherman_Fin.png" width="576" height="832"/>
  <tile id="0">
+  <objectgroup draworder="index" id="4">
+   <object id="4" x="25.9565" y="35.3043" width="11.3478" height="4.86957">
+    <ellipse/>
+   </object>
+  </objectgroup>
   <animation>
    <frame tileid="0" duration="100"/>
    <frame tileid="1" duration="100"/>

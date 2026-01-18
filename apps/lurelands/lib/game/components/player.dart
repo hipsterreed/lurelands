@@ -41,6 +41,17 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   static const double _runThreshold = 0.7; // Joystick magnitude threshold for running
   static const double _runSpeedMultiplier = 1.5;
 
+  // Hitbox configuration - small ellipse shape on player's body
+  // Based on Tiled measurements: 11.35x4.87 at 64px, scaled 2.5x
+  static const double _hitboxWidth = 28.0;
+  static const double _hitboxHeight = 12.0;
+  static const double _hitboxHalfWidth = _hitboxWidth / 2; // 14.0
+  static const double _hitboxHalfHeight = _hitboxHeight / 2; // 6.0
+  // Offset from player center to hitbox center (positive = below center)
+  static const double _hitboxYOffset = 15.0;
+  // Number of vertices for ellipse approximation
+  static const int _ellipseSegments = 12;
+
   Player({
     required Vector2 position,
     int equippedPoleTier = 1,
@@ -209,16 +220,18 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     );
     await add(_animationComponent);
 
-    // Add collision hitbox (proportionally scaled for 160x160 sprite)
-    const hitboxWidth = 45.0;
-    const hitboxHeight = 45.0;
-    final playerHitbox = RectangleHitbox(
-      size: Vector2(hitboxWidth, hitboxHeight),
-      position: Vector2(
-        (size.x - hitboxWidth) / 2,
-        size.y - hitboxHeight - 25, // Position at feet area
-      ),
+    // Add ellipse collision hitbox using polygon approximation
+    final ellipseCenter = Vector2(
+      size.x / 2, // Center horizontally
+      size.y / 2 + _hitboxYOffset, // Position below center
     );
+    final ellipseVertices = _createEllipseVertices(
+      _hitboxHalfWidth,
+      _hitboxHalfHeight,
+      _ellipseSegments,
+      ellipseCenter,
+    );
+    final playerHitbox = PolygonHitbox(ellipseVertices);
     await add(playerHitbox);
 
     // Add power meter next to player (adjusted for new sprite size)
@@ -383,31 +396,36 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   /// Calculate tangential slide position when colliding with a tree
   /// Returns null if no tree collision or slide isn't possible
   Vector2? _getTreeSlidePosition(Vector2 movement) {
-    const playerHitboxRadius = 25.0;
-    
+    // Use average of half-width and half-height for circular approximation
+    const playerHitboxRadius = (_hitboxHalfWidth + _hitboxHalfHeight) / 2;
+
+    // Calculate hitbox center position (at player's feet)
+    final hitboxCenterX = position.x;
+    final hitboxCenterY = position.y + _hitboxYOffset;
+
     // Find the closest tree we're colliding with
     Tree? closestTree;
     double closestDistance = double.infinity;
-    
+
     for (final tree in game.trees) {
       final hitboxWorldPos = tree.hitboxWorldPosition;
-      final dx = position.x - hitboxWorldPos.x;
-      final dy = position.y - hitboxWorldPos.y;
+      final dx = hitboxCenterX - hitboxWorldPos.x;
+      final dy = hitboxCenterY - hitboxWorldPos.y;
       final distance = sqrt(dx * dx + dy * dy);
       final collisionDistance = tree.hitboxRadius + playerHitboxRadius;
-      
+
       // Check if we're near this tree (within collision range + small buffer)
       if (distance < collisionDistance + 5 && distance < closestDistance) {
         closestDistance = distance;
         closestTree = tree;
       }
     }
-    
+
     if (closestTree == null) return null;
-    
-    // Calculate the normal (direction from tree center to player)
+
+    // Calculate the normal (direction from tree center to player hitbox)
     final treePos = closestTree.hitboxWorldPosition;
-    final toPlayer = Vector2(position.x - treePos.x, position.y - treePos.y);
+    final toPlayer = Vector2(hitboxCenterX - treePos.x, hitboxCenterY - treePos.y);
     
     if (toPlayer.length < 0.001) return null; // Player is at tree center (edge case)
     toPlayer.normalize();
@@ -432,16 +450,17 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   }
 
   bool _wouldCollideWithWater(Vector2 newPos) {
-    // Player hitbox is roughly 50x50, so use ~25px as player "radius"
-    const playerHitboxRadius = 25.0;
+    // Calculate hitbox center position (hitbox is at player's feet)
+    final hitboxCenterX = newPos.x;
+    final hitboxCenterY = newPos.y + _hitboxYOffset;
 
-    // Check points around player hitbox
+    // Check points around player hitbox using actual dimensions
     final checkPoints = [
-      newPos,
-      Vector2(newPos.x - playerHitboxRadius, newPos.y),
-      Vector2(newPos.x + playerHitboxRadius, newPos.y),
-      Vector2(newPos.x, newPos.y - playerHitboxRadius),
-      Vector2(newPos.x, newPos.y + playerHitboxRadius),
+      Vector2(hitboxCenterX, hitboxCenterY), // Center
+      Vector2(hitboxCenterX - _hitboxHalfWidth, hitboxCenterY), // Left
+      Vector2(hitboxCenterX + _hitboxHalfWidth, hitboxCenterY), // Right
+      Vector2(hitboxCenterX, hitboxCenterY - _hitboxHalfHeight), // Top
+      Vector2(hitboxCenterX, hitboxCenterY + _hitboxHalfHeight), // Bottom
     ];
 
     // Use collision detection (checks tile collision objects + collision layer)
@@ -468,18 +487,22 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   }
 
   bool _wouldCollideWithTree(Vector2 newPos) {
-    // Player hitbox is roughly 50x50, so use ~25px as player "radius"
-    const playerHitboxRadius = 25.0;
-    
+    // Use average of half-width and half-height for circular approximation
+    const playerHitboxRadius = (_hitboxHalfWidth + _hitboxHalfHeight) / 2;
+
+    // Calculate hitbox center position (at player's feet)
+    final hitboxCenterX = newPos.x;
+    final hitboxCenterY = newPos.y + _hitboxYOffset;
+
     for (final tree in game.trees) {
       // Get the tree's hitbox position in world space
       final hitboxWorldPos = tree.hitboxWorldPosition;
-      
-      // Calculate distance from player to tree hitbox center
-      final dx = newPos.x - hitboxWorldPos.x;
-      final dy = newPos.y - hitboxWorldPos.y;
+
+      // Calculate distance from player hitbox center to tree hitbox center
+      final dx = hitboxCenterX - hitboxWorldPos.x;
+      final dy = hitboxCenterY - hitboxWorldPos.y;
       final distance = sqrt(dx * dx + dy * dy);
-      
+
       // Check if player would overlap with tree hitbox
       if (distance < tree.hitboxRadius + playerHitboxRadius) {
         return true;
@@ -489,27 +512,31 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   }
 
   bool _wouldCollideWithShop(Vector2 newPos) {
-    // Player hitbox is roughly 50x50, so use ~25px as player "radius"
-    const playerHitboxRadius = 25.0;
-    
+    // Use average of half-width and half-height for circular approximation
+    const playerHitboxRadius = (_hitboxHalfWidth + _hitboxHalfHeight) / 2;
+
+    // Calculate hitbox center position (at player's feet)
+    final hitboxCenterX = newPos.x;
+    final hitboxCenterY = newPos.y + _hitboxYOffset;
+
     for (final shop in game.shops) {
       // Get the shop's hitbox position and size in world space
       final hitboxCenter = shop.hitboxWorldPosition;
       final hitboxSize = shop.hitboxSize;
-      
+
       // Calculate the half-extents of the shop hitbox
       final halfWidth = hitboxSize.x / 2;
       final halfHeight = hitboxSize.y / 2;
-      
-      // Find the closest point on the rectangle to the player
-      final closestX = (newPos.x).clamp(hitboxCenter.x - halfWidth, hitboxCenter.x + halfWidth);
-      final closestY = (newPos.y).clamp(hitboxCenter.y - halfHeight, hitboxCenter.y + halfHeight);
-      
-      // Calculate distance from player to closest point on rectangle
-      final dx = newPos.x - closestX;
-      final dy = newPos.y - closestY;
+
+      // Find the closest point on the rectangle to the player hitbox center
+      final closestX = hitboxCenterX.clamp(hitboxCenter.x - halfWidth, hitboxCenter.x + halfWidth);
+      final closestY = hitboxCenterY.clamp(hitboxCenter.y - halfHeight, hitboxCenter.y + halfHeight);
+
+      // Calculate distance from player hitbox center to closest point on rectangle
+      final dx = hitboxCenterX - closestX;
+      final dy = hitboxCenterY - closestY;
       final distance = sqrt(dx * dx + dy * dy);
-      
+
       // Check if player would overlap with shop hitbox
       if (distance < playerHitboxRadius) {
         return true;
@@ -519,26 +546,31 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   }
 
   bool _wouldCollideWithQuestSign(Vector2 newPos) {
-    const playerHitboxRadius = 25.0;
-    
+    // Use average of half-width and half-height for circular approximation
+    const playerHitboxRadius = (_hitboxHalfWidth + _hitboxHalfHeight) / 2;
+
+    // Calculate hitbox center position (at player's feet)
+    final hitboxCenterX = newPos.x;
+    final hitboxCenterY = newPos.y + _hitboxYOffset;
+
     for (final sign in game.questSigns) {
       // Get the quest sign's hitbox position and size in world space
       final hitboxCenter = sign.hitboxWorldPosition;
       final hitboxSize = sign.hitboxSize;
-      
+
       // Calculate the half-extents of the sign hitbox
       final halfWidth = hitboxSize.x / 2;
       final halfHeight = hitboxSize.y / 2;
-      
-      // Find the closest point on the rectangle to the player
-      final closestX = (newPos.x).clamp(hitboxCenter.x - halfWidth, hitboxCenter.x + halfWidth);
-      final closestY = (newPos.y).clamp(hitboxCenter.y - halfHeight, hitboxCenter.y + halfHeight);
-      
-      // Calculate distance from player to closest point on rectangle
-      final dx = newPos.x - closestX;
-      final dy = newPos.y - closestY;
+
+      // Find the closest point on the rectangle to the player hitbox center
+      final closestX = hitboxCenterX.clamp(hitboxCenter.x - halfWidth, hitboxCenter.x + halfWidth);
+      final closestY = hitboxCenterY.clamp(hitboxCenter.y - halfHeight, hitboxCenter.y + halfHeight);
+
+      // Calculate distance from player hitbox center to closest point on rectangle
+      final dx = hitboxCenterX - closestX;
+      final dy = hitboxCenterY - closestY;
       final distance = sqrt(dx * dx + dy * dy);
-      
+
       // Check if player would overlap with quest sign hitbox
       if (distance < playerHitboxRadius) {
         return true;
@@ -622,5 +654,23 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     super.onCollision(intersectionPoints, other);
     // Collisions are prevented before they happen, so this shouldn't fire often
     // But if it does (e.g., from external forces), we can handle it here if needed
+  }
+
+  /// Creates vertices for an ellipse polygon approximation
+  static List<Vector2> _createEllipseVertices(
+    double halfWidth,
+    double halfHeight,
+    int segments,
+    Vector2 center,
+  ) {
+    final vertices = <Vector2>[];
+    for (int i = 0; i < segments; i++) {
+      final angle = (2 * pi * i) / segments;
+      vertices.add(Vector2(
+        center.x + halfWidth * cos(angle),
+        center.y + halfHeight * sin(angle),
+      ));
+    }
+    return vertices;
   }
 }
