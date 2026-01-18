@@ -125,7 +125,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     );
 
     // Create walk animations for each direction
-    // Rows: 0=down, 1=left, 2=up (right mirrors left)
+    // Rows: 0=down, 1=right, 2=up (left mirrors right)
     _walkAnimations = {
       PlayerDirection.down: spritesheet.createAnimation(
         row: 0,
@@ -133,7 +133,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
         from: 0,
         to: _frameCount,
       ),
-      PlayerDirection.left: spritesheet.createAnimation(
+      PlayerDirection.right: spritesheet.createAnimation(
         row: 1,
         stepTime: _walkStepTime,
         from: 0,
@@ -145,8 +145,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
         from: 0,
         to: _frameCount,
       ),
-      // Right uses left animation with horizontal flip (handled in _updateAnimation)
-      PlayerDirection.right: spritesheet.createAnimation(
+      // Left uses right animation with horizontal flip (handled in _updateAnimation)
+      PlayerDirection.left: spritesheet.createAnimation(
         row: 1,
         stepTime: _walkStepTime,
         from: 0,
@@ -155,7 +155,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     };
 
     // Create run animations for each direction
-    // Rows: 3=down, 4=left, 5=up (right mirrors left)
+    // Rows: 3=down, 4=right, 5=up (left mirrors right)
     _runAnimations = {
       PlayerDirection.down: spritesheet.createAnimation(
         row: 3,
@@ -163,7 +163,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
         from: 0,
         to: _frameCount,
       ),
-      PlayerDirection.left: spritesheet.createAnimation(
+      PlayerDirection.right: spritesheet.createAnimation(
         row: 4,
         stepTime: _runStepTime,
         from: 0,
@@ -175,8 +175,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
         from: 0,
         to: _frameCount,
       ),
-      // Right uses left animation with horizontal flip
-      PlayerDirection.right: spritesheet.createAnimation(
+      // Left uses right animation with horizontal flip
+      PlayerDirection.left: spritesheet.createAnimation(
         row: 4,
         stepTime: _runStepTime,
         from: 0,
@@ -192,7 +192,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
         from: 0,
         to: 3,
       ),
-      PlayerDirection.left: spritesheet.createAnimation(
+      PlayerDirection.right: spritesheet.createAnimation(
         row: 1,
         stepTime: _idleStepTime,
         from: 0,
@@ -204,7 +204,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
         from: 0,
         to: 3,
       ),
-      PlayerDirection.right: spritesheet.createAnimation(
+      // Left uses right animation with horizontal flip
+      PlayerDirection.left: spritesheet.createAnimation(
         row: 1,
         stepTime: _idleStepTime,
         from: 0,
@@ -302,8 +303,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
       _animationComponent.animationTicker?.reset();
     }
 
-    // Handle horizontal flip for right direction
-    final shouldFlip = _currentDirection == PlayerDirection.right;
+    // Handle horizontal flip for left direction (row 1 faces right in spritesheet)
+    final shouldFlip = _currentDirection == PlayerDirection.left;
     if (_animationComponent.isFlippedHorizontally != shouldFlip) {
       _animationComponent.flipHorizontally();
     }
