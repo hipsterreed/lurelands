@@ -7,6 +7,7 @@ import 'package:flame_tiled/flame_tiled.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../utils/constants.dart';
+import '../components/fountain.dart';
 import '../components/shop.dart';
 import '../components/tiled_water.dart';
 import '../lurelands_game.dart';
@@ -63,6 +64,9 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
   /// Shops created from building objects
   final List<Shop> _shops = [];
 
+  /// Fountains created from props layer
+  final List<Fountain> _fountains = [];
+
   /// All tiled water data for fishing proximity checks
   List<TiledWaterData> get allTiledWaterData => _waterData;
 
@@ -104,6 +108,9 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
       // Render tile objects from object layers (buildings, trees, etc.)
       await _renderObjectLayerTiles('Buildings');
+
+      // Process props layer (fountains, etc.)
+      await _processPropsLayer();
 
       debugPrint('[TiledMapWorld] Loaded map with ${_waterData.length} water regions');
       debugPrint('[TiledMapWorld] Tile collision cache: ${_tileCollisionCache.length} tiles with collision');
@@ -379,6 +386,57 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
     debugPrint('[TiledMapWorld] Rendered $count tile objects from "$layerName" layer');
     debugPrint('[TiledMapWorld] Created $shopCount shops');
+  }
+
+  /// Process the Props / World Objects layer for animated objects like fountains
+  Future<void> _processPropsLayer() async {
+    final objectLayer = _tiledMap.tileMap.getLayer<ObjectGroup>('Props / World Objects');
+    if (objectLayer == null) {
+      debugPrint('[TiledMapWorld] No Props / World Objects layer found');
+      return;
+    }
+
+    int fountainCount = 0;
+
+    for (final obj in objectLayer.objects) {
+      // Only process tile objects (those with a gid)
+      final gid = obj.gid;
+      if (gid == null || gid == 0) continue;
+
+      // Get the kind property to determine what type of prop this is
+      final kind = obj.properties.getValue<String>('kind') ?? '';
+
+      // Calculate position - Tiled uses bottom-left for tile objects
+      final scaledX = obj.x * mapScale;
+      final scaledY = obj.y * mapScale;
+      final scaledWidth = obj.width * mapScale;
+      final scaledHeight = obj.height * mapScale;
+
+      switch (kind) {
+        case 'fountain':
+          // Create animated fountain
+          // Position at center-bottom since Fountain uses bottomCenter anchor
+          final fountainX = scaledX + scaledWidth / 2;
+          final fountainY = scaledY;
+
+          final fountain = Fountain(
+            position: Vector2(fountainX, fountainY),
+            size: Vector2(scaledWidth, scaledHeight),
+          );
+          await add(fountain);
+          _fountains.add(fountain);
+          fountainCount++;
+
+          debugPrint('[TiledMapWorld] Created fountain at ($fountainX, $fountainY)');
+          break;
+
+        default:
+          debugPrint('[TiledMapWorld] Unknown prop kind: $kind');
+          break;
+      }
+    }
+
+    debugPrint('[TiledMapWorld] Created $fountainCount fountains from Props layer');
   }
 
   /// Parse the water layer to find fishable tiles and build water regions

@@ -1098,7 +1098,11 @@
 </data>
  </layer>
  <objectgroup id="15" name="Props / World Objects">
-  <object id="8" gid="4682" x="1000" y="914.333" width="32" height="48"/>
+  <object id="8" gid="4682" x="1000" y="914.333" width="32" height="48">
+   <properties>
+    <property name="kind" value="fountain"/>
+   </properties>
+  </object>
  </objectgroup>
  <layer id="9" name="Spawn Points" width="128" height="128">
   <data encoding="csv">
