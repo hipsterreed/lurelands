@@ -44,6 +44,14 @@ class WanderingNpc extends BaseNpc {
   static const double _walkStepTime = 0.15;
   static const double _idleStepTime = 0.4;
 
+  // Hitbox configuration - ellipse shape matching player style
+  static const double _hitboxWidth = 28.0;
+  static const double _hitboxHeight = 12.0;
+  static const double _hitboxHalfWidth = _hitboxWidth / 2;
+  static const double _hitboxHalfHeight = _hitboxHeight / 2;
+  static const double _hitboxYOffset = 15.0;
+  static const int _ellipseSegments = 12;
+
   // Animation components
   late SpriteAnimationComponent _animationComponent;
   late Map<NpcDirection, SpriteAnimation> _walkAnimations;
@@ -111,12 +119,18 @@ class WanderingNpc extends BaseNpc {
     );
     await add(_animationComponent);
 
-    // Add collision hitbox
-    final hitboxSize = size.x * 0.4;
-    final hitbox = RectangleHitbox(
-      size: Vector2(hitboxSize, hitboxSize * 0.5),
-      position: Vector2((size.x - hitboxSize) / 2, size.y - hitboxSize * 0.5 - 10),
+    // Add ellipse collision hitbox matching player style
+    final ellipseCenter = Vector2(
+      size.x / 2,
+      size.y / 2 + _hitboxYOffset,
     );
+    final ellipseVertices = _createEllipseVertices(
+      _hitboxHalfWidth,
+      _hitboxHalfHeight,
+      _ellipseSegments,
+      ellipseCenter,
+    );
+    final hitbox = PolygonHitbox(ellipseVertices);
     await add(hitbox);
 
     // Start with random idle duration
@@ -228,6 +242,37 @@ class WanderingNpc extends BaseNpc {
       _animationComponent.flipHorizontally();
     }
   }
+
+  /// Creates vertices for an ellipse polygon approximation
+  static List<Vector2> _createEllipseVertices(
+    double halfWidth,
+    double halfHeight,
+    int segments,
+    Vector2 center,
+  ) {
+    final vertices = <Vector2>[];
+    for (int i = 0; i < segments; i++) {
+      final angle = (2 * pi * i) / segments;
+      vertices.add(Vector2(
+        center.x + halfWidth * cos(angle),
+        center.y + halfHeight * sin(angle),
+      ));
+    }
+    return vertices;
+  }
+
+  /// Get the hitbox center position in world coordinates
+  /// Note: NPC uses Anchor.bottomCenter, so position.y is at the bottom
+  Vector2 get hitboxWorldPosition => Vector2(
+    position.x,
+    position.y - size.y / 2 + _hitboxYOffset,
+  );
+
+  /// Get the hitbox half-width for collision detection
+  double get hitboxHalfWidth => _hitboxHalfWidth;
+
+  /// Get the hitbox half-height for collision detection
+  double get hitboxHalfHeight => _hitboxHalfHeight;
 }
 
 // ============================================================================

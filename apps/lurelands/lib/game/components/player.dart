@@ -13,6 +13,7 @@ import 'power_meter.dart';
 import 'quest_sign.dart';
 import 'shop.dart';
 import 'tree.dart';
+import 'wandering_npc.dart';
 
 /// Player facing direction for 4-directional movement
 enum PlayerDirection {
@@ -390,7 +391,8 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     return _wouldCollideWithWater(newPos) ||
         _wouldCollideWithTree(newPos) ||
         _wouldCollideWithShop(newPos) ||
-        _wouldCollideWithQuestSign(newPos);
+        _wouldCollideWithQuestSign(newPos) ||
+        _wouldCollideWithNpc(newPos);
   }
 
   /// Calculate tangential slide position when colliding with a tree
@@ -573,6 +575,32 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
 
       // Check if player would overlap with quest sign hitbox
       if (distance < playerHitboxRadius) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _wouldCollideWithNpc(Vector2 newPos) {
+    // Use average of half-width and half-height for circular approximation
+    const playerHitboxRadius = (_hitboxHalfWidth + _hitboxHalfHeight) / 2;
+
+    // Calculate hitbox center position (at player's feet)
+    final hitboxCenterX = newPos.x;
+    final hitboxCenterY = newPos.y + _hitboxYOffset;
+
+    for (final npc in game.wanderingNpcs) {
+      // Get the NPC's hitbox position in world space
+      final npcHitboxPos = npc.hitboxWorldPosition;
+      final npcHitboxRadius = (npc.hitboxHalfWidth + npc.hitboxHalfHeight) / 2;
+
+      // Calculate distance from player hitbox center to NPC hitbox center
+      final dx = hitboxCenterX - npcHitboxPos.x;
+      final dy = hitboxCenterY - npcHitboxPos.y;
+      final distance = sqrt(dx * dx + dy * dy);
+
+      // Check if player would overlap with NPC hitbox
+      if (distance < playerHitboxRadius + npcHitboxRadius) {
         return true;
       }
     }

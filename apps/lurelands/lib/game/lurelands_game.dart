@@ -81,6 +81,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Public getter for quest signs
   List<QuestSign> get questSigns => [];
 
+  // List of wandering NPCs (for collision detection)
+  final List<WanderingNpc> _wanderingNpcs = [];
+  List<WanderingNpc> get wanderingNpcs => _wanderingNpcs;
+
   // Movement direction from joystick (set by UI)
   Vector2 joystickDirection = Vector2.zero();
 
@@ -284,9 +288,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       ),
     ];
 
-    // Add all NPCs to the world
+    // Add all NPCs to the world and track them
     for (final npc in npcConfigs) {
       await world.add(npc);
+      _wanderingNpcs.add(npc);
     }
 
     debugPrint('[LurelandsGame] Spawned ${npcConfigs.length} wandering NPCs');
@@ -776,6 +781,14 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     for (final tree in trees) {
       for (final child in tree.children) {
+        if (child is ShapeHitbox) {
+          child.debugMode = enabled;
+        }
+      }
+    }
+
+    for (final npc in wanderingNpcs) {
+      for (final child in npc.children) {
         if (child is ShapeHitbox) {
           child.debugMode = enabled;
         }
