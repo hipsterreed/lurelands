@@ -8,7 +8,7 @@
             "selectedLayer": 0,
             "viewCenter": {
                 "x": 903,
-                "y": 578.6666666666666
+                "y": 456.6666666666667
             }
         },
         "assetCatalog.tmx": {
@@ -20,11 +20,14 @@
             }
         },
         "maps/map2.tmx": {
+            "expandedObjectLayers": [
+                13
+            ],
             "scale": 4,
-            "selectedLayer": 6,
+            "selectedLayer": 2,
             "viewCenter": {
-                "x": 1052.875,
-                "y": 876.5
+                "x": 377.625,
+                "y": 379.25
             }
         },
         "tilesets/characters/Fisherman_Fin.tsx": {

@@ -212,7 +212,10 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
 
     // Set up camera to follow player with smooth tracking
     camera.viewfinder.anchor = Anchor.center;
-    camera.follow(_player!, maxSpeed: 800);
+
+    // Start camera offset from player for a smooth pan-in effect
+    camera.viewfinder.position = Vector2(spawnX + 600, spawnY - 400);
+    camera.follow(_player!, maxSpeed: 450); // Smooth pan speed
 
     // Add FPS counter for performance debugging
     add(FpsTextComponent(
