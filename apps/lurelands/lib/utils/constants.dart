@@ -9,7 +9,7 @@ class GameConstants {
 
   // Player settings
   static const double playerSize = 32.0;
-  static const double playerSpeed = 200.0; // pixels per second
+  static const double playerSpeed = 140.0; // pixels per second
 
   // Fishing settings
   static const double castProximityRadius = 150.0; // Distance to pond to allow casting

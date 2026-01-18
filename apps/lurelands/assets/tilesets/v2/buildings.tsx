@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tileset version="1.10" tiledversion="1.11.2" name="buildings" tilewidth="192" tileheight="128" tilecount="46" columns="0">
+<tileset version="1.10" tiledversion="1.11.2" name="buildings" tilewidth="240" tileheight="192" tilecount="53" columns="0">
  <grid orientation="orthogonal" width="1" height="1"/>
  <tile id="0">
   <image source="../../images/structures/House_2_Wood_Red_Blue.png" width="144" height="128"/>
@@ -146,5 +146,26 @@
  </tile>
  <tile id="45">
   <image source="../../images/structures/Tent_Big.png" width="80" height="96"/>
+ </tile>
+ <tile id="46">
+  <image source="../../images/structures/Blacksmith_House_Black.png" width="160" height="128"/>
+ </tile>
+ <tile id="47">
+  <image source="../../images/structures/Blacksmith_House_Blue.png" width="160" height="128"/>
+ </tile>
+ <tile id="48">
+  <image source="../../images/structures/Shed_Base_Red.png" width="96" height="112"/>
+ </tile>
+ <tile id="49">
+  <image source="../../images/structures/Shed_Base_Black.png" width="96" height="112"/>
+ </tile>
+ <tile id="50">
+  <image source="../../images/structures/Shed_Base_Blue.png" width="96" height="112"/>
+ </tile>
+ <tile id="51">
+  <image source="../../images/structures/Inn_Red.png" width="240" height="192"/>
+ </tile>
+ <tile id="52">
+  <image source="../../images/structures/Barn_Green_Black.png" width="128" height="144"/>
  </tile>
 </tileset>

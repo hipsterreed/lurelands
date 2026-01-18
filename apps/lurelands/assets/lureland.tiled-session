@@ -36,8 +36,17 @@
             "scaleInEditor": 1
         },
         "tilesets/v2/Church_Black.tsx": {
+            "dynamicWrapping": false,
             "scaleInDock": 1,
             "scaleInEditor": 1
+        },
+        "tilesets/v2/Fountain_Anim.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
+        "tilesets/v2/Pavement_Tiles.tsx": {
+            "dynamicWrapping": false
         },
         "tilesets/v2/big_oak_tree.tsx": {
             "scaleInDock": 1,
@@ -48,6 +57,9 @@
         },
         "tilesets/v2/buildings.tsx": {
             "dynamicWrapping": true
+        },
+        "tilesets/v2/path_middle_tileset.tsx": {
+            "dynamicWrapping": false
         }
     },
     "last.imagePath": "D:/Development/personal/project-game/apps/lurelands/assets/images/structures",
@@ -55,6 +67,7 @@
     ],
     "project": "lureland.tiled-project",
     "recentFiles": [
+        "tilesets/v2/Fountain_Anim.tsx",
         "tilesets/v2/Church_Black.tsx",
         "tilesets/v2/big_oak_tree.tsx",
         "tilesets/characters/Fisherman_Fin.tsx",
@@ -62,7 +75,7 @@
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {
-        "height": 144,
-        "width": 112
+        "height": 48,
+        "width": 32
     }
 }

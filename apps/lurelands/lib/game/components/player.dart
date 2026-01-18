@@ -40,7 +40,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   static const double _runStepTime = 0.08;
   static const double _idleStepTime = 0.3;
   static const double _runThreshold = 0.7; // Joystick magnitude threshold for running
-  static const double _runSpeedMultiplier = 1.5;
+  static const double _runSpeedMultiplier = 1.4;
 
   // Hitbox configuration - small ellipse shape on player's body
   // Based on Tiled measurements: 11.35x4.87 at 64px, scaled 2.5x
