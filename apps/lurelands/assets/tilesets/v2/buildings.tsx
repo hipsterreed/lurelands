@@ -149,6 +149,13 @@
  </tile>
  <tile id="46">
   <image source="../../images/structures/Blacksmith_House_Black.png" width="160" height="128"/>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="13.3333" y="35.3333" width="118.333" height="70.6667"/>
+   <object id="2" x="51.3333" y="104.333" width="29.3333" height="15"/>
+   <object id="3" x="130" y="75.6667" width="17.6667" height="23"/>
+   <object id="4" x="125.667" y="95.6667" width="13" height="12"/>
+   <object id="5" x="13.3333" y="104.667" width="14.6667" height="15"/>
+  </objectgroup>
  </tile>
  <tile id="47">
   <image source="../../images/structures/Blacksmith_House_Blue.png" width="160" height="128"/>
@@ -161,9 +168,16 @@
  </tile>
  <tile id="50">
   <image source="../../images/structures/Shed_Base_Blue.png" width="96" height="112"/>
+  <objectgroup draworder="index" id="2">
+   <object id="1" x="13.3333" y="24" width="69" height="72.3333"/>
+  </objectgroup>
  </tile>
  <tile id="51">
   <image source="../../images/structures/Inn_Red.png" width="240" height="192"/>
+  <objectgroup draworder="index" id="3">
+   <object id="2" x="9.33333" y="10.3333" width="230.333" height="145.667"/>
+   <object id="3" x="62.6667" y="149.667" width="67.3333" height="24.3333"/>
+  </objectgroup>
  </tile>
  <tile id="52">
   <image source="../../images/structures/Barn_Green_Black.png" width="128" height="144"/>

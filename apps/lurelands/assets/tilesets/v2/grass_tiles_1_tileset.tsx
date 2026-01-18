@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <tileset version="1.10" tiledversion="1.11.2" name="grass_tiles_1_tileset" tilewidth="16" tileheight="16" tilecount="160" columns="16">
  <image source="../../images/terrain/Grass_Tiles_1.png" width="256" height="160"/>
+ <tile id="149" probability="0.3"/>
+ <tile id="150" probability="0.3"/>
+ <tile id="151" probability="0.15"/>
  <wangsets>
   <wangset name="Cliff" type="corner" tile="-1">
    <wangcolor name="Grass" color="#ff0000" tile="-1" probability="1"/>

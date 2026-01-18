@@ -35,6 +35,9 @@
             "scaleInDock": 1,
             "scaleInEditor": 1
         },
+        "tilesets/v2/Bridge_Wood_1.tsx": {
+            "dynamicWrapping": false
+        },
         "tilesets/v2/Church_Black.tsx": {
             "dynamicWrapping": false,
             "scaleInDock": 1,
