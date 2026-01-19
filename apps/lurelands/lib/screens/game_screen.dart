@@ -98,6 +98,7 @@ class _GameScreenState extends State<GameScreen> {
 
       // Subscribe to inventory updates
       _inventorySubscription = _saveService.inventoryUpdates.listen((items) {
+        debugPrint('[GameScreen] Received inventory update: ${items.length} items');
         if (mounted) {
           setState(() {
             _inventoryItems = items;
@@ -144,6 +145,10 @@ class _GameScreenState extends State<GameScreen> {
           });
         }
       });
+
+      // Emit current state now that subscriptions are set up
+      // (Broadcast streams don't buffer, so we need to request current state explicitly)
+      _saveService.emitCurrentState();
 
       // Initialize from current save
       _inventoryItems = save.inventory;
@@ -1051,9 +1056,13 @@ class _GameScreenState extends State<GameScreen> {
     _saveService.acceptQuest(questId);
   }
 
-  void _onCompleteQuest(String questId) {
-    // TODO: Get rewards from quest definition
-    _saveService.completeQuest(questId, goldReward: 50, xpReward: 25);
+  void _onCompleteQuest(Quest quest) {
+    _saveService.completeQuest(
+      quest.id,
+      goldReward: quest.goldReward,
+      xpReward: quest.xpReward,
+      itemRewards: quest.itemRewards,
+    );
   }
 
   void _onSellItem(dynamic item, int quantity) {

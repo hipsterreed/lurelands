@@ -901,8 +901,6 @@ class _InventorySlot extends StatelessWidget {
       icon = Icons.water;
     } else if (entry.itemId.startsWith('pole_')) {
       icon = Icons.phishing;
-    } else if (entry.itemId.startsWith('lure_')) {
-      icon = Icons.catching_pokemon;
     } else {
       icon = Icons.inventory_2;
     }

@@ -122,57 +122,6 @@ class AssetPaths {
   static const String fish = 'assets/images/fish';
 }
 
-/// Lure asset
-class LureAsset {
-  final String path;
-  final int tier;
-
-  const LureAsset({
-    required this.path,
-    required this.tier,
-  });
-}
-
-/// Item assets (lures, etc.)
-class ItemAssets {
-  ItemAssets._();
-
-  // Lures (tier 1-4)
-  static const LureAsset lure1 = LureAsset(
-    path: '${AssetPaths.items}/lure_1.png',
-    tier: 1,
-  );
-
-  static const LureAsset lure2 = LureAsset(
-    path: '${AssetPaths.items}/lure_2.png',
-    tier: 2,
-  );
-
-  static const LureAsset lure3 = LureAsset(
-    path: '${AssetPaths.items}/lure_3.png',
-    tier: 3,
-  );
-
-  static const LureAsset lure4 = LureAsset(
-    path: '${AssetPaths.items}/lure_4.png',
-    tier: 4,
-  );
-
-  /// All lures indexed by tier (1-4)
-  static const List<LureAsset> lures = [
-    lure1,
-    lure2,
-    lure3,
-    lure4,
-  ];
-
-  /// Get lure by tier (1-4)
-  static LureAsset getLure(int tier) {
-    assert(tier >= 1 && tier <= 4, 'Lure tier must be between 1 and 4');
-    return lures[tier - 1];
-  }
-}
-
 /// Water type enum for fish categorization
 enum WaterType {
   pond,
@@ -185,7 +134,6 @@ enum WaterType {
 enum ItemType {
   fish,
   pole,
-  lure,
   bait,
 }
 
@@ -429,46 +377,16 @@ class GameItems {
   static ItemDefinition get pole3 => _poleToItem(FishingPoles.pole3);
   static ItemDefinition get pole4 => _poleToItem(FishingPoles.pole4);
 
-  // --- Lures ---
-  static const ItemDefinition lure1 = ItemDefinition(
-    id: 'lure_1',
-    name: 'Basic Lure',
-    description: 'A simple lure for common fish.',
-    type: ItemType.lure,
-    basePrice: 10,
-    assetPath: '${AssetPaths.items}/lure_1.png',
-    tier: 1,
-  );
-  static const ItemDefinition lure2 = ItemDefinition(
-    id: 'lure_2',
-    name: 'Spinner Lure',
-    description: 'A flashy lure that attracts more fish.',
-    type: ItemType.lure,
-    basePrice: 30,
-    assetPath: '${AssetPaths.items}/lure_2.png',
-    tier: 2,
-  );
-  static const ItemDefinition lure3 = ItemDefinition(
-    id: 'lure_3',
-    name: 'Golden Lure',
-    description: 'A premium lure for rare catches.',
-    type: ItemType.lure,
-    basePrice: 80,
-    assetPath: '${AssetPaths.items}/lure_3.png',
-    tier: 3,
-  );
-  static const ItemDefinition lure4 = ItemDefinition(
-    id: 'lure_4',
-    name: 'Enchanted Lure',
-    description: 'A magical lure that calls legendary fish.',
-    type: ItemType.lure,
-    basePrice: 250,
-    assetPath: '${AssetPaths.items}/lure_4.png',
-    tier: 4,
-  );
+  /// Lazy-initialized cache for all items (prevents rebuilding on every access)
+  static Map<String, ItemDefinition>? _allItemsCache;
 
-  /// All items indexed by ID (built dynamically to include all poles)
+  /// All items indexed by ID (lazy-initialized, built once)
   static Map<String, ItemDefinition> get all {
+    return _allItemsCache ??= _buildAllItems();
+  }
+
+  /// Builds the complete item map (called once on first access)
+  static Map<String, ItemDefinition> _buildAllItems() {
     final items = <String, ItemDefinition>{
       // Fish - Pond
       'fish_pond_1': fishPond1,
@@ -490,11 +408,6 @@ class GameItems {
       'fish_night_2': fishNight2,
       'fish_night_3': fishNight3,
       'fish_night_4': fishNight4,
-      // Lures
-      'lure_1': lure1,
-      'lure_2': lure2,
-      'lure_3': lure3,
-      'lure_4': lure4,
     };
 
     // Add all fishing poles from the registry

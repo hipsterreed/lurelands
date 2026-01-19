@@ -11,7 +11,7 @@ class QuestPanel extends StatefulWidget {
   final List<PlayerQuest> playerQuests;
   final VoidCallback onClose;
   final void Function(String questId) onAcceptQuest;
-  final void Function(String questId) onCompleteQuest;
+  final void Function(Quest quest) onCompleteQuest;
 
   // Sign filtering parameters (optional) - when provided, filters to this sign's quests
   final String? signId;
@@ -1140,7 +1140,7 @@ class _QuestPanelState extends State<QuestPanel> {
 
     if (canComplete) {
       return GestureDetector(
-        onTap: () => widget.onCompleteQuest(quest.id),
+        onTap: () => widget.onCompleteQuest(quest),
         child: Container(
           decoration: BoxDecoration(
             color: PanelColors.textGold,

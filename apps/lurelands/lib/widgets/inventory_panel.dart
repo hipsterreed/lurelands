@@ -51,7 +51,7 @@ class InventoryPanel extends StatefulWidget {
   final List<Quest> quests;
   final List<PlayerQuest> playerQuests;
   final void Function(String questId)? onAcceptQuest;
-  final void Function(String questId)? onCompleteQuest;
+  final void Function(Quest quest)? onCompleteQuest;
   // Level/XP display
   final int playerLevel;
   final int playerXp;
@@ -412,8 +412,44 @@ class _InventoryPanelState extends State<InventoryPanel> {
     const int columns = 10;
     const int rows = 3;
     const int totalSlots = columns * rows;
-    
+
     final displayItems = _displayedInventoryItems;
+
+    // Show helpful message if inventory appears empty but items exist as equipped
+    if (displayItems.isEmpty && widget.items.isNotEmpty) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.check_circle_outline,
+                color: _BackpackColors.textGold,
+                size: 48,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'All items equipped!',
+                style: TextStyle(
+                  color: _BackpackColors.textLight,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Your fishing pole is in the equipment slot',
+                style: TextStyle(
+                  color: _BackpackColors.textMuted,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1041,7 +1077,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () => widget.onCompleteQuest!(quest.id),
+                onPressed: () => widget.onCompleteQuest!(quest),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4CAF50),
                   foregroundColor: Colors.white,
@@ -1848,8 +1884,6 @@ class _InventorySlot extends StatelessWidget {
       icon = Icons.water;
     } else if (entry.itemId.startsWith('pole_')) {
       icon = Icons.phishing;
-    } else if (entry.itemId.startsWith('lure_')) {
-      icon = Icons.catching_pokemon;
     } else {
       icon = Icons.inventory_2;
     }

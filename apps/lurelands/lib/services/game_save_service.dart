@@ -10,6 +10,12 @@ import '../utils/constants.dart';
 /// Local game save data model - like Stardew Valley's save file
 /// All game progress is stored in a single JSON file
 class GameSaveData {
+  /// Current save format version - increment when making breaking changes
+  static const int currentVersion = 1;
+
+  // Save format version (for migrations)
+  final int version;
+
   // Player info
   final String playerId;
   final String playerName;
@@ -43,6 +49,7 @@ class GameSaveData {
   final DateTime lastPlayedAt;
 
   const GameSaveData({
+    this.version = currentVersion,
     required this.playerId,
     required this.playerName,
     required this.playerColor,
@@ -95,9 +102,17 @@ class GameSaveData {
     );
   }
 
-  /// Create from JSON
+  /// Create from JSON with migration support
   factory GameSaveData.fromJson(Map<String, dynamic> json) {
+    // Read version (default to 1 for saves before versioning was added)
+    final int savedVersion = json['version'] as int? ?? 1;
+
+    // Apply migrations if needed (future migrations go here)
+    // if (savedVersion < 2) json = _migrateV1toV2(json);
+    // if (savedVersion < 3) json = _migrateV2toV3(json);
+
     return GameSaveData(
+      version: currentVersion,  // Always upgrade to current version
       playerId: json['playerId'] as String,
       playerName: json['playerName'] as String,
       playerColor: json['playerColor'] as int,
@@ -133,6 +148,7 @@ class GameSaveData {
   /// Convert to JSON
   Map<String, dynamic> toJson() {
     return {
+      'version': version,
       'playerId': playerId,
       'playerName': playerName,
       'playerColor': playerColor,
@@ -158,6 +174,7 @@ class GameSaveData {
 
   /// Create a copy with updated values
   GameSaveData copyWith({
+    int? version,
     String? playerId,
     String? playerName,
     int? playerColor,
@@ -181,6 +198,7 @@ class GameSaveData {
     DateTime? lastPlayedAt,
   }) {
     return GameSaveData(
+      version: version ?? this.version,
       playerId: playerId ?? this.playerId,
       playerName: playerName ?? this.playerName,
       playerColor: playerColor ?? this.playerColor,
@@ -493,6 +511,9 @@ class GameSaveService {
   bool _isDirty = false;
   DateTime? _sessionStartTime;
 
+  // Index for O(1) inventory lookups by stackKey
+  final Map<String, int> _inventoryIndex = {};
+
   // Stream controllers for UI updates
   final _inventoryController = StreamController<List<InventoryItem>>.broadcast();
   final _questProgressController = StreamController<List<QuestProgress>>.broadcast();
@@ -580,6 +601,9 @@ class GameSaveService {
       _sessionStartTime = DateTime.now();
       _startAutoSave();
 
+      // Build inventory index for O(1) lookups
+      _rebuildInventoryIndex();
+
       // Emit initial state
       _emitAllUpdates();
 
@@ -594,6 +618,7 @@ class GameSaveService {
         spawnX: spawnX ?? 800.0,
         spawnY: spawnY ?? 800.0,
       );
+      _rebuildInventoryIndex();
       _startAutoSave();
       return _currentSave!;
     }
@@ -639,12 +664,31 @@ class GameSaveService {
     _isDirty = true;
   }
 
-  /// Emit all updates to streams
+  /// Emit all updates to streams (internal)
   void _emitAllUpdates() {
     if (_currentSave == null) return;
     _inventoryController.add(_currentSave!.inventory);
     _questProgressController.add(_currentSave!.questProgress);
     _statsController.add(_currentSave!);
+  }
+
+  /// Emit current state to all subscribers (call after setting up subscriptions)
+  /// This ensures new subscribers receive the current state since broadcast streams don't buffer
+  void emitCurrentState() {
+    if (_currentSave == null) return;
+    debugPrint('[GameSaveService] Emitting current state: ${_currentSave!.inventory.length} inventory items, ${_currentSave!.gold}g');
+    _inventoryController.add(_currentSave!.inventory);
+    _questProgressController.add(_currentSave!.questProgress);
+    _statsController.add(_currentSave!);
+  }
+
+  /// Rebuild the inventory index for O(1) lookups
+  void _rebuildInventoryIndex() {
+    _inventoryIndex.clear();
+    final inv = _currentSave?.inventory ?? [];
+    for (int i = 0; i < inv.length; i++) {
+      _inventoryIndex[inv[i].stackKey] = i;
+    }
   }
 
   // ================== Player Actions ==================
@@ -670,55 +714,70 @@ class GameSaveService {
 
   // ================== Inventory Management ==================
 
-  /// Add item to inventory
+  /// Add item to inventory (O(1) lookup using index)
   void addItem(String itemId, int quantity, {int rarity = 0}) {
     if (_currentSave == null) return;
 
+    debugPrint('[GameSaveService] addItem: $itemId x$quantity (rarity: $rarity)');
+
     final inventory = List<InventoryItem>.from(_currentSave!.inventory);
     final stackKey = '$itemId:$rarity';
-    final existingIndex = inventory.indexWhere((e) => e.stackKey == stackKey);
+    final existingIndex = _inventoryIndex[stackKey];  // O(1) lookup
 
-    if (existingIndex >= 0) {
+    if (existingIndex != null) {
       // Stack exists - increase quantity
       inventory[existingIndex] = inventory[existingIndex].copyWith(
         quantity: inventory[existingIndex].quantity + quantity,
       );
     } else {
-      // New stack
+      // New stack - add and update index
+      final newIndex = inventory.length;
       inventory.add(InventoryItem(
         itemId: itemId,
         quantity: quantity,
         rarity: rarity,
       ));
+      _inventoryIndex[stackKey] = newIndex;
     }
 
     _currentSave = _currentSave!.copyWith(inventory: inventory);
     _markDirty();
+    debugPrint('[GameSaveService] Inventory now has ${inventory.length} stacks, emitting update');
     _inventoryController.add(inventory);
   }
 
-  /// Remove item from inventory
+  /// Remove item from inventory (O(1) lookup using index)
   bool removeItem(String itemId, int quantity, {int rarity = 0}) {
     if (_currentSave == null) return false;
 
     final inventory = List<InventoryItem>.from(_currentSave!.inventory);
     final stackKey = '$itemId:$rarity';
-    final existingIndex = inventory.indexWhere((e) => e.stackKey == stackKey);
+    final existingIndex = _inventoryIndex[stackKey];  // O(1) lookup
 
-    if (existingIndex < 0) return false;
+    if (existingIndex == null) return false;
 
     final existing = inventory[existingIndex];
     if (existing.quantity < quantity) return false;
 
+    bool needsIndexRebuild = false;
     if (existing.quantity == quantity) {
+      // Remove entire stack - will need to rebuild index since indices shift
       inventory.removeAt(existingIndex);
+      needsIndexRebuild = true;
     } else {
+      // Reduce quantity - index stays valid
       inventory[existingIndex] = existing.copyWith(
         quantity: existing.quantity - quantity,
       );
     }
 
     _currentSave = _currentSave!.copyWith(inventory: inventory);
+
+    // Rebuild index after _currentSave is updated
+    if (needsIndexRebuild) {
+      _rebuildInventoryIndex();
+    }
+
     _markDirty();
     _inventoryController.add(inventory);
     return true;
@@ -926,8 +985,13 @@ class GameSaveService {
     debugPrint('[GameSaveService] Accepted quest: $questId');
   }
 
-  /// Complete a quest
-  void completeQuest(String questId, {int goldReward = 0, int xpReward = 0}) {
+  /// Complete a quest and grant rewards
+  void completeQuest(
+    String questId, {
+    int goldReward = 0,
+    int xpReward = 0,
+    List<ItemReward> itemRewards = const [],
+  }) {
     if (_currentSave == null) return;
 
     final questProgressList = List<QuestProgress>.from(_currentSave!.questProgress);
@@ -946,9 +1010,15 @@ class GameSaveService {
     if (goldReward > 0) addGold(goldReward);
     if (xpReward > 0) addXp(xpReward);
 
+    // Grant item rewards
+    for (final item in itemRewards) {
+      addItem(item.itemId, item.quantity, rarity: item.rarity);
+      debugPrint('[GameSaveService] Granted quest reward: ${item.itemId} x${item.quantity}');
+    }
+
     _markDirty();
     _questProgressController.add(questProgressList);
-    debugPrint('[GameSaveService] Completed quest: $questId');
+    debugPrint('[GameSaveService] Completed quest: $questId (gold: $goldReward, xp: $xpReward, items: ${itemRewards.length})');
   }
 
   /// Reset all quests (debug)
