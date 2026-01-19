@@ -13,6 +13,7 @@ import '../data/fishing_poles.dart';
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
 import 'components/caught_fish_animation.dart';
+import 'components/fishing_debug_overlay.dart';
 import 'components/player.dart';
 import 'components/quest_sign.dart';
 import 'components/shop.dart';
@@ -213,6 +214,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     );
     await world.add(_player!);
     debugPrint('[LurelandsGame] Player added to world');
+
+    // Add fishing debug overlay (renders only when debug mode is on)
+    await world.add(FishingDebugOverlay());
 
     // Spawn wandering NPCs near the spawn point
     await _spawnWanderingNpcs(Vector2(spawnX, spawnY));
@@ -576,17 +580,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final playerPos = player.position;
     const castingBuffer = 50.0;
 
-    final onDock = _isOnDock(playerPos);
-
-    for (final tiledWater in allTiledWaterData) {
-      if (onDock && tiledWater.containsPoint(playerPos.x, playerPos.y)) {
-        return true;
-      }
-      if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
-        return true;
-      }
-    }
-    return false;
+    // Use optimized tile-based proximity check (only checks nearby tiles)
+    return _tiledMapWorld.isPlayerNearWater(playerPos, castingBuffer);
   }
 
   bool _isOnDock(Vector2 pos) {
@@ -599,12 +594,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   }
 
   bool _isBobberInWater(Vector2 position) {
-    for (final tiledWater in allTiledWaterData) {
-      if (tiledWater.containsPoint(position.x, position.y)) {
-        return true;
-      }
-    }
-    return false;
+    // Use precise tile-based water detection (checks collision areas on fishable tiles)
+    return _tiledMapWorld.isInsideWater(position.x, position.y);
   }
 
   void _updateNearbyShop(Player player) {
@@ -693,21 +684,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final player = _player;
     if (player == null) return null;
 
-    final playerPos = player.position;
     const castingBuffer = 50.0;
-
-    final onDock = _isOnDock(playerPos);
-
-    for (final tiledWater in allTiledWaterData) {
-      if (onDock && tiledWater.containsPoint(playerPos.x, playerPos.y)) {
-        return (waterType: tiledWater.waterType, id: tiledWater.id);
-      }
-      if (tiledWater.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
-        return (waterType: tiledWater.waterType, id: tiledWater.id);
-      }
-    }
-
-    return null;
+    // Use optimized tile-based check
+    return _tiledMapWorld.getNearbyWaterInfo(player.position, castingBuffer);
   }
 
   /// Called from UI when cast button is held down

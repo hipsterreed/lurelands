@@ -70,6 +70,15 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
   /// All tiled water data for fishing proximity checks
   List<TiledWaterData> get allTiledWaterData => _waterData;
 
+  /// Expose fishable tile cache for debug rendering
+  Map<int, WaterType> get fishableTileCache => _fishableTileCache;
+
+  /// Expose tile collision cache for debug rendering
+  Map<int, List<Rect>> get tileCollisionCache => _tileCollisionCache;
+
+  /// Get the water layer for debug access
+  TileLayer? get waterLayer => _tiledMap.tileMap.getLayer<TileLayer>('Water');
+
   /// All shops in the world
   List<Shop> get shops => _shops;
 
@@ -459,13 +468,23 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
 
   /// Parse the water layer to find fishable tiles and build water regions
   void _parseWaterLayer() {
-    final waterLayer = _tiledMap.tileMap.getLayer<TileLayer>('water');
+    final waterLayer = _tiledMap.tileMap.getLayer<TileLayer>('Water');
     if (waterLayer == null) {
-      debugPrint('[TiledMapWorld] WARNING: No water layer found');
+      debugPrint('[TiledMapWorld] WARNING: No "Water" layer found (case-sensitive)');
+      // List all available layers for debugging
+      debugPrint('[TiledMapWorld] Available layers:');
+      for (final layer in _tiledMap.tileMap.map.layers) {
+        debugPrint('  - "${layer.name}" (${layer.runtimeType})');
+      }
       return;
     }
 
+    debugPrint('[TiledMapWorld] Found "Water" layer, scanning for fishable tiles...');
+
     final tileMap = _tiledMap.tileMap.map;
+    int totalWaterTiles = 0;
+    int fishableTiles = 0;
+    final Set<int> uniqueGids = {};
 
     // Scan for fishable tiles
     for (int y = 0; y < mapHeightTiles; y++) {
@@ -473,16 +492,25 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
         final gid = waterLayer.tileData?[y][x].tile;
         if (gid == null || gid == 0) continue;
 
+        totalWaterTiles++;
+        uniqueGids.add(gid);
+
         // Check if this tile has is_fishable property
         final tile = tileMap.tileByGid(gid);
         final isFishable = tile?.properties.getValue<bool>('is_fishable') ?? false;
 
         if (isFishable) {
+          fishableTiles++;
           final waterType = _determineWaterType(x, y, gid);
           _fishableTileCache[_tileKey(x, y)] = waterType;
         }
       }
     }
+
+    debugPrint('[TiledMapWorld] Water layer scan complete:');
+    debugPrint('  - Total water tiles found: $totalWaterTiles');
+    debugPrint('  - Unique tile GIDs: ${uniqueGids.length}');
+    debugPrint('  - Tiles with is_fishable=true: $fishableTiles');
 
     // Build water regions for fishing proximity detection
     _buildWaterRegions();
@@ -652,14 +680,9 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
     return false;
   }
 
-  /// Check if a world position is inside a fishable water tile
+  /// Check if a world position is inside the water (collision area) of a fishable tile.
+  /// This checks if the point is on a fishable tile AND within that tile's collision area.
   bool isInsideWater(double x, double y) {
-    // First check tile collision (for precise water edge detection)
-    if (_checkTileCollision(x, y)) {
-      return true;
-    }
-
-    // Fallback: check if the tile is fishable (for tiles without collision objects yet)
     final tileX = (x / renderedTileSize).floor();
     final tileY = (y / renderedTileSize).floor();
 
@@ -667,10 +690,53 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
       return false;
     }
 
-    return _fishableTileCache.containsKey(_tileKey(tileX, tileY));
+    // First check if this tile is fishable
+    if (!_fishableTileCache.containsKey(_tileKey(tileX, tileY))) {
+      return false;
+    }
+
+    // Now check if the point is within the collision area of this fishable tile
+    // The collision area defines the actual water portion of the tile
+    return _isInFishableTileCollision(x, y, tileX, tileY);
   }
 
-  /// Check if a world position is fishable (for casting detection)
+  /// Check if a point is within the collision area of a fishable tile at the given tile position.
+  /// Returns true if the point hits a collision object on the water layer tile.
+  bool _isInFishableTileCollision(double worldX, double worldY, int tileX, int tileY) {
+    final waterLayer = _tiledMap.tileMap.getLayer<TileLayer>('Water');
+    if (waterLayer == null) return false;
+
+    final gid = waterLayer.tileData?[tileY][tileX].tile;
+    if (gid == null || gid == 0) return false;
+
+    final collisionRects = _tileCollisionCache[gid];
+    if (collisionRects == null || collisionRects.isEmpty) {
+      // No collision defined - treat entire tile as water (fallback)
+      return true;
+    }
+
+    // Calculate position within the tile
+    final tileLocalX = worldX - (tileX * renderedTileSize);
+    final tileLocalY = worldY - (tileY * renderedTileSize);
+
+    // Check each collision rect (scale from tile coords to world coords)
+    for (final rect in collisionRects) {
+      final scaledRect = Rect.fromLTWH(
+        rect.left * mapScale,
+        rect.top * mapScale,
+        rect.width * mapScale,
+        rect.height * mapScale,
+      );
+
+      if (scaledRect.contains(Offset(tileLocalX, tileLocalY))) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Check if a world position is on a fishable tile (for casting proximity detection)
   bool isFishableAt(double x, double y) {
     final tileX = (x / renderedTileSize).floor();
     final tileY = (y / renderedTileSize).floor();
@@ -694,24 +760,157 @@ class TiledMapWorld extends World with HasGameReference<LurelandsGame> {
     return _fishableTileCache[_tileKey(tileX, tileY)];
   }
 
-  /// Check if a player position is near any fishable water (for fishing)
+  /// Check if a player position is near any fishable water (for fishing).
+  /// Optimized to only check tiles within a certain radius of the player.
   bool isPlayerNearWater(Vector2 playerPos, double castingBuffer) {
-    for (final water in _waterData) {
-      if (water.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
+    // Calculate tile range to check (in tiles, not world coords)
+    final checkRadiusTiles = ((castingBuffer + renderedTileSize) / renderedTileSize).ceil();
+    final centerTileX = (playerPos.x / renderedTileSize).floor();
+    final centerTileY = (playerPos.y / renderedTileSize).floor();
+
+    final minTileX = (centerTileX - checkRadiusTiles).clamp(0, mapWidthTiles - 1);
+    final maxTileX = (centerTileX + checkRadiusTiles).clamp(0, mapWidthTiles - 1);
+    final minTileY = (centerTileY - checkRadiusTiles).clamp(0, mapHeightTiles - 1);
+    final maxTileY = (centerTileY + checkRadiusTiles).clamp(0, mapHeightTiles - 1);
+
+    // Check only tiles within range
+    for (int ty = minTileY; ty <= maxTileY; ty++) {
+      for (int tx = minTileX; tx <= maxTileX; tx++) {
+        if (!_fishableTileCache.containsKey(_tileKey(tx, ty))) continue;
+
+        // Check if player is within casting range of this tile's water area
+        if (_isTileWaterInRange(tx, ty, playerPos.x, playerPos.y, castingBuffer)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /// Check if a tile's water (collision area) is within casting range of player.
+  bool _isTileWaterInRange(int tileX, int tileY, double playerX, double playerY, double buffer) {
+    final waterLayer = _tiledMap.tileMap.getLayer<TileLayer>('Water');
+    if (waterLayer == null) return false;
+
+    final gid = waterLayer.tileData?[tileY][tileX].tile;
+    if (gid == null || gid == 0) return false;
+
+    final tileWorldX = tileX * renderedTileSize;
+    final tileWorldY = tileY * renderedTileSize;
+
+    final collisionRects = _tileCollisionCache[gid];
+    if (collisionRects == null || collisionRects.isEmpty) {
+      // No collision - check distance to tile bounds
+      final tileRect = Rect.fromLTWH(tileWorldX, tileWorldY, renderedTileSize, renderedTileSize);
+      return _isPointNearRect(playerX, playerY, tileRect, buffer);
+    }
+
+    // Check if player is near any collision rect (the water area)
+    for (final rect in collisionRects) {
+      final worldRect = Rect.fromLTWH(
+        tileWorldX + rect.left * mapScale,
+        tileWorldY + rect.top * mapScale,
+        rect.width * mapScale,
+        rect.height * mapScale,
+      );
+      if (_isPointNearRect(playerX, playerY, worldRect, buffer)) {
         return true;
       }
     }
     return false;
   }
 
-  /// Get info about nearby water the player can cast into
+  /// Check if a point is within buffer distance of a rectangle (but not inside).
+  bool _isPointNearRect(double px, double py, Rect rect, double buffer) {
+    // Expand rect by buffer
+    final expanded = Rect.fromLTRB(
+      rect.left - buffer,
+      rect.top - buffer,
+      rect.right + buffer,
+      rect.bottom + buffer,
+    );
+    // Check if in expanded but not in original
+    final inExpanded = expanded.contains(Offset(px, py));
+    final inOriginal = rect.contains(Offset(px, py));
+    return inExpanded && !inOriginal;
+  }
+
+  /// Get info about nearby water the player can cast into.
+  /// Optimized to only check tiles within a certain radius.
   ({WaterType waterType, String id})? getNearbyWaterInfo(Vector2 playerPos, double castingBuffer) {
-    for (final water in _waterData) {
-      if (water.isWithinCastingRange(playerPos.x, playerPos.y, castingBuffer)) {
-        return (waterType: water.waterType, id: water.id);
+    final checkRadiusTiles = ((castingBuffer + renderedTileSize) / renderedTileSize).ceil();
+    final centerTileX = (playerPos.x / renderedTileSize).floor();
+    final centerTileY = (playerPos.y / renderedTileSize).floor();
+
+    final minTileX = (centerTileX - checkRadiusTiles).clamp(0, mapWidthTiles - 1);
+    final maxTileX = (centerTileX + checkRadiusTiles).clamp(0, mapWidthTiles - 1);
+    final minTileY = (centerTileY - checkRadiusTiles).clamp(0, mapHeightTiles - 1);
+    final maxTileY = (centerTileY + checkRadiusTiles).clamp(0, mapHeightTiles - 1);
+
+    for (int ty = minTileY; ty <= maxTileY; ty++) {
+      for (int tx = minTileX; tx <= maxTileX; tx++) {
+        final waterType = _fishableTileCache[_tileKey(tx, ty)];
+        if (waterType == null) continue;
+
+        if (_isTileWaterInRange(tx, ty, playerPos.x, playerPos.y, castingBuffer)) {
+          return (waterType: waterType, id: 'tile_${tx}_$ty');
+        }
       }
     }
     return null;
+  }
+
+  /// Get fishable tiles near a position for debug rendering.
+  /// Returns list of (tileX, tileY, waterType, collisionRects in world coords).
+  List<({int tileX, int tileY, WaterType waterType, List<Rect> collisionRects})>
+      getFishableTilesNear(Vector2 pos, double radius) {
+    final result = <({int tileX, int tileY, WaterType waterType, List<Rect> collisionRects})>[];
+
+    final checkRadiusTiles = ((radius + renderedTileSize) / renderedTileSize).ceil();
+    final centerTileX = (pos.x / renderedTileSize).floor();
+    final centerTileY = (pos.y / renderedTileSize).floor();
+
+    final minTileX = (centerTileX - checkRadiusTiles).clamp(0, mapWidthTiles - 1);
+    final maxTileX = (centerTileX + checkRadiusTiles).clamp(0, mapWidthTiles - 1);
+    final minTileY = (centerTileY - checkRadiusTiles).clamp(0, mapHeightTiles - 1);
+    final maxTileY = (centerTileY + checkRadiusTiles).clamp(0, mapHeightTiles - 1);
+
+    final waterLayer = _tiledMap.tileMap.getLayer<TileLayer>('Water');
+
+    for (int ty = minTileY; ty <= maxTileY; ty++) {
+      for (int tx = minTileX; tx <= maxTileX; tx++) {
+        final waterType = _fishableTileCache[_tileKey(tx, ty)];
+        if (waterType == null) continue;
+
+        final tileWorldX = tx * renderedTileSize;
+        final tileWorldY = ty * renderedTileSize;
+
+        List<Rect> worldRects = [];
+
+        if (waterLayer != null) {
+          final gid = waterLayer.tileData?[ty][tx].tile;
+          if (gid != null && gid != 0) {
+            final collisionRects = _tileCollisionCache[gid];
+            if (collisionRects != null && collisionRects.isNotEmpty) {
+              worldRects = collisionRects.map((rect) => Rect.fromLTWH(
+                tileWorldX + rect.left * mapScale,
+                tileWorldY + rect.top * mapScale,
+                rect.width * mapScale,
+                rect.height * mapScale,
+              )).toList();
+            }
+          }
+        }
+
+        // If no collision rects, use the full tile
+        if (worldRects.isEmpty) {
+          worldRects = [Rect.fromLTWH(tileWorldX, tileWorldY, renderedTileSize, renderedTileSize)];
+        }
+
+        result.add((tileX: tx, tileY: ty, waterType: waterType, collisionRects: worldRects));
+      }
+    }
+    return result;
   }
 
   /// Dock areas - for now, empty since we're transitioning from old system
