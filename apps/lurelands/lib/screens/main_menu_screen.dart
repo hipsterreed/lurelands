@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../services/game_settings.dart';
 import '../widgets/panel_frame.dart';
 import 'game_screen.dart';
-import 'spritesheet_debug_screen.dart';
 
 /// Main menu screen with "Enter World" button - mobile optimized
 /// Now uses local save only (no server connection)
@@ -165,36 +164,6 @@ class _MainMenuScreenState extends State<MainMenuScreen>
                     child: const Icon(
                       Icons.settings,
                       color: PanelColors.textLight,
-                      size: 24,
-                    ),
-                  ),
-                ),
-              ),
-              // Debug spritesheet button (top left)
-              Positioned(
-                top: 16,
-                left: 16,
-                child: GestureDetector(
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => const SpritesheetDebugScreen(),
-                      ),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: PanelColors.slotBg,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: Colors.orange,
-                        width: 2,
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.grid_view,
-                      color: Colors.orange,
                       size: 24,
                     ),
                   ),
