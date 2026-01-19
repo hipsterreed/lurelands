@@ -144,7 +144,10 @@ class TiledWaterData {
   final int widthInTiles;
   final int heightInTiles;
   final WaterType waterType;
-  
+
+  /// Tile size used by TiledMapWorld (must match TiledMapWorld.renderedTileSize)
+  static const double tiledMapTileSize = 40.0; // 16.0 * 2.5 scale
+
   /// Collision margin - how much smaller the collision box is than the visual
   /// This allows players to walk closer to the water's edge
   static const double collisionMargin = 20.0;
@@ -158,11 +161,11 @@ class TiledWaterData {
     this.waterType = WaterType.pond,
   });
 
-  /// Get the rendered width in world units
-  double get width => widthInTiles * NatureTilesheet.tileSize * NatureTilesheet.renderScale;
-  
-  /// Get the rendered height in world units
-  double get height => heightInTiles * NatureTilesheet.tileSize * NatureTilesheet.renderScale;
+  /// Get the rendered width in world units (using Tiled map scale, not NatureTilesheet)
+  double get width => widthInTiles * tiledMapTileSize;
+
+  /// Get the rendered height in world units (using Tiled map scale, not NatureTilesheet)
+  double get height => heightInTiles * tiledMapTileSize;
 
   /// Check if a point is inside this water body (with margin for walking closer)
   bool containsPoint(double px, double py) {

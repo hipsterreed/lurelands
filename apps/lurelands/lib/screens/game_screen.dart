@@ -1073,7 +1073,10 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   void _onBuyItem(String itemId, int price) {
-    _saveService.buyItem(itemId, price);
+    debugPrint('[GameScreen] _onBuyItem called: $itemId for ${price}g');
+    debugPrint('[GameScreen] Current gold: $_playerGold, inventory count: ${_inventoryItems.length}');
+    final success = _saveService.buyItem(itemId, price);
+    debugPrint('[GameScreen] Buy result: $success');
   }
 }
 
