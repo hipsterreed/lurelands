@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/fishing_poles.dart';
 import '../utils/constants.dart';
 
 /// Shared image cache for spritesheet sprites
@@ -98,18 +99,18 @@ class _SpritesheetSpriteState extends State<SpritesheetSprite> {
   }
 
   void _loadImage() {
-    final path = widget.assetPath ?? FishingPoleAsset.spritesheetPath;
+    final path = widget.assetPath ?? FishingPoleDefinition.spritesheetPath;
     _SpriteImageCache.loadImage(path);
   }
 
   @override
   Widget build(BuildContext context) {
-    final path = widget.assetPath ?? FishingPoleAsset.spritesheetPath;
+    final path = widget.assetPath ?? FishingPoleDefinition.spritesheetPath;
     final image = _SpriteImageCache.images[path];
 
     // Calculate source rectangle in the spritesheet
-    final srcX = widget.column * FishingPoleAsset.spriteSize;
-    final srcY = widget.row * FishingPoleAsset.spriteSize;
+    final srcX = widget.column * FishingPoleDefinition.spriteSize;
+    final srcY = widget.row * FishingPoleDefinition.spriteSize;
 
     Widget child;
     if (image != null) {
@@ -117,7 +118,7 @@ class _SpritesheetSpriteState extends State<SpritesheetSprite> {
         size: Size(widget.size, widget.size),
         painter: _SpritePainter(
           image: image,
-          srcRect: Rect.fromLTWH(srcX, srcY, FishingPoleAsset.spriteSize, FishingPoleAsset.spriteSize),
+          srcRect: Rect.fromLTWH(srcX, srcY, FishingPoleDefinition.spriteSize, FishingPoleDefinition.spriteSize),
         ),
       );
     } else {

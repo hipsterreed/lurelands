@@ -122,35 +122,6 @@ class AssetPaths {
   static const String fish = 'assets/images/fish';
 }
 
-/// Fishing pole asset loaded from spritesheet
-class FishingPoleAsset {
-  final int spriteColumn; // Column in the spritesheet (0-indexed)
-  final int spriteRow; // Row in the spritesheet (0-indexed)
-  final int tier;
-  final double maxCastDistance; // Max distance this pole can cast
-
-  const FishingPoleAsset({
-    required this.spriteColumn,
-    required this.spriteRow,
-    required this.tier,
-    required this.maxCastDistance,
-  });
-
-  /// Spritesheet configuration
-  static const String spritesheetPath = '${AssetPaths.fish}/fish_spritesheet.png';
-  static const double spriteSize = 16.0; // Each sprite is 16x16
-  static const int columns = 25;
-  static const int rows = 15;
-
-  /// Get the source rect for this sprite in the spritesheet
-  Rect get sourceRect => Rect.fromLTWH(
-        spriteColumn * spriteSize,
-        spriteRow * spriteSize,
-        spriteSize,
-        spriteSize,
-      );
-}
-
 /// Lure asset
 class LureAsset {
   final String path;
@@ -162,76 +133,9 @@ class LureAsset {
   });
 }
 
-/// Item assets (fishing poles, lures, etc.)
+/// Item assets (lures, etc.)
 class ItemAssets {
   ItemAssets._();
-
-  // Fishing Poles (tier 1-4) from fish_spritesheet.png
-  // Row 3 (0-indexed), columns 0, 3, 5, 21
-  // Each tier has progressively longer max cast distance
-  static const FishingPoleAsset fishingPole1 = FishingPoleAsset(
-    spriteColumn: 0,
-    spriteRow: 3,
-    tier: 1,
-    maxCastDistance: 100.0, // Starter pole
-  );
-
-  static const FishingPoleAsset fishingPole2 = FishingPoleAsset(
-    spriteColumn: 3,
-    spriteRow: 3,
-    tier: 2,
-    maxCastDistance: 140.0, // Better range
-  );
-
-  static const FishingPoleAsset fishingPole3 = FishingPoleAsset(
-    spriteColumn: 5,
-    spriteRow: 3,
-    tier: 3,
-    maxCastDistance: 180.0, // Great range
-  );
-
-  static const FishingPoleAsset fishingPole4 = FishingPoleAsset(
-    spriteColumn: 21,
-    spriteRow: 3,
-    tier: 4,
-    maxCastDistance: 220.0, // Maximum range
-  );
-
-  /// All fishing poles indexed by tier (1-4) - legacy support
-  static const List<FishingPoleAsset> fishingPoles = [
-    fishingPole1,
-    fishingPole2,
-    fishingPole3,
-    fishingPole4,
-  ];
-
-  /// Get fishing pole by tier (1-4) - legacy support
-  static FishingPoleAsset getFishingPole(int tier) {
-    assert(tier >= 1 && tier <= 4, 'Fishing pole tier must be between 1 and 4');
-    return fishingPoles[tier - 1];
-  }
-
-  /// Get fishing pole asset by pole ID (uses FishingPoles registry)
-  static FishingPoleAsset? getFishingPoleById(String poleId) {
-    final pole = FishingPoles.get(poleId);
-    if (pole == null) return null;
-    return FishingPoleAsset(
-      spriteColumn: pole.spriteColumn,
-      spriteRow: pole.spriteRow,
-      tier: pole.tier,
-      maxCastDistance: pole.maxCastDistance,
-    );
-  }
-
-  /// Get fishing pole asset from definition
-  static FishingPoleAsset fromDefinition(FishingPoleDefinition pole) {
-    return FishingPoleAsset(
-      spriteColumn: pole.spriteColumn,
-      spriteRow: pole.spriteRow,
-      tier: pole.tier,
-      maxCastDistance: pole.maxCastDistance,
-    );
-  }
 
   // Lures (tier 1-4)
   static const LureAsset lure1 = LureAsset(
@@ -512,7 +416,7 @@ class GameItems {
       description: pole.description,
       type: ItemType.pole,
       basePrice: pole.price,
-      assetPath: FishingPoleAsset.spritesheetPath,
+      assetPath: FishingPoleDefinition.spritesheetPath,
       tier: pole.tier,
       spriteColumn: pole.spriteColumn,
       spriteRow: pole.spriteRow,

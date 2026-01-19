@@ -34,13 +34,13 @@ class FishingPole extends PositionComponent with ParentIsA<Player>, HasGameRefer
 
   Future<void> _loadAllSprites() async {
     // Load the spritesheet image
-    final spritesheetPath = FishingPoleAsset.spritesheetPath.replaceFirst('assets/', '');
+    final spritesheetPath = FishingPoleDefinition.spritesheetPath.replaceFirst('assets/', '');
     final spritesheetImage = await game.images.load(spritesheetPath);
 
     // Create spritesheet with 16x16 sprite size
     final spritesheet = SpriteSheet(
       image: spritesheetImage,
-      srcSize: Vector2(FishingPoleAsset.spriteSize, FishingPoleAsset.spriteSize),
+      srcSize: Vector2(FishingPoleDefinition.spriteSize, FishingPoleDefinition.spriteSize),
     );
 
     // Load sprite for each pole in the registry
