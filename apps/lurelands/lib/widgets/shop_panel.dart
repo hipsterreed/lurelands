@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
+import 'spritesheet_sprite.dart';
 
 /// Type alias for backward compatibility - panels now use InventoryItem
 typedef InventoryEntry = InventoryItem;
@@ -35,6 +36,7 @@ final List<ItemDefinition> _merchantItems = [
 ];
 
 /// Widget to display an item image (handles both spritesheet and regular assets)
+/// Using the shared ItemImage widget from spritesheet_sprite.dart
 class _ItemImage extends StatelessWidget {
   final ItemDefinition item;
   final double size;
@@ -43,59 +45,7 @@ class _ItemImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (item.usesSpritesheet) {
-      return _SpritesheetSprite(
-        column: item.spriteColumn!,
-        row: item.spriteRow!,
-        size: size,
-      );
-    }
-    return Image.asset(
-      item.assetPath,
-      width: size,
-      height: size,
-      errorBuilder: (_, __, ___) => Icon(
-        Icons.phishing,
-        color: _ShopColors.textLight,
-        size: size - 4,
-      ),
-    );
-  }
-}
-
-/// Widget to display a sprite from the fishing spritesheet
-class _SpritesheetSprite extends StatelessWidget {
-  final int column;
-  final int row;
-  final double size;
-
-  const _SpritesheetSprite({
-    required this.column,
-    required this.row,
-    this.size = 32,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipRect(
-        child: OverflowBox(
-          maxWidth: FishingPoleAsset.spriteSize * FishingPoleAsset.columns * (size / FishingPoleAsset.spriteSize),
-          maxHeight: FishingPoleAsset.spriteSize * FishingPoleAsset.rows * (size / FishingPoleAsset.spriteSize),
-          alignment: Alignment(
-            -1.0 + (2.0 * column + 1.0) / FishingPoleAsset.columns,
-            -1.0 + (2.0 * row + 1.0) / FishingPoleAsset.rows,
-          ),
-          child: Image.asset(
-            FishingPoleAsset.spritesheetPath,
-            fit: BoxFit.none,
-            scale: FishingPoleAsset.spriteSize / size,
-          ),
-        ),
-      ),
-    );
+    return ItemImage(item: item, size: size);
   }
 }
 

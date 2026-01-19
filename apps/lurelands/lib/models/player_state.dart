@@ -1,3 +1,5 @@
+import '../data/fishing_poles.dart';
+
 /// Represents the state of a player in the game world.
 /// Designed for serialization to sync with SpacetimeDB.
 class PlayerState {
@@ -87,12 +89,15 @@ class PlayerState {
 
   factory PlayerState.fromJson(Map<String, dynamic> json) {
     final equippedPoleId = json['equippedPoleId'] as String?;
-    // Derive equippedPoleTier from equippedPoleId if present
+    // Derive equippedPoleTier from FishingPoles registry
     int poleTier = 1;
-    if (equippedPoleId != null && equippedPoleId.startsWith('pole_')) {
-      poleTier = int.tryParse(equippedPoleId.split('_').last) ?? 1;
+    if (equippedPoleId != null) {
+      final pole = FishingPoles.get(equippedPoleId);
+      if (pole != null) {
+        poleTier = pole.tier;
+      }
     }
-    
+
     return PlayerState(
       id: json['id'] as String,
       name: json['name'] as String? ?? 'Player',

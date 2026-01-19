@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 
+import '../data/fishing_poles.dart';
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
 import 'components/caught_fish_animation.dart';
@@ -198,7 +199,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final save = saveService.currentSave;
     final spawnX = save?.playerX ?? _tiledMapWorld.playerSpawnPoint.x;
     final spawnY = save?.playerY ?? _tiledMapWorld.playerSpawnPoint.y;
-    final equippedPoleTier = _getPoleTierFromId(save?.equippedPoleId);
+    final equippedPoleId = save?.equippedPoleId ?? 'pole_1';
+    final equippedPoleTier = _getPoleTierFromId(equippedPoleId);
 
     debugPrint('[LurelandsGame] Player spawn position: ($spawnX, $spawnY)');
 
@@ -206,6 +208,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     _player = Player(
       position: Vector2(spawnX, spawnY),
       equippedPoleTier: equippedPoleTier,
+      equippedPoleId: equippedPoleId,
       playerName: playerName,
     );
     await world.add(_player!);
@@ -238,11 +241,12 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     isLoadedNotifier.value = true;
   }
 
-  /// Get pole tier from pole ID (e.g., "pole_2" -> 2)
+  /// Get pole tier from pole ID using FishingPoles registry
   int _getPoleTierFromId(String? poleId) {
     if (poleId == null) return 1;
-    if (poleId.startsWith('pole_')) {
-      return int.tryParse(poleId.split('_').last) ?? 1;
+    final pole = FishingPoles.get(poleId);
+    if (pole != null) {
+      return pole.tier;
     }
     return 1;
   }

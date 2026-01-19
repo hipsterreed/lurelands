@@ -5,6 +5,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../data/fishing_poles.dart';
 import '../game/lurelands_game.dart';
 import '../services/game_save_service.dart';
 import '../services/game_settings.dart';
@@ -12,6 +13,7 @@ import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
 import '../widgets/quest_panel.dart';
 import '../widgets/shop_panel.dart';
+import '../widgets/spritesheet_sprite.dart' as sprites;
 import '../game/components/quest_sign.dart';
 import '../game/components/shop.dart';
 
@@ -267,15 +269,15 @@ class _GameScreenState extends State<GameScreen> {
               equippedPoleId: _equippedPoleId,
               onEquipPole: (poleItemId) {
                 _saveService.equipPole(poleItemId);
-                // Update player component pole tier
+                // Update player component pole ID and tier
                 if (_game?.player != null) {
-                  _game!.player!.equippedPoleTier = _getPoleTierFromId(poleItemId);
+                  _game!.player!.equippedPoleId = poleItemId;
                 }
               },
               onUnequipPole: () {
                 _saveService.unequipPole();
                 if (_game?.player != null) {
-                  _game!.player!.equippedPoleTier = 1;
+                  _game!.player!.equippedPoleId = 'pole_1';
                 }
               },
               onResetGold: () {
@@ -336,14 +338,6 @@ class _GameScreenState extends State<GameScreen> {
         ],
       ),
     );
-  }
-
-  int _getPoleTierFromId(String? poleId) {
-    if (poleId == null) return 1;
-    if (poleId.startsWith('pole_')) {
-      return int.tryParse(poleId.split('_').last) ?? 1;
-    }
-    return 1;
   }
 
   Widget _buildFishingMinigameOverlay() {
@@ -718,12 +712,12 @@ class _GameScreenState extends State<GameScreen> {
                         child: Center(
                           child: Builder(
                             builder: (context) {
-                              int poleTier = _getPoleTierFromId(_equippedPoleId);
-                              final poleAsset = ItemAssets.getFishingPole(poleTier);
+                              // Get the correct sprite from FishingPoles registry
+                              final pole = FishingPoles.get(_equippedPoleId ?? 'pole_1') ?? FishingPoles.defaultPole;
                               final castRotation = isCasting ? pi / 6 : 0.0;
-                              return SpritesheetSprite(
-                                column: poleAsset.spriteColumn,
-                                row: poleAsset.spriteRow,
+                              return sprites.SpritesheetSprite(
+                                column: pole.spriteColumn,
+                                row: pole.spriteRow,
                                 size: 40,
                                 opacity: isActive ? 1.0 : 0.5,
                                 rotation: castRotation,
@@ -1705,49 +1699,3 @@ class _DirectionIndicatorPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// Widget to display a sprite from the fishing spritesheet
-class SpritesheetSprite extends StatelessWidget {
-  final int column;
-  final int row;
-  final double size;
-  final double opacity;
-  final double rotation;
-
-  const SpritesheetSprite({
-    super.key,
-    required this.column,
-    required this.row,
-    this.size = 40,
-    this.opacity = 1.0,
-    this.rotation = 0.0,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: Transform.rotate(
-        angle: rotation,
-        child: Opacity(
-          opacity: opacity,
-          child: ClipRect(
-            child: OverflowBox(
-              maxWidth: FishingPoleAsset.spriteSize * FishingPoleAsset.columns * (size / FishingPoleAsset.spriteSize),
-              maxHeight: FishingPoleAsset.spriteSize * FishingPoleAsset.rows * (size / FishingPoleAsset.spriteSize),
-              alignment: Alignment(
-                -1.0 + (2.0 * column + 1.0) / FishingPoleAsset.columns,
-                -1.0 + (2.0 * row + 1.0) / FishingPoleAsset.rows,
-              ),
-              child: Image.asset(
-                FishingPoleAsset.spritesheetPath,
-                fit: BoxFit.none,
-                scale: FishingPoleAsset.spriteSize / size,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

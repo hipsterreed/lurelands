@@ -4,6 +4,7 @@ import 'dart:ui';
 import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
 
+import '../../data/fishing_poles.dart';
 import '../../utils/constants.dart';
 import 'player.dart';
 
@@ -21,8 +22,8 @@ class FishingPole extends PositionComponent with ParentIsA<Player>, HasGameRefer
   // Additional rotation when casting (tilted forward)
   static const double castRotationOffset = pi / 6; // 30 degrees
 
-  // Cached sprites for each tier
-  final Map<int, Sprite> _sprites = {};
+  // Cached sprites for each pole ID
+  final Map<String, Sprite> _sprites = {};
 
   @override
   Future<void> onLoad() async {
@@ -42,16 +43,15 @@ class FishingPole extends PositionComponent with ParentIsA<Player>, HasGameRefer
       srcSize: Vector2(FishingPoleAsset.spriteSize, FishingPoleAsset.spriteSize),
     );
 
-    // Load sprite for each tier
-    for (int tier = 1; tier <= 4; tier++) {
-      final poleAsset = ItemAssets.getFishingPole(tier);
-      _sprites[tier] = spritesheet.getSprite(poleAsset.spriteRow, poleAsset.spriteColumn);
+    // Load sprite for each pole in the registry
+    for (final pole in FishingPoles.all.values) {
+      _sprites[pole.id] = spritesheet.getSprite(pole.spriteRow, pole.spriteColumn);
     }
   }
 
   Sprite? get _currentSprite {
-    final tier = parent.equippedPoleTier;
-    return _sprites[tier];
+    final poleId = parent.equippedPoleId;
+    return _sprites[poleId];
   }
 
   @override

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
+import 'spritesheet_sprite.dart';
 
 /// Type alias for backward compatibility - panels now use InventoryItem
 typedef InventoryEntry = InventoryItem;
@@ -1675,17 +1676,7 @@ class _InventorySlot extends StatelessWidget {
             ),
             child: Center(
               child: itemDef != null
-                  ? Image.asset(
-                      itemDef.assetPath,
-                      fit: BoxFit.contain,
-                      width: 32,
-                      height: 32,
-                      errorBuilder: (_, __, ___) => Icon(
-                        Icons.phishing,
-                        color: _BackpackColors.textGold,
-                        size: 24,
-                      ),
-                    )
+                  ? ItemImage(item: itemDef, size: 32)
                   : Icon(Icons.phishing, color: _BackpackColors.textGold, size: 24),
             ),
           ),
@@ -1778,11 +1769,7 @@ class _InventorySlot extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(3),
                       child: itemDef != null
-                          ? Image.asset(
-                              itemDef.assetPath,
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => _buildFallbackIcon(),
-                            )
+                          ? ItemImage(item: itemDef)
                           : _buildFallbackIcon(),
                     ),
                   ),
@@ -2022,20 +2009,12 @@ class _EquipmentSlotWidget extends StatelessWidget {
             child: hasItem && itemDef != null
                 ? Padding(
                     padding: const EdgeInsets.all(2),
-                    child: Image.asset(
-                      itemDef.assetPath,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => Icon(
-                        icon,
-                        color: _BackpackColors.textGold,
-                        size: 18,
-                      ),
-                    ),
+                    child: ItemImage(item: itemDef, size: 28),
                   )
                 : Icon(
                     icon,
-                    color: isHovering 
-                        ? Colors.greenAccent 
+                    color: isHovering
+                        ? Colors.greenAccent
                         : _BackpackColors.textMuted.withAlpha(100),
                     size: 18,
                   ),

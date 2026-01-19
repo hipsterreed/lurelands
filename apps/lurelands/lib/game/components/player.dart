@@ -5,6 +5,7 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flame/sprite.dart';
 
+import '../../data/fishing_poles.dart';
 import '../../utils/constants.dart';
 import '../lurelands_game.dart';
 import '../world/tiled_map_world.dart';
@@ -57,9 +58,11 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     required Vector2 position,
     int equippedPoleTier = 1,
     int equippedLureTier = 1,
+    String? equippedPoleId,
     String? playerName,
   })  : _equippedPoleTier = equippedPoleTier,
         _equippedLureTier = equippedLureTier,
+        _equippedPoleId = equippedPoleId ?? 'pole_1',
         _playerName = playerName,
         super(
           position: position,
@@ -97,12 +100,24 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   // Equipment state
   int _equippedPoleTier;
   int _equippedLureTier;
+  String _equippedPoleId;
 
   bool get isCasting => _isCasting;
   double get facingAngle => _facingAngle;
   int get equippedPoleTier => _equippedPoleTier;
   int get equippedLureTier => _equippedLureTier;
+  String get equippedPoleId => _equippedPoleId;
   CastLine? get castLine => _castLine;
+
+  /// Set equipped pole by ID - also updates tier from registry
+  set equippedPoleId(String poleId) {
+    _equippedPoleId = poleId;
+    // Derive tier from FishingPoles registry
+    final pole = FishingPoles.get(poleId);
+    if (pole != null) {
+      _equippedPoleTier = pole.tier;
+    }
+  }
 
   set equippedPoleTier(int tier) {
     assert(tier >= 1 && tier <= 4, 'Pole tier must be between 1 and 4');
@@ -620,9 +635,9 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     // Cast in the direction the player is facing
     final castDirection = Vector2(cos(_facingAngle), sin(_facingAngle));
 
-    // Get the equipped pole's max cast distance
-    final poleAsset = ItemAssets.getFishingPole(_equippedPoleTier);
-    final maxDistance = poleAsset.maxCastDistance;
+    // Get the equipped pole's max cast distance from the registry
+    final pole = FishingPoles.get(_equippedPoleId);
+    final maxDistance = pole?.maxCastDistance ?? 100.0;
 
     // Calculate cast distance based on power and pole's max distance
     // Higher tier poles can cast further!

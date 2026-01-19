@@ -1,5 +1,7 @@
 import 'dart:ui';
 
+import '../data/fishing_poles.dart';
+
 /// Game-wide constants for Lurelands
 class GameConstants {
   // Prevent instantiation
@@ -195,7 +197,7 @@ class ItemAssets {
     maxCastDistance: 220.0, // Maximum range
   );
 
-  /// All fishing poles indexed by tier (1-4)
+  /// All fishing poles indexed by tier (1-4) - legacy support
   static const List<FishingPoleAsset> fishingPoles = [
     fishingPole1,
     fishingPole2,
@@ -203,10 +205,32 @@ class ItemAssets {
     fishingPole4,
   ];
 
-  /// Get fishing pole by tier (1-4)
+  /// Get fishing pole by tier (1-4) - legacy support
   static FishingPoleAsset getFishingPole(int tier) {
     assert(tier >= 1 && tier <= 4, 'Fishing pole tier must be between 1 and 4');
     return fishingPoles[tier - 1];
+  }
+
+  /// Get fishing pole asset by pole ID (uses FishingPoles registry)
+  static FishingPoleAsset? getFishingPoleById(String poleId) {
+    final pole = FishingPoles.get(poleId);
+    if (pole == null) return null;
+    return FishingPoleAsset(
+      spriteColumn: pole.spriteColumn,
+      spriteRow: pole.spriteRow,
+      tier: pole.tier,
+      maxCastDistance: pole.maxCastDistance,
+    );
+  }
+
+  /// Get fishing pole asset from definition
+  static FishingPoleAsset fromDefinition(FishingPoleDefinition pole) {
+    return FishingPoleAsset(
+      spriteColumn: pole.spriteColumn,
+      spriteRow: pole.spriteRow,
+      tier: pole.tier,
+      maxCastDistance: pole.maxCastDistance,
+    );
   }
 
   // Lures (tier 1-4)
@@ -479,51 +503,27 @@ class GameItems {
     tier: 4,
   );
 
-  // --- Poles --- (from fish_spritesheet.png, row 3)
-  static const ItemDefinition pole1 = ItemDefinition(
-    id: 'pole_1',
-    name: 'Wooden Rod',
-    description: 'A basic fishing rod for beginners. Free!',
-    type: ItemType.pole,
-    basePrice: 0,
-    assetPath: FishingPoleAsset.spritesheetPath,
-    tier: 1,
-    spriteColumn: 0,
-    spriteRow: 3,
-  );
-  static const ItemDefinition pole2 = ItemDefinition(
-    id: 'pole_2',
-    name: 'Steel Rod',
-    description: 'A sturdy rod with better casting distance.',
-    type: ItemType.pole,
-    basePrice: 200,
-    assetPath: FishingPoleAsset.spritesheetPath,
-    tier: 2,
-    spriteColumn: 3,
-    spriteRow: 3,
-  );
-  static const ItemDefinition pole3 = ItemDefinition(
-    id: 'pole_3',
-    name: 'Carbon Fiber Rod',
-    description: 'A lightweight rod for serious anglers.',
-    type: ItemType.pole,
-    basePrice: 500,
-    assetPath: FishingPoleAsset.spritesheetPath,
-    tier: 3,
-    spriteColumn: 5,
-    spriteRow: 3,
-  );
-  static const ItemDefinition pole4 = ItemDefinition(
-    id: 'pole_4',
-    name: 'Legendary Angler\'s Rod',
-    description: 'The ultimate fishing rod, crafted by masters.',
-    type: ItemType.pole,
-    basePrice: 1500,
-    assetPath: FishingPoleAsset.spritesheetPath,
-    tier: 4,
-    spriteColumn: 21,
-    spriteRow: 3,
-  );
+  // --- Poles --- (dynamically built from FishingPoles registry)
+  /// Convert a FishingPoleDefinition to an ItemDefinition
+  static ItemDefinition _poleToItem(FishingPoleDefinition pole) {
+    return ItemDefinition(
+      id: pole.id,
+      name: pole.name,
+      description: pole.description,
+      type: ItemType.pole,
+      basePrice: pole.price,
+      assetPath: FishingPoleAsset.spritesheetPath,
+      tier: pole.tier,
+      spriteColumn: pole.spriteColumn,
+      spriteRow: pole.spriteRow,
+    );
+  }
+
+  // Legacy constants for backward compatibility
+  static ItemDefinition get pole1 => _poleToItem(FishingPoles.pole1);
+  static ItemDefinition get pole2 => _poleToItem(FishingPoles.pole2);
+  static ItemDefinition get pole3 => _poleToItem(FishingPoles.pole3);
+  static ItemDefinition get pole4 => _poleToItem(FishingPoles.pole4);
 
   // --- Lures ---
   static const ItemDefinition lure1 = ItemDefinition(
@@ -563,39 +563,43 @@ class GameItems {
     tier: 4,
   );
 
-  /// All items indexed by ID
-  static const Map<String, ItemDefinition> all = {
-    // Fish - Pond
-    'fish_pond_1': fishPond1,
-    'fish_pond_2': fishPond2,
-    'fish_pond_3': fishPond3,
-    'fish_pond_4': fishPond4,
-    // Fish - River
-    'fish_river_1': fishRiver1,
-    'fish_river_2': fishRiver2,
-    'fish_river_3': fishRiver3,
-    'fish_river_4': fishRiver4,
-    // Fish - Ocean
-    'fish_ocean_1': fishOcean1,
-    'fish_ocean_2': fishOcean2,
-    'fish_ocean_3': fishOcean3,
-    'fish_ocean_4': fishOcean4,
-    // Fish - Night
-    'fish_night_1': fishNight1,
-    'fish_night_2': fishNight2,
-    'fish_night_3': fishNight3,
-    'fish_night_4': fishNight4,
-    // Poles
-    'pole_1': pole1,
-    'pole_2': pole2,
-    'pole_3': pole3,
-    'pole_4': pole4,
-    // Lures
-    'lure_1': lure1,
-    'lure_2': lure2,
-    'lure_3': lure3,
-    'lure_4': lure4,
-  };
+  /// All items indexed by ID (built dynamically to include all poles)
+  static Map<String, ItemDefinition> get all {
+    final items = <String, ItemDefinition>{
+      // Fish - Pond
+      'fish_pond_1': fishPond1,
+      'fish_pond_2': fishPond2,
+      'fish_pond_3': fishPond3,
+      'fish_pond_4': fishPond4,
+      // Fish - River
+      'fish_river_1': fishRiver1,
+      'fish_river_2': fishRiver2,
+      'fish_river_3': fishRiver3,
+      'fish_river_4': fishRiver4,
+      // Fish - Ocean
+      'fish_ocean_1': fishOcean1,
+      'fish_ocean_2': fishOcean2,
+      'fish_ocean_3': fishOcean3,
+      'fish_ocean_4': fishOcean4,
+      // Fish - Night
+      'fish_night_1': fishNight1,
+      'fish_night_2': fishNight2,
+      'fish_night_3': fishNight3,
+      'fish_night_4': fishNight4,
+      // Lures
+      'lure_1': lure1,
+      'lure_2': lure2,
+      'lure_3': lure3,
+      'lure_4': lure4,
+    };
+
+    // Add all fishing poles from the registry
+    for (final pole in FishingPoles.all.values) {
+      items[pole.id] = _poleToItem(pole);
+    }
+
+    return items;
+  }
 
   /// Get item definition by ID
   static ItemDefinition? get(String id) {
