@@ -69,6 +69,7 @@
     "openFiles": [
     ],
     "project": "lureland.tiled-project",
+    "property.type": "bool",
     "recentFiles": [
         "tilesets/v2/Fountain_Anim.tsx",
         "tilesets/v2/Church_Black.tsx",
