@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:ui';
 
 import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
@@ -175,10 +176,75 @@ class WanderingNpc extends BaseNpc {
       // Turn around and head back toward spawn
       _moveDirection = (basePosition - position).normalized();
       _updateDirectionFromMovement();
+      return;
+    }
+
+    // Check for collision at new position
+    if (_wouldCollide(newPosition)) {
+      // Hit something - pick a new random direction and stop for this frame
+      _pickNewDirection();
+      return;
     }
 
     // Apply movement
     position = newPosition;
+  }
+
+  /// Check if moving to the given position would cause a collision
+  bool _wouldCollide(Vector2 newPos) {
+    // Calculate hitbox center at the new position
+    // NPC uses Anchor.bottomCenter, so position.y is at the bottom
+    final hitboxCenterX = newPos.x;
+    final hitboxCenterY = newPos.y - size.y / 2 + _hitboxYOffset;
+
+    // Check multiple points around the hitbox edge
+    final checkPoints = [
+      Offset(hitboxCenterX, hitboxCenterY), // Center
+      Offset(hitboxCenterX + _hitboxHalfWidth * 0.8, hitboxCenterY), // Right
+      Offset(hitboxCenterX - _hitboxHalfWidth * 0.8, hitboxCenterY), // Left
+      Offset(hitboxCenterX, hitboxCenterY + _hitboxHalfHeight * 0.8), // Bottom
+      Offset(hitboxCenterX, hitboxCenterY - _hitboxHalfHeight * 0.8), // Top
+    ];
+
+    // Check tile/layer collisions
+    for (final point in checkPoints) {
+      if (game.isCollisionAt(point.dx, point.dy)) {
+        return true;
+      }
+    }
+
+    // Check tree collisions
+    const npcHitboxRadius = (_hitboxHalfWidth + _hitboxHalfHeight) / 2;
+    for (final tree in game.trees) {
+      final treePos = tree.hitboxWorldPosition;
+      final treeRadius = tree.hitboxRadius;
+
+      final dx = hitboxCenterX - treePos.x;
+      final dy = hitboxCenterY - treePos.y;
+      final distance = sqrt(dx * dx + dy * dy);
+
+      if (distance < npcHitboxRadius + treeRadius) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /// Pick a new random direction (used when hitting collision)
+  void _pickNewDirection() {
+    final angle = _random.nextDouble() * 2 * pi;
+    _moveDirection = Vector2(cos(angle), sin(angle));
+
+    // Bias toward spawn if far away
+    final distanceFromSpawn = position.distanceTo(basePosition);
+    if (distanceFromSpawn > wanderRadius * 0.3) {
+      final toSpawn = (basePosition - position).normalized();
+      _moveDirection = (_moveDirection + toSpawn * 2).normalized();
+    }
+
+    _updateDirectionFromMovement();
+    _updateAnimation();
   }
 
   void _startIdle() {
