@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../data/quests.dart';
+import '../models/quest_models.dart';
 import '../utils/constants.dart';
 
 /// Local game save data model - like Stardew Valley's save file
@@ -284,7 +286,7 @@ class InventoryItem {
 class QuestProgress {
   final String questId;
   final String status; // 'available', 'active', 'completed'
-  final Map<String, int> progress; // Fish counts, etc.
+  final Map<String, int> progress; // Objective ID -> progress count
   final DateTime? acceptedAt;
   final DateTime? completedAt;
 
@@ -325,13 +327,30 @@ class QuestProgress {
   bool get isActive => status == 'active';
   bool get isCompleted => status == 'completed';
 
-  /// Get total fish caught
+  /// Get progress for a specific objective
+  int getObjectiveProgress(String objectiveId) => progress[objectiveId] ?? 0;
+
+  /// Check if a specific objective is met
+  bool isObjectiveMet(QuestObjective objective) {
+    return getObjectiveProgress(objective.id) >= objective.targetAmount;
+  }
+
+  /// Check if all objectives are met for a quest
+  bool areAllObjectivesMet(Quest quest) {
+    if (quest.objectives.isEmpty) {
+      // Fall back to legacy fish-based checking
+      return _areLegacyRequirementsMet(quest);
+    }
+    return quest.objectives.every(isObjectiveMet);
+  }
+
+  /// Legacy support: Get total fish caught (from old progress format)
   int get totalFishCaught => progress['total'] ?? 0;
 
-  /// Get max rarity caught
+  /// Legacy support: Get max rarity caught
   int get maxRarityCaught => progress['max_rarity'] ?? 0;
 
-  /// Get specific fish count
+  /// Legacy support: Get specific fish count
   int getFishCount(String fishId) => progress[fishId] ?? 0;
 
   QuestProgress copyWith({
@@ -350,8 +369,8 @@ class QuestProgress {
     );
   }
 
-  /// Check if requirements are met for a quest
-  bool areRequirementsMet(Quest quest) {
+  /// Legacy: Check if requirements are met for a quest (old fish-based system)
+  bool _areLegacyRequirementsMet(Quest quest) {
     // Check specific fish requirements
     for (final entry in quest.requiredFish.entries) {
       if (getFishCount(entry.key) < entry.value) return false;
@@ -367,65 +386,12 @@ class QuestProgress {
     return true;
   }
 
-  /// Get fish progress map for UI
+  /// Get fish progress map for UI (legacy support)
   Map<String, int> get fishProgress => progress;
 }
 
 /// Type alias for backward compatibility with old panel code
 typedef PlayerQuest = QuestProgress;
-
-/// Quest definition model - local quest data
-class Quest {
-  final String id;
-  final String title;
-  final String description;
-  final String questType; // 'story' or 'daily'
-  final String? storyline;
-  final int? storyOrder;
-  final String? prerequisiteQuestId;
-  final int goldReward;
-  final int xpReward;
-  final List<ItemReward> itemRewards;
-  final Map<String, int> requiredFish;
-  final int? totalFishRequired;
-  final int? minRarityRequired;
-  final String? questGiverType;
-  final String? questGiverId;
-
-  const Quest({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.questType,
-    this.storyline,
-    this.storyOrder,
-    this.prerequisiteQuestId,
-    this.goldReward = 0,
-    this.xpReward = 0,
-    this.itemRewards = const [],
-    this.requiredFish = const {},
-    this.totalFishRequired,
-    this.minRarityRequired,
-    this.questGiverType,
-    this.questGiverId,
-  });
-
-  bool get isStoryQuest => questType == 'story';
-  bool get isDailyQuest => questType == 'daily';
-}
-
-/// Item reward for quests
-class ItemReward {
-  final String itemId;
-  final int quantity;
-  final int rarity;
-
-  const ItemReward({
-    required this.itemId,
-    this.quantity = 1,
-    this.rarity = 0,
-  });
-}
 
 /// NPC relationship model
 class NpcRelationship {
@@ -744,6 +710,9 @@ class GameSaveService {
     _markDirty();
     debugPrint('[GameSaveService] Inventory now has ${inventory.length} stacks, emitting update');
     _inventoryController.add(inventory);
+
+    // Update quest progress for item collection objectives
+    _updateQuestProgressForItemCollected(itemId, quantity);
   }
 
   /// Remove item from inventory (O(1) lookup using index)
@@ -816,27 +785,278 @@ class GameSaveService {
     for (int i = 0; i < questProgressList.length; i++) {
       final qp = questProgressList[i];
       if (qp.isActive) {
+        final quest = Quests.get(qp.questId);
+        if (quest == null) continue;
+
         final newProgress = Map<String, int>.from(qp.progress);
 
-        // Update specific fish count
+        // Update progress for fish-related objectives
+        for (final objective in quest.objectives) {
+          switch (objective.type) {
+            case QuestObjectiveType.catchSpecificFish:
+              if (objective.targetId == fishId) {
+                newProgress[objective.id] = (newProgress[objective.id] ?? 0) + 1;
+                changed = true;
+              }
+              break;
+            case QuestObjectiveType.catchAnyFish:
+              newProgress[objective.id] = (newProgress[objective.id] ?? 0) + 1;
+              changed = true;
+              break;
+            case QuestObjectiveType.catchRareFish:
+              if (rarity >= (objective.minRarity ?? 0)) {
+                newProgress[objective.id] = (newProgress[objective.id] ?? 0) + 1;
+                changed = true;
+              }
+              break;
+            default:
+              // Non-fish objectives handled elsewhere
+              break;
+          }
+        }
+
+        // Also keep legacy progress tracking for backward compatibility
         newProgress[fishId] = (newProgress[fishId] ?? 0) + 1;
-
-        // Update total count
         newProgress['total'] = (newProgress['total'] ?? 0) + 1;
-
-        // Update max rarity if this fish is rarer
         if (rarity > (newProgress['max_rarity'] ?? 0)) {
           newProgress['max_rarity'] = rarity;
         }
 
         questProgressList[i] = qp.copyWith(progress: newProgress);
-        changed = true;
       }
     }
 
     if (changed) {
       _currentSave = _currentSave!.copyWith(questProgress: questProgressList);
       _questProgressController.add(questProgressList);
+      _markDirty();
+    }
+  }
+
+  /// Update quest progress for talking to an NPC
+  void _updateQuestProgressForNpcTalk(String npcId) {
+    if (_currentSave == null) return;
+
+    final questProgressList = List<QuestProgress>.from(_currentSave!.questProgress);
+    bool changed = false;
+
+    for (int i = 0; i < questProgressList.length; i++) {
+      final qp = questProgressList[i];
+      if (qp.isActive) {
+        final quest = Quests.get(qp.questId);
+        if (quest == null) continue;
+
+        final newProgress = Map<String, int>.from(qp.progress);
+
+        for (final objective in quest.objectives) {
+          if (objective.type == QuestObjectiveType.talkToNpc &&
+              objective.targetId == npcId) {
+            // Only count if not already completed
+            if ((newProgress[objective.id] ?? 0) < objective.targetAmount) {
+              newProgress[objective.id] = (newProgress[objective.id] ?? 0) + 1;
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          questProgressList[i] = qp.copyWith(progress: newProgress);
+        }
+      }
+    }
+
+    if (changed) {
+      _currentSave = _currentSave!.copyWith(questProgress: questProgressList);
+      _questProgressController.add(questProgressList);
+      _markDirty();
+      debugPrint('[GameSaveService] Updated quest progress for NPC talk: $npcId');
+    }
+  }
+
+  /// Update quest progress for visiting a location
+  void onLocationVisited(String locationId) {
+    if (_currentSave == null) return;
+
+    final questProgressList = List<QuestProgress>.from(_currentSave!.questProgress);
+    bool changed = false;
+
+    for (int i = 0; i < questProgressList.length; i++) {
+      final qp = questProgressList[i];
+      if (qp.isActive) {
+        final quest = Quests.get(qp.questId);
+        if (quest == null) continue;
+
+        final newProgress = Map<String, int>.from(qp.progress);
+
+        for (final objective in quest.objectives) {
+          if (objective.type == QuestObjectiveType.visitLocation &&
+              objective.targetId == locationId) {
+            if ((newProgress[objective.id] ?? 0) < objective.targetAmount) {
+              newProgress[objective.id] = (newProgress[objective.id] ?? 0) + 1;
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          questProgressList[i] = qp.copyWith(progress: newProgress);
+        }
+      }
+    }
+
+    if (changed) {
+      _currentSave = _currentSave!.copyWith(questProgress: questProgressList);
+      _questProgressController.add(questProgressList);
+      _markDirty();
+      debugPrint('[GameSaveService] Updated quest progress for location: $locationId');
+    }
+  }
+
+  /// Update quest progress for selling fish
+  void _updateQuestProgressForFishSold(int goldAmount) {
+    if (_currentSave == null) return;
+
+    final questProgressList = List<QuestProgress>.from(_currentSave!.questProgress);
+    bool changed = false;
+
+    for (int i = 0; i < questProgressList.length; i++) {
+      final qp = questProgressList[i];
+      if (qp.isActive) {
+        final quest = Quests.get(qp.questId);
+        if (quest == null) continue;
+
+        final newProgress = Map<String, int>.from(qp.progress);
+
+        for (final objective in quest.objectives) {
+          if (objective.type == QuestObjectiveType.sellFish) {
+            newProgress[objective.id] = (newProgress[objective.id] ?? 0) + goldAmount;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          questProgressList[i] = qp.copyWith(progress: newProgress);
+        }
+      }
+    }
+
+    if (changed) {
+      _currentSave = _currentSave!.copyWith(questProgress: questProgressList);
+      _questProgressController.add(questProgressList);
+      _markDirty();
+      debugPrint('[GameSaveService] Updated quest progress for fish sold: $goldAmount gold');
+    }
+  }
+
+  /// Update quest progress for lien payment
+  void onLienPaymentMade() {
+    if (_currentSave == null) return;
+
+    final questProgressList = List<QuestProgress>.from(_currentSave!.questProgress);
+    bool changed = false;
+
+    for (int i = 0; i < questProgressList.length; i++) {
+      final qp = questProgressList[i];
+      if (qp.isActive) {
+        final quest = Quests.get(qp.questId);
+        if (quest == null) continue;
+
+        final newProgress = Map<String, int>.from(qp.progress);
+
+        for (final objective in quest.objectives) {
+          if (objective.type == QuestObjectiveType.payLien) {
+            newProgress[objective.id] = (newProgress[objective.id] ?? 0) + 1;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          questProgressList[i] = qp.copyWith(progress: newProgress);
+        }
+      }
+    }
+
+    if (changed) {
+      _currentSave = _currentSave!.copyWith(questProgress: questProgressList);
+      _questProgressController.add(questProgressList);
+      _markDirty();
+      debugPrint('[GameSaveService] Updated quest progress for lien payment');
+    }
+  }
+
+  /// Update quest progress for attending an event
+  void onEventAttended(String eventId) {
+    if (_currentSave == null) return;
+
+    final questProgressList = List<QuestProgress>.from(_currentSave!.questProgress);
+    bool changed = false;
+
+    for (int i = 0; i < questProgressList.length; i++) {
+      final qp = questProgressList[i];
+      if (qp.isActive) {
+        final quest = Quests.get(qp.questId);
+        if (quest == null) continue;
+
+        final newProgress = Map<String, int>.from(qp.progress);
+
+        for (final objective in quest.objectives) {
+          if (objective.type == QuestObjectiveType.attendEvent &&
+              objective.targetId == eventId) {
+            if ((newProgress[objective.id] ?? 0) < objective.targetAmount) {
+              newProgress[objective.id] = (newProgress[objective.id] ?? 0) + 1;
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          questProgressList[i] = qp.copyWith(progress: newProgress);
+        }
+      }
+    }
+
+    if (changed) {
+      _currentSave = _currentSave!.copyWith(questProgress: questProgressList);
+      _questProgressController.add(questProgressList);
+      _markDirty();
+      debugPrint('[GameSaveService] Updated quest progress for event: $eventId');
+    }
+  }
+
+  /// Update quest progress for collecting an item
+  void _updateQuestProgressForItemCollected(String itemId, int quantity) {
+    if (_currentSave == null) return;
+
+    final questProgressList = List<QuestProgress>.from(_currentSave!.questProgress);
+    bool changed = false;
+
+    for (int i = 0; i < questProgressList.length; i++) {
+      final qp = questProgressList[i];
+      if (qp.isActive) {
+        final quest = Quests.get(qp.questId);
+        if (quest == null) continue;
+
+        final newProgress = Map<String, int>.from(qp.progress);
+
+        for (final objective in quest.objectives) {
+          if (objective.type == QuestObjectiveType.collectItem &&
+              objective.targetId == itemId) {
+            newProgress[objective.id] = (newProgress[objective.id] ?? 0) + quantity;
+            changed = true;
+          }
+        }
+
+        if (changed) {
+          questProgressList[i] = qp.copyWith(progress: newProgress);
+        }
+      }
+    }
+
+    if (changed) {
+      _currentSave = _currentSave!.copyWith(questProgress: questProgressList);
+      _questProgressController.add(questProgressList);
+      _markDirty();
+      debugPrint('[GameSaveService] Updated quest progress for item collected: $itemId x$quantity');
     }
   }
 
@@ -889,6 +1109,8 @@ class GameSaveService {
 
     if (removeItem(itemId, quantity, rarity: rarity)) {
       addGold(totalGold);
+      // Update quest progress for fish selling objectives
+      _updateQuestProgressForFishSold(totalGold);
       debugPrint('[GameSaveService] Sold $itemId x$quantity for ${totalGold}g');
     }
   }
@@ -1061,6 +1283,9 @@ class GameSaveService {
 
     _currentSave = _currentSave!.copyWith(npcRelationships: relationships);
     _markDirty();
+
+    // Update quest progress for NPC talk objectives
+    _updateQuestProgressForNpcTalk(npcId);
   }
 
   // ================== Delete Save ==================

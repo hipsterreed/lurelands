@@ -6,7 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../data/fishing_poles.dart';
+import '../data/quests.dart';
 import '../game/lurelands_game.dart';
+import '../models/quest_models.dart';
 import '../services/game_save_service.dart';
 import '../services/game_settings.dart';
 import '../utils/constants.dart';
@@ -143,6 +145,8 @@ class _GameScreenState extends State<GameScreen> {
           setState(() {
             _questProgress = progress;
           });
+          // Update NPC quest indicators when quest progress changes
+          _game?.updateNpcQuestIndicators(progress);
         }
       });
 
@@ -186,6 +190,21 @@ class _GameScreenState extends State<GameScreen> {
         }
       };
       game.nearbyQuestSignNotifier.addListener(_questSignNotifierListener!);
+
+      // Listen for game fully loaded (NPCs spawned) to update quest indicators
+      void onGameLoaded() {
+        if (game.isLoadedNotifier.value && mounted) {
+          debugPrint('[GameScreen] Game fully loaded, updating NPC quest indicators');
+          game.updateNpcQuestIndicators(_questProgress);
+          // Remove listener after first call - we only need this once at startup
+          game.isLoadedNotifier.removeListener(onGameLoaded);
+        }
+      }
+      game.isLoadedNotifier.addListener(onGameLoaded);
+      // Also check immediately in case already loaded
+      if (game.isLoadedNotifier.value) {
+        onGameLoaded();
+      }
 
       setState(() {
         _isLoading = false;
@@ -300,8 +319,8 @@ class _GameScreenState extends State<GameScreen> {
                 setState(() => _showInventory = false);
                 Navigator.of(context).pushReplacementNamed('/');
               },
-              quests: [], // Local quests will be defined in constants later
-              playerQuests: [], // Using _questProgress instead
+              quests: Quests.all.values.toList(),
+              playerQuests: _questProgress,
               onAcceptQuest: _onAcceptQuest,
               onCompleteQuest: _onCompleteQuest,
               playerLevel: _playerLevel,
@@ -325,8 +344,8 @@ class _GameScreenState extends State<GameScreen> {
           // Quest panel overlay
           if (_showQuestPanel)
             QuestPanel(
-              quests: [], // Local quests - can be defined in constants
-              playerQuests: [], // Using local _questProgress
+              quests: Quests.all.values.toList(),
+              playerQuests: _questProgress,
               onClose: () => setState(() => _showQuestPanel = false),
               onAcceptQuest: _onAcceptQuest,
               onCompleteQuest: _onCompleteQuest,

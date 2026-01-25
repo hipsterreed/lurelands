@@ -347,42 +347,42 @@ class WanderingNpc extends BaseNpc {
 
 /// Lumberjack NPC
 class LumberjackNpc extends WanderingNpc {
-  LumberjackNpc({required super.position, required super.id, String name = 'Jack'})
-    : super(name: name, title: 'Lumberjack', spritesheetPath: 'characters/lumberjack_male.png');
+  LumberjackNpc({required super.position, required super.id, String name = 'Jack', String title = 'Lumberjack'})
+    : super(name: name, title: title, spritesheetPath: 'characters/lumberjack_male.png');
 }
 
 /// Miner NPC
 class MinerNpc extends WanderingNpc {
-  MinerNpc({required super.position, required super.id, String name = 'Dusty'})
-    : super(name: name, title: 'Miner', spritesheetPath: 'characters/miner_male.png');
+  MinerNpc({required super.position, required super.id, String name = 'Dusty', String title = 'Miner'})
+    : super(name: name, title: title, spritesheetPath: 'characters/miner_male.png');
 }
 
 /// Male Bartender NPC
 class BartenderMaleNpc extends WanderingNpc {
-  BartenderMaleNpc({required super.position, required super.id, String name = 'Barney'})
-    : super(name: name, title: 'Bartender', spritesheetPath: 'characters/bartender_male.png');
+  BartenderMaleNpc({required super.position, required super.id, String name = 'Barney', String title = 'Bartender'})
+    : super(name: name, title: title, spritesheetPath: 'characters/bartender_male.png');
 }
 
 /// Female Bartender NPC
 class BartenderFemaleNpc extends WanderingNpc {
-  BartenderFemaleNpc({required super.position, required super.id, String name = 'Bella'})
-    : super(name: name, title: 'Bartender', spritesheetPath: 'characters/bartender_female.png');
+  BartenderFemaleNpc({required super.position, required super.id, String name = 'Bella', String title = 'Bartender'})
+    : super(name: name, title: title, spritesheetPath: 'characters/bartender_female.png');
 }
 
 /// Chef NPC (female sprite)
 class ChefNpc extends WanderingNpc {
-  ChefNpc({required super.position, required super.id, String name = 'Cookie'})
-    : super(name: name, title: 'Chef', spritesheetPath: 'characters/chef_female.png');
+  ChefNpc({required super.position, required super.id, String name = 'Cookie', String title = 'Chef'})
+    : super(name: name, title: title, spritesheetPath: 'characters/chef_female.png');
 }
 
 /// Male Farmer NPC
 class FarmerMaleNpc extends WanderingNpc {
-  FarmerMaleNpc({required super.position, required super.id, String name = 'Hank'})
-    : super(name: name, title: 'Farmer', spritesheetPath: 'characters/farmer_male.png');
+  FarmerMaleNpc({required super.position, required super.id, String name = 'Hank', String title = 'Farmer'})
+    : super(name: name, title: title, spritesheetPath: 'characters/farmer_male.png');
 }
 
 /// Female Farmer NPC
 class FarmerFemaleNpc extends WanderingNpc {
-  FarmerFemaleNpc({required super.position, required super.id, String name = 'Daisy'})
-    : super(name: name, title: 'Farmer', spritesheetPath: 'characters/farmer_female.png');
+  FarmerFemaleNpc({required super.position, required super.id, String name = 'Daisy', String title = 'Farmer'})
+    : super(name: name, title: title, spritesheetPath: 'characters/farmer_female.png');
 }

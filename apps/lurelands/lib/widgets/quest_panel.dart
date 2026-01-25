@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/quest_models.dart';
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
 import 'panel_frame.dart';
@@ -39,7 +40,7 @@ class QuestPanel extends StatefulWidget {
 
 class _QuestPanelState extends State<QuestPanel> {
   String? _selectedQuestId;
-  int _selectedTab = 0;
+  int _selectedTab = 1;  // Default to Active quests (category 1)
 
   Quest? get _selectedQuest =>
       widget.quests.where((q) => q.id == _selectedQuestId).firstOrNull;
@@ -209,11 +210,12 @@ class _QuestPanelState extends State<QuestPanel> {
   }
 
   Widget _buildTabs() {
-    final tabs = ['Available', 'In Progress', 'Completed'];
+    // In backpack mode (non-sign), only show Active and Completed tabs
+    // Available quests should only be found at NPCs/signs in the world
+    final tabs = ['In Progress', 'Completed'];
     final counts = [
-      _getQuestsForCategory(0).length,
-      _getQuestsForCategory(1).length,
-      _getQuestsForCategory(2).length,
+      _getQuestsForCategory(1).length,  // Active
+      _getQuestsForCategory(2).length,  // Completed
     ];
 
     return Container(
@@ -226,12 +228,14 @@ class _QuestPanelState extends State<QuestPanel> {
       ),
       child: Row(
         children: List.generate(tabs.length, (index) {
-          final isSelected = _selectedTab == index;
+          // Tab index 0 = category 1 (Active), Tab index 1 = category 2 (Completed)
+          final categoryForTab = index + 1;
+          final isSelected = _selectedTab == categoryForTab;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: GestureDetector(
               onTap: () => setState(() {
-                _selectedTab = index;
+                _selectedTab = categoryForTab;
                 _selectedQuestId = null;
               }),
               child: Container(
@@ -419,7 +423,7 @@ class _QuestPanelState extends State<QuestPanel> {
         .firstOrNull;
     final canComplete = playerQuest != null &&
         playerQuest.isActive &&
-        playerQuest.areRequirementsMet(quest);
+        playerQuest.areAllObjectivesMet(quest);
     final isActive = playerQuest?.isActive == true;
     final isCompleted = playerQuest?.isCompleted == true;
 
@@ -490,11 +494,9 @@ class _QuestPanelState extends State<QuestPanel> {
               ),
               const SizedBox(height: 12),
               Text(
-                _selectedTab == 0
-                    ? 'No quests available'
-                    : _selectedTab == 1
-                        ? 'No active quests'
-                        : 'No completed quests',
+                _selectedTab == 1
+                    ? 'No active quests'
+                    : 'No completed quests',
                 style: const TextStyle(
                   color: PanelColors.textMuted,
                   fontSize: 11,
@@ -518,7 +520,7 @@ class _QuestPanelState extends State<QuestPanel> {
             .firstOrNull;
         final canComplete = playerQuest != null &&
             playerQuest.isActive &&
-            playerQuest.areRequirementsMet(quest);
+            playerQuest.areAllObjectivesMet(quest);
         final isActive = playerQuest?.isActive == true;
         final isCompleted = playerQuest?.isCompleted == true;
 
@@ -697,46 +699,85 @@ class _QuestPanelState extends State<QuestPanel> {
   }
 
   Widget _buildObjectives(Quest quest, PlayerQuest? playerQuest) {
-    final objectives = <Widget>[];
+    final objectiveWidgets = <Widget>[];
 
-    for (final entry in quest.requiredFish.entries) {
-      final itemDef = GameItems.get(entry.key);
-      final progress = playerQuest?.fishProgress[entry.key] ?? 0;
-      final target = entry.value;
-      objectives.add(_buildObjectiveRow(
-        itemDef?.name ?? entry.key,
-        progress,
-        target,
-        progress >= target,
-        itemDef?.assetPath,
-      ));
+    // Use new objectives list if available
+    if (quest.objectives.isNotEmpty) {
+      for (final objective in quest.objectives) {
+        final progress = playerQuest?.getObjectiveProgress(objective.id) ?? 0;
+        final target = objective.targetAmount;
+        final completed = progress >= target;
+
+        // Get asset path for fish objectives
+        String? assetPath;
+        String label = objective.description;
+
+        switch (objective.type) {
+          case QuestObjectiveType.catchSpecificFish:
+            final itemDef = GameItems.get(objective.targetId ?? '');
+            assetPath = itemDef?.assetPath;
+            break;
+          case QuestObjectiveType.catchAnyFish:
+          case QuestObjectiveType.catchRareFish:
+          case QuestObjectiveType.talkToNpc:
+          case QuestObjectiveType.visitLocation:
+          case QuestObjectiveType.sellFish:
+          case QuestObjectiveType.payLien:
+          case QuestObjectiveType.collectItem:
+          case QuestObjectiveType.attendEvent:
+            // No specific asset for these types
+            break;
+        }
+
+        objectiveWidgets.add(_buildObjectiveRow(
+          label,
+          progress,
+          target,
+          completed,
+          assetPath,
+        ));
+      }
+    } else {
+      // Legacy fallback: use old fish-based fields
+      for (final entry in quest.requiredFish.entries) {
+        final itemDef = GameItems.get(entry.key);
+        final progress = playerQuest?.fishProgress[entry.key] ?? 0;
+        final target = entry.value;
+        objectiveWidgets.add(_buildObjectiveRow(
+          itemDef?.name ?? entry.key,
+          progress,
+          target,
+          progress >= target,
+          itemDef?.assetPath,
+        ));
+      }
+
+      if (quest.totalFishRequired != null) {
+        final progress = playerQuest?.totalFishCaught ?? 0;
+        final target = quest.totalFishRequired!;
+        objectiveWidgets.add(_buildObjectiveRow(
+          'Catch any fish',
+          progress,
+          target,
+          progress >= target,
+          null,
+        ));
+      }
+
+      if (quest.minRarityRequired != null) {
+        final progress = playerQuest?.maxRarityCaught ?? 0;
+        final target = quest.minRarityRequired!;
+        objectiveWidgets.add(_buildObjectiveRow(
+          'Catch a $target-star fish',
+          progress >= target ? 1 : 0,
+          1,
+          progress >= target,
+          null,
+        ));
+      }
     }
 
-    if (quest.totalFishRequired != null) {
-      final progress = playerQuest?.totalFishCaught ?? 0;
-      final target = quest.totalFishRequired!;
-      objectives.add(_buildObjectiveRow(
-        'Catch any fish',
-        progress,
-        target,
-        progress >= target,
-        null, // No specific fish icon for "any fish"
-      ));
-    }
-
-    if (quest.minRarityRequired != null) {
-      final progress = playerQuest?.maxRarityCaught ?? 0;
-      final target = quest.minRarityRequired!;
-      objectives.add(_buildObjectiveRow(
-        'Catch a $target-star fish',
-        progress >= target ? 1 : 0,
-        1,
-        progress >= target,
-        null, // No specific fish icon for rarity requirement
-      ));
-    }
-
-    if (objectives.isEmpty) {
+    if (objectiveWidgets.isEmpty) {
       return const Text(
         'Complete the quest objectives',
         style: TextStyle(color: PanelColors.textMuted, fontSize: 11),
@@ -750,7 +791,7 @@ class _QuestPanelState extends State<QuestPanel> {
         return Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: objectives.map((objective) {
+          children: objectiveWidgets.map((objective) {
             return SizedBox(
               width: itemWidth,
               child: objective,
@@ -1110,7 +1151,7 @@ class _QuestPanelState extends State<QuestPanel> {
   Widget _buildActionButton(Quest quest, PlayerQuest? playerQuest) {
     final bool isAvailable = playerQuest == null;
     final bool isActive = playerQuest?.isActive == true;
-    final bool canComplete = isActive && playerQuest!.areRequirementsMet(quest);
+    final bool canComplete = isActive && playerQuest!.areAllObjectivesMet(quest);
     final bool isCompleted = playerQuest?.isCompleted == true;
 
     if (isCompleted) {

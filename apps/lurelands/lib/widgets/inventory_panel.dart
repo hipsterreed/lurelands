@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/quest_models.dart';
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
 import 'spritesheet_sprite.dart';
@@ -969,7 +970,7 @@ class _InventoryPanelState extends State<InventoryPanel> {
 
   Widget _buildQuestCard(Quest quest, {bool isActive = false, bool isCompleted = false}) {
     final pq = widget.playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-    final canComplete = isActive && pq != null && pq.areRequirementsMet(quest);
+    final canComplete = isActive && pq != null && pq.areAllObjectivesMet(quest);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),

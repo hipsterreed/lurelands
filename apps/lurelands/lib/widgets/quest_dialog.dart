@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../models/quest_models.dart';
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
 import 'panel_frame.dart';
@@ -25,7 +26,7 @@ class QuestOfferDialog extends StatelessWidget {
   });
 
   bool get _isActive => playerQuest?.isActive ?? false;
-  bool get _canComplete => _isActive && playerQuest!.areRequirementsMet(quest);
+  bool get _canComplete => _isActive && playerQuest!.areAllObjectivesMet(quest);
 
   @override
   Widget build(BuildContext context) {
@@ -209,44 +210,61 @@ class QuestOfferDialog extends StatelessWidget {
   }
 
   List<Widget> _buildObjectivesList() {
-    final objectives = <Widget>[];
+    final objectiveWidgets = <Widget>[];
 
-    for (final entry in quest.requiredFish.entries) {
-      final itemDef = GameItems.get(entry.key);
-      final progress = playerQuest?.fishProgress[entry.key] ?? 0;
-      final completed = progress >= entry.value;
+    // Use new objectives list if available
+    if (quest.objectives.isNotEmpty) {
+      for (final objective in quest.objectives) {
+        final progress = playerQuest?.getObjectiveProgress(objective.id) ?? 0;
+        final target = objective.targetAmount;
+        final completed = progress >= target;
 
-      objectives.add(_buildObjectiveRow(
-        itemDef?.name ?? entry.key,
-        progress,
-        entry.value,
-        completed,
-      ));
+        objectiveWidgets.add(_buildObjectiveRow(
+          objective.description,
+          progress,
+          target,
+          completed,
+        ));
+      }
+    } else {
+      // Legacy fallback: use old fish-based fields
+      for (final entry in quest.requiredFish.entries) {
+        final itemDef = GameItems.get(entry.key);
+        final progress = playerQuest?.fishProgress[entry.key] ?? 0;
+        final completed = progress >= entry.value;
+
+        objectiveWidgets.add(_buildObjectiveRow(
+          itemDef?.name ?? entry.key,
+          progress,
+          entry.value,
+          completed,
+        ));
+      }
+
+      if (quest.totalFishRequired != null) {
+        final progress = playerQuest?.totalFishCaught ?? 0;
+        final target = quest.totalFishRequired!;
+        objectiveWidgets.add(_buildObjectiveRow(
+          'Catch any fish',
+          progress,
+          target,
+          progress >= target,
+        ));
+      }
+
+      if (quest.minRarityRequired != null) {
+        final progress = playerQuest?.maxRarityCaught ?? 0;
+        final target = quest.minRarityRequired!;
+        objectiveWidgets.add(_buildObjectiveRow(
+          'Catch a $target-star fish',
+          progress >= target ? 1 : 0,
+          1,
+          progress >= target,
+        ));
+      }
     }
 
-    if (quest.totalFishRequired != null) {
-      final progress = playerQuest?.totalFishCaught ?? 0;
-      final target = quest.totalFishRequired!;
-      objectives.add(_buildObjectiveRow(
-        'Catch any fish',
-        progress,
-        target,
-        progress >= target,
-      ));
-    }
-
-    if (quest.minRarityRequired != null) {
-      final progress = playerQuest?.maxRarityCaught ?? 0;
-      final target = quest.minRarityRequired!;
-      objectives.add(_buildObjectiveRow(
-        'Catch a $target-star fish',
-        progress >= target ? 1 : 0,
-        1,
-        progress >= target,
-      ));
-    }
-
-    return objectives;
+    return objectiveWidgets;
   }
 
   Widget _buildObjectiveRow(String label, int progress, int target, bool completed) {
@@ -488,7 +506,7 @@ class QuestSignHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && pq.areAllObjectivesMet(quest)) {
         completableQuest ??= quest;
         continue;
       }
@@ -525,7 +543,7 @@ class QuestSignHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && pq.areAllObjectivesMet(quest)) {
         return true;
       }
 
@@ -552,7 +570,7 @@ class QuestSignHelper {
 
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && pq.areAllObjectivesMet(quest)) {
         return true;
       }
     }
@@ -569,7 +587,7 @@ class QuestSignHelper {
 
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-      if (pq != null && pq.isActive && !pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && !pq.areAllObjectivesMet(quest)) {
         return true;
       }
     }
@@ -599,7 +617,7 @@ class NpcHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && pq.areAllObjectivesMet(quest)) {
         completableQuest ??= quest;
         continue;
       }
@@ -635,7 +653,7 @@ class NpcHelper {
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
 
-      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && pq.areAllObjectivesMet(quest)) {
         return true;
       }
 
@@ -661,7 +679,7 @@ class NpcHelper {
 
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-      if (pq != null && pq.isActive && pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && pq.areAllObjectivesMet(quest)) {
         return true;
       }
     }
@@ -677,7 +695,7 @@ class NpcHelper {
 
     for (final quest in filteredQuests) {
       final pq = playerQuests.where((p) => p.questId == quest.id).firstOrNull;
-      if (pq != null && pq.isActive && !pq.areRequirementsMet(quest)) {
+      if (pq != null && pq.isActive && !pq.areAllObjectivesMet(quest)) {
         return true;
       }
     }

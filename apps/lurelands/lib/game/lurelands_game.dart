@@ -10,8 +10,10 @@ import 'package:flutter/painting.dart';
 import 'package:flutter/services.dart';
 
 import '../data/fishing_poles.dart';
+import '../data/quests.dart';
 import '../services/game_save_service.dart';
 import '../utils/constants.dart';
+import 'components/base_npc.dart';
 import 'components/caught_fish_animation.dart';
 import 'components/fishing_debug_overlay.dart';
 import 'components/player.dart';
@@ -262,43 +264,57 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   }
 
   /// Spawn wandering NPCs around the given center position
+  /// NPCs are mapped to story characters for quests
   Future<void> _spawnWanderingNpcs(Vector2 center) async {
-    // Define NPC spawn positions relative to center (spread around the area)
+    // Story NPCs for Act 1 quests
     final npcConfigs = <WanderingNpc>[
-      LumberjackNpc(
-        id: 'npc_lumberjack',
-        position: center + Vector2(-120, -80),
-        name: 'Jack',
-      ),
-      MinerNpc(
-        id: 'npc_miner',
-        position: center + Vector2(150, -60),
-        name: 'Dusty',
-      ),
-      BartenderMaleNpc(
-        id: 'npc_bartender_m',
-        position: center + Vector2(-80, 120),
-        name: 'Barney',
-      ),
+      // Ellie - Keeps records, manages the lien situation
+      // Quest giver for: The Lien Notice, Keeping Records
       BartenderFemaleNpc(
-        id: 'npc_bartender_f',
+        id: 'npc_ellie',
         position: center + Vector2(100, 140),
-        name: 'Bella',
+        name: 'Ellie',
+        title: 'Record Keeper',
       ),
-      ChefNpc(
-        id: 'npc_chef',
-        position: center + Vector2(-150, 50),
-        name: 'Cookie',
-      ),
+      // Eli - Old fisherman, player's mentor figure
+      // Quest giver for: Old Waters, A Modest Win, Across the River
       FarmerMaleNpc(
-        id: 'npc_farmer_m',
+        id: 'npc_eli',
         position: center + Vector2(180, 80),
-        name: 'Hank',
+        name: 'Eli',
+        title: 'Old Fisherman',
       ),
-      FarmerFemaleNpc(
-        id: 'npc_farmer_f',
-        position: center + Vector2(-50, -150),
-        name: 'Daisy',
+      // Thomas - Town elder who remembers the old days
+      // Quest giver for: Tradition Not Hope, What the Water Remembers
+      LumberjackNpc(
+        id: 'npc_thomas',
+        position: center + Vector2(-120, -80),
+        name: 'Thomas',
+        title: 'Town Elder',
+      ),
+      // Lena - Runs the market, handles economy
+      // Quest giver for: Worth Something Again, One More Payment
+      ChefNpc(
+        id: 'npc_lena',
+        position: center + Vector2(-150, 50),
+        name: 'Lena',
+        title: 'Shopkeeper',
+      ),
+      // Mara - Builder/repair person
+      // Quest giver for: Things That Used to Work, The Broken Span
+      MinerNpc(
+        id: 'npc_mara',
+        position: center + Vector2(150, -60),
+        name: 'Mara',
+        title: 'Builder',
+      ),
+      // Harlan - Mysterious figure who knows strange things
+      // Quest giver for: Voices at the Edge
+      BartenderMaleNpc(
+        id: 'npc_harlan',
+        position: center + Vector2(-80, 120),
+        name: 'Harlan',
+        title: 'Drifter',
       ),
     ];
 
@@ -309,6 +325,55 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
 
     debugPrint('[LurelandsGame] Spawned ${npcConfigs.length} wandering NPCs');
+  }
+
+  /// Update quest indicators for all NPCs based on current quest progress
+  /// Call this when quest progress changes (accept, progress, complete)
+  void updateNpcQuestIndicators(List<QuestProgress> questProgress) {
+    debugPrint('[LurelandsGame] updateNpcQuestIndicators called with ${questProgress.length} progress entries');
+    debugPrint('[LurelandsGame] NPCs to update: ${_wanderingNpcs.length}');
+    for (final npc in _wanderingNpcs) {
+      final indicator = _calculateNpcQuestIndicator(npc.id, questProgress);
+      debugPrint('[LurelandsGame] NPC ${npc.id} -> indicator: $indicator');
+      npc.setQuestIndicator(indicator);
+    }
+  }
+
+  /// Calculate what quest indicator an NPC should show
+  NpcQuestIndicator _calculateNpcQuestIndicator(String npcId, List<QuestProgress> questProgress) {
+    // Get all quests this NPC gives
+    final npcQuests = Quests.getByNpc(npcId);
+    debugPrint('[LurelandsGame] NPC $npcId has ${npcQuests.length} quests: ${npcQuests.map((q) => q.id).toList()}');
+    if (npcQuests.isEmpty) return NpcQuestIndicator.none;
+
+    // Check for completable quests first (highest priority - yellow ?)
+    for (final quest in npcQuests) {
+      final progress = questProgress.where((p) => p.questId == quest.id).firstOrNull;
+      if (progress != null && progress.isActive && progress.areAllObjectivesMet(quest)) {
+        return NpcQuestIndicator.completable;
+      }
+    }
+
+    // Check for in-progress quests (gray ?)
+    for (final quest in npcQuests) {
+      final progress = questProgress.where((p) => p.questId == quest.id).firstOrNull;
+      if (progress != null && progress.isActive) {
+        return NpcQuestIndicator.inProgress;
+      }
+    }
+
+    // Check for available quests (yellow !)
+    for (final quest in npcQuests) {
+      final progress = questProgress.where((p) => p.questId == quest.id).firstOrNull;
+      // Quest is available if: not started AND prerequisites met
+      if (progress == null) {
+        if (Quests.arePrerequisitesMet(quest, questProgress)) {
+          return NpcQuestIndicator.available;
+        }
+      }
+    }
+
+    return NpcQuestIndicator.none;
   }
 
   @override
