@@ -204,17 +204,19 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     final save = saveService.currentSave;
     final spawnX = save?.playerX ?? _tiledMapWorld.playerSpawnPoint.x;
     final spawnY = save?.playerY ?? _tiledMapWorld.playerSpawnPoint.y;
+    final facingAngle = save?.facingAngle ?? 0.0;
     final equippedPoleId = save?.equippedPoleId ?? 'pole_1';
     final equippedPoleTier = _getPoleTierFromId(equippedPoleId);
 
-    debugPrint('[LurelandsGame] Player spawn position: ($spawnX, $spawnY)');
+    debugPrint('[LurelandsGame] Player spawn position: ($spawnX, $spawnY), facing: $facingAngle');
 
-    // Create the player at spawn position
+    // Create the player at spawn position with saved facing direction
     _player = Player(
       position: Vector2(spawnX, spawnY),
       equippedPoleTier: equippedPoleTier,
       equippedPoleId: equippedPoleId,
       playerName: playerName,
+      facingAngle: facingAngle,
     );
     await world.add(_player!);
     debugPrint('[LurelandsGame] Player added to world');

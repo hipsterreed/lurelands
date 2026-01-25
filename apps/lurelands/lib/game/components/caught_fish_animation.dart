@@ -27,7 +27,7 @@ class CaughtFishAnimation extends PositionComponent {
     this.onComplete,
   }) : super(
           position: startPosition.clone(),
-          size: Vector2(48, 48),
+          size: Vector2(28, 28),
           anchor: Anchor.center,
           priority: GameLayers.ui.toInt(),
         );

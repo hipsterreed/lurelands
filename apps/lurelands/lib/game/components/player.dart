@@ -60,10 +60,12 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
     int equippedLureTier = 1,
     String? equippedPoleId,
     String? playerName,
+    double facingAngle = 0.0,
   })  : _equippedPoleTier = equippedPoleTier,
         _equippedLureTier = equippedLureTier,
         _equippedPoleId = equippedPoleId ?? 'pole_1',
         _playerName = playerName,
+        _facingAngle = facingAngle,
         super(
           position: position,
           size: Vector2.all(_frameSize * _spriteScale), // 160x160
@@ -87,7 +89,7 @@ class Player extends PositionComponent with HasGameReference<LurelandsGame>, Col
   PlayerMovementState _movementState = PlayerMovementState.idle;
 
   // Movement state
-  double _facingAngle = 0.0; // Radians, 0 = right (used for fishing cast direction)
+  double _facingAngle; // Radians, 0 = right (used for fishing cast direction)
   
   // Track current collisions
   final Set<Tree> _collidingTrees = {};

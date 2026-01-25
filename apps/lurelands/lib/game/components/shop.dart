@@ -26,12 +26,6 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
   /// Interaction radius - how close player needs to be to interact
   static const double interactionRadius = 80.0;
 
-  // Shake animation state (when player is near)
-  double _shakeTime = 0;
-  bool _isShaking = false;
-  static const double _shakeDuration = 0.3;
-  static const double _shakeIntensity = 0.02;
-
   // Track player proximity
   bool _playerNearby = false;
   bool get isPlayerNearby => _playerNearby;
@@ -121,14 +115,7 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
       final dx = player.position.x - position.x;
       final dy = player.position.y - position.y;
       final distance = sqrt(dx * dx + dy * dy);
-      final wasNearby = _playerNearby;
       _playerNearby = distance < interactionRadius;
-
-      // Trigger shake when player enters proximity
-      if (_playerNearby && !wasNearby) {
-        _isShaking = true;
-        _shakeTime = 0;
-      }
 
       // Check if player is behind the building (player Y is above building base, X overlaps)
       // Building anchor is bottomCenter, so position.y is the bottom of the building
@@ -142,21 +129,6 @@ class Shop extends PositionComponent with HasGameReference<LurelandsGame>, Colli
           player.position.y > buildingTop - 40 && // Give some buffer
           player.position.x > buildingLeft - 20 &&
           player.position.x < buildingRight + 20;
-    }
-
-    // Animate shake
-    if (_isShaking) {
-      _shakeTime += dt;
-
-      if (_shakeTime < _shakeDuration) {
-        final progress = _shakeTime / _shakeDuration;
-        final damping = 1.0 - progress;
-        final oscillation = sin(_shakeTime * 20);
-        angle = oscillation * _shakeIntensity * damping;
-      } else {
-        angle = 0;
-        _isShaking = false;
-      }
     }
   }
 

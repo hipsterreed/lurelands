@@ -382,21 +382,40 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Widget _buildEscapedMessage() {
+    // Position the message above the player's head (where caught fish would appear)
+    // We use a small, subtle text instead of a big centered overlay
     return Positioned.fill(
       child: IgnorePointer(
         child: Center(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-            decoration: BoxDecoration(
-              color: GameColors.progressRed.withAlpha(200),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: const Text(
-              'Fish Escaped!',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+          child: Transform.translate(
+            offset: const Offset(0, -40), // Just above player head
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: 300),
+              curve: Curves.easeOut,
+              builder: (context, value, child) {
+                return Opacity(
+                  opacity: value,
+                  child: Transform.translate(
+                    offset: Offset(0, -8 * value), // Float up slightly
+                    child: child,
+                  ),
+                );
+              },
+              child: Text(
+                'Escaped!',
+                style: TextStyle(
+                  color: GameColors.progressRed,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withAlpha(180),
+                      blurRadius: 3,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -1268,7 +1287,6 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
 
   Widget _buildTimerDisplay() {
     final timePercent = _timeRemaining / _totalTime;
-    final seconds = _timeRemaining.ceil();
 
     Color timerColor;
     if (timePercent > 0.5) {
@@ -1279,13 +1297,18 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
       timerColor = GameColors.progressRed;
     }
 
+    // Get fish name from the item definition
+    final fishId = GameItems.getFishId(widget.fish.waterType, widget.fish.tier);
+    final fishDef = GameItems.get(fishId);
+    final fishName = fishDef?.name ?? 'Unknown Fish';
+
     return Column(
       children: [
         Text(
-          '${seconds}s',
+          fishName,
           style: TextStyle(
-            color: timerColor,
-            fontSize: 24,
+            color: Colors.white,
+            fontSize: 16,
             fontWeight: FontWeight.bold,
             shadows: const [
               Shadow(color: Colors.black, blurRadius: 4),

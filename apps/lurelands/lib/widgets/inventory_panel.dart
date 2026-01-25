@@ -1803,9 +1803,9 @@ class _InventorySlot extends StatelessWidget {
                   // Item icon
                   Center(
                     child: Padding(
-                      padding: const EdgeInsets.all(3),
+                      padding: const EdgeInsets.only(top: 2, bottom: 2),
                       child: itemDef != null
-                          ? ItemImage(item: itemDef)
+                          ? ItemImage(item: itemDef, size: 28)
                           : _buildFallbackIcon(),
                     ),
                   ),

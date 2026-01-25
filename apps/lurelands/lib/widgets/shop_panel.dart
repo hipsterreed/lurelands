@@ -310,17 +310,29 @@ class _ShopPanelState extends State<ShopPanel> {
   }
 
   Widget _buildInventoryGrid() {
+    // Shop inventory: 5 columns, 3 rows, show empty slots (larger slots than backpack)
+    const int columns = 5;
+    const int rows = 3;
+    const int totalSlots = columns * rows;
+
     return LayoutBuilder(
       builder: (context, constraints) {
-        const columns = 5;
-        final slotSize = (constraints.maxWidth - (columns - 1) * 6) / columns;
-        final clampedSize = slotSize.clamp(48.0, 72.0);
+        final slotSize = (constraints.maxWidth - (columns - 1) * 4) / columns;
+        final clampedSize = slotSize.clamp(48.0, 64.0); // Larger slots for shop
 
         return SingleChildScrollView(
           child: Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: widget.playerItems.map((item) {
+            spacing: 4,
+            runSpacing: 4,
+            children: List.generate(totalSlots, (index) {
+              final item = index < widget.playerItems.length ? widget.playerItems[index] : null;
+              if (item == null) {
+                return SizedBox(
+                  width: clampedSize,
+                  height: clampedSize * 1.1,
+                  child: _EmptySlot(),
+                );
+              }
               // Use id for selection comparison since non-stackable items (poles) may have same stackKey
               final isSelected = _selectedPlayerItem?.id == item.id;
               return GestureDetector(
@@ -341,7 +353,7 @@ class _ShopPanelState extends State<ShopPanel> {
                   isSelected: isSelected,
                 ),
               );
-            }).toList(),
+            }),
           ),
         );
       },
@@ -460,16 +472,7 @@ class _ShopPanelState extends State<ShopPanel> {
                     border: Border.all(color: _ShopColors.textGold, width: 2),
                   ),
                   child: itemDef != null
-                      ? Image.asset(
-                          itemDef.assetPath,
-                          width: 32,
-                          height: 32,
-                          errorBuilder: (_, __, ___) => Icon(
-                            Icons.inventory_2,
-                            color: _ShopColors.textLight,
-                            size: 28,
-                          ),
-                        )
+                      ? ItemImage(item: itemDef, size: 32)
                       : Icon(
                           Icons.inventory_2,
                           color: _ShopColors.textLight,
@@ -816,13 +819,9 @@ class _InventorySlot extends StatelessWidget {
                 // Item icon
                 Center(
                   child: Padding(
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.only(top: 2, bottom: 2),
                     child: itemDef != null
-                        ? Image.asset(
-                            itemDef.assetPath,
-                            fit: BoxFit.contain,
-                            errorBuilder: (_, __, ___) => _buildFallbackIcon(),
-                          )
+                        ? ItemImage(item: itemDef, size: size * 0.6)
                         : _buildFallbackIcon(),
                   ),
                 ),
@@ -1019,6 +1018,23 @@ class _MerchantSlot extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// Empty inventory slot placeholder for shop panel
+class _EmptySlot extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _ShopColors.slotBg.withAlpha(100),
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(
+          color: _ShopColors.slotBorder.withAlpha(80),
+          width: 1,
+        ),
       ),
     );
   }
