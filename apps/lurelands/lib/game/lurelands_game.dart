@@ -718,6 +718,16 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
+  /// Set conversation state for an NPC (stops them from walking during dialog)
+  void setNpcInConversation(String npcId, bool inConversation) {
+    for (final npc in _wanderingNpcs) {
+      if (npc.id == npcId) {
+        npc.setInConversation(inConversation);
+        break;
+      }
+    }
+  }
+
   /// Update quest sign indicators based on quest data
   void updateQuestSignIndicators({
     required List<dynamic> allQuests,

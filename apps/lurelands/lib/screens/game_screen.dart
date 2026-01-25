@@ -383,7 +383,10 @@ class _GameScreenState extends State<GameScreen> {
             QuestPanel(
               quests: Quests.getByNpc(_nearbyNpc!.id),
               playerQuests: _questProgress,
-              onClose: () => setState(() => _showNpcQuestDialog = false),
+              onClose: () {
+                _game?.setNpcInConversation(_nearbyNpc!.id, false);
+                setState(() => _showNpcQuestDialog = false);
+              },
               onAcceptQuest: _onAcceptQuest,
               onCompleteQuest: _onCompleteQuest,
               npcId: _nearbyNpc!.id,
@@ -1128,7 +1131,10 @@ class _GameScreenState extends State<GameScreen> {
       right: 0,
       child: Center(
         child: GestureDetector(
-          onTap: () => setState(() => _showNpcQuestDialog = true),
+          onTap: () {
+            _game?.setNpcInConversation(npc.id, true);
+            setState(() => _showNpcQuestDialog = true);
+          },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
             decoration: BoxDecoration(

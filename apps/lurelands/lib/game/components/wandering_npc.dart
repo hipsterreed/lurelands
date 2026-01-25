@@ -68,6 +68,21 @@ class WanderingNpc extends BaseNpc {
   double _stateDuration = 0;
   Vector2 _moveDirection = Vector2.zero();
 
+  /// Whether the NPC is currently in a conversation (pauses movement)
+  bool _isInConversation = false;
+
+  /// Set conversation state - NPC stops walking while in conversation
+  void setInConversation(bool inConversation) {
+    _isInConversation = inConversation;
+    if (inConversation && _currentState == NpcState.walking) {
+      // Stop walking immediately when conversation starts
+      _startIdle();
+    }
+  }
+
+  /// Check if NPC is in a conversation
+  bool get isInConversation => _isInConversation;
+
   WanderingNpc({
     required super.position,
     required super.id,
@@ -153,6 +168,9 @@ class WanderingNpc extends BaseNpc {
   }
 
   void _updateIdle(double dt) {
+    // Don't start walking if in conversation
+    if (_isInConversation) return;
+
     // Check if idle time is up
     if (_stateTimer >= _stateDuration) {
       _startWalking();
