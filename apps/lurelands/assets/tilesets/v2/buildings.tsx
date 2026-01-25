@@ -96,7 +96,7 @@
  <tile id="29">
   <image source="../../images/structures/House_1_Wood_Base_Black.png" width="96" height="128"/>
   <objectgroup draworder="index" id="3">
-   <object id="4" x="15.5" y="52.5" width="67.5" height="49.5"/>
+   <object id="4" x="14.5" y="35.5" width="67.25" height="75.25"/>
   </objectgroup>
  </tile>
  <tile id="30">

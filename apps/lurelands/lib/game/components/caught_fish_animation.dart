@@ -12,6 +12,8 @@ class CaughtFishAnimation extends PositionComponent {
   final Vector2 startPosition;  // Bobber position
   final Vector2 targetPosition; // Above player name
   final String fishAssetPath;
+  final int spriteColumn;
+  final int spriteRow;
   final int rarity; // Number of stars (1-3)
   final VoidCallback? onComplete;
 
@@ -19,6 +21,8 @@ class CaughtFishAnimation extends PositionComponent {
     required this.startPosition,
     required this.targetPosition,
     required this.fishAssetPath,
+    required this.spriteColumn,
+    required this.spriteRow,
     this.rarity = 1,
     this.onComplete,
   }) : super(
@@ -33,8 +37,12 @@ class CaughtFishAnimation extends PositionComponent {
   static const double _bounceDuration = 1.0;
   static const double _fadeDuration = 0.3;
 
+  // Spritesheet configuration
+  static const double _spriteSize = 16.0;
+
   // State
-  late ui.Image _fishImage;
+  late ui.Image _spritesheetImage;
+  late ui.Rect _srcRect;
   double _timer = 0.0;
   _AnimationPhase _phase = _AnimationPhase.flying;
   double _opacity = 1.0;
@@ -45,12 +53,20 @@ class CaughtFishAnimation extends PositionComponent {
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Load fish image
+    // Load spritesheet image
     try {
       final data = await rootBundle.load(fishAssetPath);
       final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
       final frame = await codec.getNextFrame();
-      _fishImage = frame.image;
+      _spritesheetImage = frame.image;
+
+      // Calculate source rectangle for this fish sprite
+      _srcRect = ui.Rect.fromLTWH(
+        spriteColumn * _spriteSize,
+        spriteRow * _spriteSize,
+        _spriteSize,
+        _spriteSize,
+      );
     } catch (e) {
       // Fallback - create a placeholder
       final recorder = ui.PictureRecorder();
@@ -61,7 +77,8 @@ class CaughtFishAnimation extends PositionComponent {
         ui.Paint()..color = const ui.Color(0xFFFF9800),
       );
       final picture = recorder.endRecording();
-      _fishImage = await picture.toImage(48, 48);
+      _spritesheetImage = await picture.toImage(48, 48);
+      _srcRect = ui.Rect.fromLTWH(0, 0, 48, 48);
     }
   }
 
@@ -187,15 +204,9 @@ class CaughtFishAnimation extends PositionComponent {
       paint.color = ui.Color.fromRGBO(255, 255, 255, _opacity);
     }
 
-    final srcRect = ui.Rect.fromLTWH(
-      0,
-      0,
-      _fishImage.width.toDouble(),
-      _fishImage.height.toDouble(),
-    );
     final dstRect = ui.Rect.fromLTWH(0, 0, size.x, size.y);
 
-    canvas.drawImageRect(_fishImage, srcRect, dstRect, paint);
+    canvas.drawImageRect(_spritesheetImage, _srcRect, dstRect, paint);
 
     // Draw sparkle effect during bounce phase
     if (_phase == _AnimationPhase.bouncing) {

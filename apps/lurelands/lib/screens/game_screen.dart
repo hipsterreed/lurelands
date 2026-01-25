@@ -322,9 +322,6 @@ class _GameScreenState extends State<GameScreen> {
               onSellItem: _onSellItem,
               onBuyItem: _onBuyItem,
             ),
-          // Shop interaction button
-          if (_nearbyShop != null && !_showShop && !_showInventory && !_showQuestPanel)
-            _buildShopButton(),
           // Quest panel overlay
           if (_showQuestPanel)
             QuestPanel(
@@ -669,6 +666,11 @@ class _GameScreenState extends State<GameScreen> {
           return _buildBiteTapButton();
         }
 
+        // Show shop button when near a shop and not currently fishing
+        if (_nearbyShop != null && fishingState == FishingState.idle) {
+          return _buildShopActionButton();
+        }
+
         final hasPoleEquipped = _equippedPoleId != null;
 
         return ValueListenableBuilder<bool>(
@@ -752,6 +754,52 @@ class _GameScreenState extends State<GameScreen> {
           },
         );
       },
+    );
+  }
+
+  Widget _buildShopActionButton() {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _showShop = true),
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: GameColors.pondBlue,
+              border: Border.all(
+                color: GameColors.pondBlueLight,
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: GameColors.pondBlue.withAlpha(128),
+                  blurRadius: 12,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: Center(
+              child: Icon(
+                Icons.storefront,
+                color: Colors.white,
+                size: 40,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'SHOP',
+          style: TextStyle(
+            color: GameColors.textPrimary.withAlpha(200),
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 
@@ -947,57 +995,6 @@ class _GameScreenState extends State<GameScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildShopButton() {
-    return Positioned(
-      bottom: 160,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: GestureDetector(
-          onTap: () => setState(() => _showShop = true),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            decoration: BoxDecoration(
-              color: GameColors.menuBackground.withAlpha(230),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: GameColors.pondBlue,
-                width: 3,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: GameColors.pondBlue.withAlpha(100),
-                  blurRadius: 12,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.storefront,
-                  color: GameColors.pondBlue,
-                  size: 24,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'OPEN SHOP',
-                  style: TextStyle(
-                    color: GameColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -1429,19 +1426,11 @@ class _FishingMinigameOverlayState extends State<FishingMinigameOverlay>
             ),
           ),
           const SizedBox(height: 2),
-          Image.asset(
-            widget.fish.assetPath,
-            width: 32,
-            height: 32,
-            errorBuilder: (_, __, ___) => Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: Colors.orange,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.catching_pokemon, size: 20, color: Colors.white),
-            ),
+          sprites.SpritesheetSprite(
+            column: widget.fish.spriteColumn,
+            row: widget.fish.spriteRow,
+            size: 32,
+            assetPath: widget.fish.assetPath,
           ),
         ],
       ),

@@ -38,11 +38,15 @@ class HookedFish {
   final WaterType waterType;
   final int tier;
   final String assetPath;
+  final int spriteColumn;
+  final int spriteRow;
 
   const HookedFish({
     required this.waterType,
     required this.tier,
     required this.assetPath,
+    required this.spriteColumn,
+    required this.spriteRow,
   });
 }
 
@@ -462,6 +466,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
       waterType: waterType,
       tier: tier,
       assetPath: fishAsset.path,
+      spriteColumn: fishAsset.spriteColumn,
+      spriteRow: fishAsset.spriteRow,
     );
   }
 
@@ -512,6 +518,8 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
         startPosition: bobberPosition,
         targetPosition: targetPosition,
         fishAssetPath: fish.assetPath,
+        spriteColumn: fish.spriteColumn,
+        spriteRow: fish.spriteRow,
         rarity: rarity,
         onComplete: () {
           _completeFishCatch(fish);

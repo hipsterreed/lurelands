@@ -120,6 +120,9 @@ class AssetPaths {
   static const String images = 'assets/images';
   static const String characters = 'assets/images/characters';
   static const String fish = 'assets/images/fish';
+
+  /// Fish spritesheet path (shared with fishing poles)
+  static const String fishSpritesheet = 'assets/images/fish/fish_spritesheet.png';
 }
 
 /// Water type enum for fish categorization
@@ -187,16 +190,22 @@ class GameItems {
   GameItems._();
 
   // --- Fish ---
-  // Pond fish
+  // Fish use the shared spritesheet at AssetPaths.fishSpritesheet
+  // Spritesheet layout: Row 0 = Pond fish, Row 1 = River fish, Row 2 = Ocean fish
+  // Columns represent tiers (0-3 for tiers 1-4)
+
+  // Pond fish (Row 0)
   static const ItemDefinition fishPond1 = ItemDefinition(
     id: 'fish_pond_1',
     name: 'Pond Minnow',
     description: 'A common small fish found in ponds.',
     type: ItemType.fish,
     basePrice: 10,
-    assetPath: '${AssetPaths.fish}/fish_pond_1.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 1,
+    spriteColumn: 0,
+    spriteRow: 0,
   );
   static const ItemDefinition fishPond2 = ItemDefinition(
     id: 'fish_pond_2',
@@ -204,9 +213,11 @@ class GameItems {
     description: 'A beautiful golden fish prized by collectors.',
     type: ItemType.fish,
     basePrice: 25,
-    assetPath: '${AssetPaths.fish}/fish_pond_2.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 2,
+    spriteColumn: 1,
+    spriteRow: 0,
   );
   static const ItemDefinition fishPond3 = ItemDefinition(
     id: 'fish_pond_3',
@@ -214,9 +225,11 @@ class GameItems {
     description: 'A rare carp with an ethereal glow.',
     type: ItemType.fish,
     basePrice: 50,
-    assetPath: '${AssetPaths.fish}/fish_pond_3.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 3,
+    spriteColumn: 2,
+    spriteRow: 0,
   );
   static const ItemDefinition fishPond4 = ItemDefinition(
     id: 'fish_pond_4',
@@ -224,21 +237,25 @@ class GameItems {
     description: 'A legendary creature of pond folklore.',
     type: ItemType.fish,
     basePrice: 150,
-    assetPath: '${AssetPaths.fish}/fish_pond_4.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 4,
+    spriteColumn: 3,
+    spriteRow: 0,
   );
 
-  // River fish
+  // River fish (Row 1)
   static const ItemDefinition fishRiver1 = ItemDefinition(
     id: 'fish_river_1',
     name: 'Brook Trout',
     description: 'A common river fish, easy to catch.',
     type: ItemType.fish,
     basePrice: 12,
-    assetPath: '${AssetPaths.fish}/fish_river_1.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 1,
+    spriteColumn: 0,
+    spriteRow: 1,
   );
   static const ItemDefinition fishRiver2 = ItemDefinition(
     id: 'fish_river_2',
@@ -246,9 +263,11 @@ class GameItems {
     description: 'A sleek salmon with silver scales.',
     type: ItemType.fish,
     basePrice: 30,
-    assetPath: '${AssetPaths.fish}/fish_river_2.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 2,
+    spriteColumn: 1,
+    spriteRow: 1,
   );
   static const ItemDefinition fishRiver3 = ItemDefinition(
     id: 'fish_river_3',
@@ -256,9 +275,11 @@ class GameItems {
     description: 'A massive catfish lurking in deep waters.',
     type: ItemType.fish,
     basePrice: 60,
-    assetPath: '${AssetPaths.fish}/fish_river_3.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 3,
+    spriteColumn: 2,
+    spriteRow: 1,
   );
   static const ItemDefinition fishRiver4 = ItemDefinition(
     id: 'fish_river_4',
@@ -266,21 +287,25 @@ class GameItems {
     description: 'An ancient fish from a bygone era.',
     type: ItemType.fish,
     basePrice: 180,
-    assetPath: '${AssetPaths.fish}/fish_river_4.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 4,
+    spriteColumn: 3,
+    spriteRow: 1,
   );
 
-  // Ocean fish
+  // Ocean fish (Row 2)
   static const ItemDefinition fishOcean1 = ItemDefinition(
     id: 'fish_ocean_1',
     name: 'Sea Perch',
     description: 'A common ocean fish found near shores.',
     type: ItemType.fish,
     basePrice: 15,
-    assetPath: '${AssetPaths.fish}/fish_ocean_1.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 1,
+    spriteColumn: 4,
+    spriteRow: 0,
   );
   static const ItemDefinition fishOcean2 = ItemDefinition(
     id: 'fish_ocean_2',
@@ -288,9 +313,11 @@ class GameItems {
     description: 'A fast and powerful ocean predator.',
     type: ItemType.fish,
     basePrice: 40,
-    assetPath: '${AssetPaths.fish}/fish_ocean_2.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 2,
+    spriteColumn: 5,
+    spriteRow: 0,
   );
   static const ItemDefinition fishOcean3 = ItemDefinition(
     id: 'fish_ocean_3',
@@ -298,9 +325,11 @@ class GameItems {
     description: 'A trophy fish sought by expert anglers.',
     type: ItemType.fish,
     basePrice: 80,
-    assetPath: '${AssetPaths.fish}/fish_ocean_3.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 3,
+    spriteColumn: 6,
+    spriteRow: 0,
   );
   static const ItemDefinition fishOcean4 = ItemDefinition(
     id: 'fish_ocean_4',
@@ -308,21 +337,25 @@ class GameItems {
     description: 'A mythical deep-sea creature.',
     type: ItemType.fish,
     basePrice: 250,
-    assetPath: '${AssetPaths.fish}/fish_ocean_4.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 4,
+    spriteColumn: 7,
+    spriteRow: 0,
   );
 
-  // Night fish
+  // Night fish (Row 2, columns 4-7)
   static const ItemDefinition fishNight1 = ItemDefinition(
     id: 'fish_night_1',
     name: 'Glowing Minnow',
     description: 'A small fish that glows in the dark.',
     type: ItemType.fish,
     basePrice: 20,
-    assetPath: '${AssetPaths.fish}/fish_night_1.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 1,
+    spriteColumn: 4,
+    spriteRow: 1,
   );
   static const ItemDefinition fishNight2 = ItemDefinition(
     id: 'fish_night_2',
@@ -330,9 +363,11 @@ class GameItems {
     description: 'A silvery fish that appears under moonlight.',
     type: ItemType.fish,
     basePrice: 45,
-    assetPath: '${AssetPaths.fish}/fish_night_2.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 2,
+    spriteColumn: 5,
+    spriteRow: 1,
   );
   static const ItemDefinition fishNight3 = ItemDefinition(
     id: 'fish_night_3',
@@ -340,9 +375,11 @@ class GameItems {
     description: 'A mysterious fish that dwells in darkness.',
     type: ItemType.fish,
     basePrice: 90,
-    assetPath: '${AssetPaths.fish}/fish_night_3.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 3,
+    spriteColumn: 6,
+    spriteRow: 1,
   );
   static const ItemDefinition fishNight4 = ItemDefinition(
     id: 'fish_night_4',
@@ -350,9 +387,11 @@ class GameItems {
     description: 'A legendary creature from the abyss.',
     type: ItemType.fish,
     basePrice: 300,
-    assetPath: '${AssetPaths.fish}/fish_night_4.png',
+    assetPath: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 4,
+    spriteColumn: 7,
+    spriteRow: 1,
   );
 
   // --- Poles --- (dynamically built from FishingPoles registry)
@@ -434,109 +473,149 @@ class GameItems {
   }
 }
 
-/// Fish asset with water type and tier
+/// Fish asset with water type, tier, and spritesheet coordinates
 class FishAsset {
   final String path;
   final WaterType waterType;
   final int tier;
+  final int spriteColumn;
+  final int spriteRow;
 
   const FishAsset({
     required this.path,
     required this.waterType,
     required this.tier,
+    required this.spriteColumn,
+    required this.spriteRow,
   });
+
+  /// Spritesheet configuration (same as fishing poles)
+  static const double spriteSize = 16.0;
 }
 
 /// Fish assets organized by water type and tier
+/// Uses the shared spritesheet at AssetPaths.fishSpritesheet
 class FishAssets {
   FishAssets._();
 
-  // Pond fish (tier 1-4)
+  // Pond fish (tier 1-4) - Row 0, columns 0-3
   static const FishAsset pond1 = FishAsset(
-    path: '${AssetPaths.fish}/fish_pond_1.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 1,
+    spriteColumn: 0,
+    spriteRow: 0,
   );
   static const FishAsset pond2 = FishAsset(
-    path: '${AssetPaths.fish}/fish_pond_2.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 2,
+    spriteColumn: 1,
+    spriteRow: 0,
   );
   static const FishAsset pond3 = FishAsset(
-    path: '${AssetPaths.fish}/fish_pond_3.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 3,
+    spriteColumn: 2,
+    spriteRow: 0,
   );
   static const FishAsset pond4 = FishAsset(
-    path: '${AssetPaths.fish}/fish_pond_4.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.pond,
     tier: 4,
+    spriteColumn: 3,
+    spriteRow: 0,
   );
 
-  // River fish (tier 1-4)
+  // River fish (tier 1-4) - Row 1, columns 0-3
   static const FishAsset river1 = FishAsset(
-    path: '${AssetPaths.fish}/fish_river_1.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 1,
+    spriteColumn: 0,
+    spriteRow: 1,
   );
   static const FishAsset river2 = FishAsset(
-    path: '${AssetPaths.fish}/fish_river_2.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 2,
+    spriteColumn: 1,
+    spriteRow: 1,
   );
   static const FishAsset river3 = FishAsset(
-    path: '${AssetPaths.fish}/fish_river_3.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 3,
+    spriteColumn: 2,
+    spriteRow: 1,
   );
   static const FishAsset river4 = FishAsset(
-    path: '${AssetPaths.fish}/fish_river_4.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.river,
     tier: 4,
+    spriteColumn: 3,
+    spriteRow: 1,
   );
 
-  // Ocean fish (tier 1-4)
+  // Ocean fish (tier 1-4) - Row 0, columns 4-7
   static const FishAsset ocean1 = FishAsset(
-    path: '${AssetPaths.fish}/fish_ocean_1.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 1,
+    spriteColumn: 4,
+    spriteRow: 0,
   );
   static const FishAsset ocean2 = FishAsset(
-    path: '${AssetPaths.fish}/fish_ocean_2.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 2,
+    spriteColumn: 5,
+    spriteRow: 0,
   );
   static const FishAsset ocean3 = FishAsset(
-    path: '${AssetPaths.fish}/fish_ocean_3.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 3,
+    spriteColumn: 6,
+    spriteRow: 0,
   );
   static const FishAsset ocean4 = FishAsset(
-    path: '${AssetPaths.fish}/fish_ocean_4.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.ocean,
     tier: 4,
+    spriteColumn: 7,
+    spriteRow: 0,
   );
 
-  // Night fish (tier 1-4)
+  // Night fish (tier 1-4) - Row 1, columns 4-7
   static const FishAsset night1 = FishAsset(
-    path: '${AssetPaths.fish}/fish_night_1.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 1,
+    spriteColumn: 4,
+    spriteRow: 1,
   );
   static const FishAsset night2 = FishAsset(
-    path: '${AssetPaths.fish}/fish_night_2.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 2,
+    spriteColumn: 5,
+    spriteRow: 1,
   );
   static const FishAsset night3 = FishAsset(
-    path: '${AssetPaths.fish}/fish_night_3.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 3,
+    spriteColumn: 6,
+    spriteRow: 1,
   );
   static const FishAsset night4 = FishAsset(
-    path: '${AssetPaths.fish}/fish_night_4.png',
+    path: AssetPaths.fishSpritesheet,
     waterType: WaterType.night,
     tier: 4,
+    spriteColumn: 7,
+    spriteRow: 1,
   );
 
   /// All pond fish by tier
