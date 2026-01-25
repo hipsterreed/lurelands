@@ -19,6 +19,10 @@ class QuestPanel extends StatefulWidget {
   final String? signName;
   final List<String>? storylines;
 
+  // NPC filtering parameters (optional) - when provided, filters to this NPC's quests
+  final String? npcId;
+  final String? npcName;
+
   const QuestPanel({
     super.key,
     required this.quests,
@@ -29,10 +33,15 @@ class QuestPanel extends StatefulWidget {
     this.signId,
     this.signName,
     this.storylines,
+    this.npcId,
+    this.npcName,
   });
 
   /// Returns true if showing sign-filtered view (section-based, no tabs)
   bool get isSignMode => signId != null;
+
+  /// Returns true if showing NPC-filtered view
+  bool get isNpcMode => npcId != null;
 
   @override
   State<QuestPanel> createState() => _QuestPanelState();
@@ -60,9 +69,20 @@ class _QuestPanelState extends State<QuestPanel> {
     }).toList();
   }
 
+  /// Filter quests to only those belonging to the current NPC
+  List<Quest> _filterQuestsForNpc(List<Quest> quests) {
+    if (widget.npcId == null) return quests;
+    return quests.where((q) {
+      return q.questGiverType == 'npc' && q.questGiverId == widget.npcId;
+    }).toList();
+  }
+
   /// Get filtered quests based on mode
-  List<Quest> get _filteredQuests =>
-      widget.isSignMode ? _filterQuestsForSign(widget.quests) : widget.quests;
+  List<Quest> get _filteredQuests {
+    if (widget.isNpcMode) return _filterQuestsForNpc(widget.quests);
+    if (widget.isSignMode) return _filterQuestsForSign(widget.quests);
+    return widget.quests;
+  }
 
   /// Available quests (not started, prerequisites met)
   List<Quest> get _availableQuests {
@@ -119,11 +139,11 @@ class _QuestPanelState extends State<QuestPanel> {
               child: Column(
                 children: [
                   _buildHeader(),
-                  // Only show tabs in non-sign mode (backpack access)
-                  if (!widget.isSignMode) _buildTabs(),
+                  // Only show tabs in backpack mode (not sign or NPC mode)
+                  if (!widget.isSignMode && !widget.isNpcMode) _buildTabs(),
                   Expanded(
                     child: _selectedQuestId == null
-                        ? (widget.isSignMode ? _buildSignSectionsView() : _buildQuestList())
+                        ? ((widget.isSignMode || widget.isNpcMode) ? _buildSignSectionsView() : _buildQuestList())
                         : _buildQuestDetails(),
                   ),
                   _buildFooter(),
@@ -138,12 +158,18 @@ class _QuestPanelState extends State<QuestPanel> {
 
   Widget _buildHeader() {
     // Determine title and icon based on mode
-    final title = widget.isSignMode
-        ? (widget.signName?.toUpperCase() ?? 'QUEST BOARD')
-        : 'QUEST JOURNAL';
-    final icon = widget.isSignMode
-        ? Icons.assignment_outlined
-        : Icons.menu_book_rounded;
+    final String title;
+    final IconData icon;
+    if (widget.isNpcMode) {
+      title = widget.npcName?.toUpperCase() ?? 'NPC';
+      icon = Icons.chat_bubble_outline;
+    } else if (widget.isSignMode) {
+      title = widget.signName?.toUpperCase() ?? 'QUEST BOARD';
+      icon = Icons.assignment_outlined;
+    } else {
+      title = 'QUEST JOURNAL';
+      icon = Icons.menu_book_rounded;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),

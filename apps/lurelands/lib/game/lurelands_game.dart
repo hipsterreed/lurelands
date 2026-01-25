@@ -116,6 +116,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
   // Quest sign notifiers
   final ValueNotifier<QuestSign?> nearbyQuestSignNotifier = ValueNotifier(null);
 
+  // NPC notifiers (for quest interactions)
+  final ValueNotifier<WanderingNpc?> nearbyNpcNotifier = ValueNotifier(null);
+
   // Charging state
   bool _isCharging = false;
   double _castPower = 0.0;
@@ -412,6 +415,9 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     // Update nearby quest sign
     _updateNearbyQuestSign(player);
 
+    // Update nearby NPC
+    _updateNearbyNpc(player);
+
     // Handle charging power meter
     if (_isCharging) {
       _castPower += GameConstants.castChargeRate * dt;
@@ -699,6 +705,19 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     }
   }
 
+  void _updateNearbyNpc(Player player) {
+    WanderingNpc? nearestNpc;
+    for (final npc in _wanderingNpcs) {
+      if (npc.isPlayerNearby) {
+        nearestNpc = npc;
+        break;
+      }
+    }
+    if (nearbyNpcNotifier.value != nearestNpc) {
+      nearbyNpcNotifier.value = nearestNpc;
+    }
+  }
+
   /// Update quest sign indicators based on quest data
   void updateQuestSignIndicators({
     required List<dynamic> allQuests,
@@ -878,6 +897,7 @@ class LurelandsGame extends FlameGame with HasCollisionDetection {
     hookedFishNotifier.dispose();
     nearbyShopNotifier.dispose();
     nearbyQuestSignNotifier.dispose();
+    nearbyNpcNotifier.dispose();
     super.onRemove();
   }
 }

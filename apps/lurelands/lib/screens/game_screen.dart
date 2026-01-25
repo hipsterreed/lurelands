@@ -18,6 +18,7 @@ import '../widgets/shop_panel.dart';
 import '../widgets/spritesheet_sprite.dart' as sprites;
 import '../game/components/quest_sign.dart';
 import '../game/components/shop.dart';
+import '../game/components/wandering_npc.dart';
 
 /// Screen that hosts the Flame GameWidget with mobile touch controls
 /// Now uses local save instead of server connection
@@ -41,6 +42,7 @@ class _GameScreenState extends State<GameScreen> {
 
   VoidCallback? _shopNotifierListener;
   VoidCallback? _questSignNotifierListener;
+  VoidCallback? _npcNotifierListener;
 
   bool _isLoading = true;
   String? _loadError;
@@ -59,6 +61,10 @@ class _GameScreenState extends State<GameScreen> {
   bool _showQuestPanel = false;
   QuestSign? _nearbyQuestSign;
   List<QuestProgress> _questProgress = [];
+
+  // NPC interaction state
+  WanderingNpc? _nearbyNpc;
+  bool _showNpcQuestDialog = false;
 
   // Player stats
   int _playerLevel = 1;
@@ -191,6 +197,16 @@ class _GameScreenState extends State<GameScreen> {
       };
       game.nearbyQuestSignNotifier.addListener(_questSignNotifierListener!);
 
+      // Listen to nearby NPC changes
+      _npcNotifierListener = () {
+        if (mounted) {
+          setState(() {
+            _nearbyNpc = game.nearbyNpcNotifier.value;
+          });
+        }
+      };
+      game.nearbyNpcNotifier.addListener(_npcNotifierListener!);
+
       // Listen for game fully loaded (NPCs spawned) to update quest indicators
       void onGameLoaded() {
         if (game.isLoadedNotifier.value && mounted) {
@@ -234,6 +250,9 @@ class _GameScreenState extends State<GameScreen> {
     }
     if (_questSignNotifierListener != null && _game != null) {
       _game!.nearbyQuestSignNotifier.removeListener(_questSignNotifierListener!);
+    }
+    if (_npcNotifierListener != null && _game != null) {
+      _game!.nearbyNpcNotifier.removeListener(_npcNotifierListener!);
     }
     // Save on dispose
     _saveService.save();
@@ -354,8 +373,22 @@ class _GameScreenState extends State<GameScreen> {
               storylines: _nearbyQuestSign?.storylines,
             ),
           // Quest sign button
-          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop)
+          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop && !_showNpcQuestDialog)
             _buildQuestSignButton(),
+          // NPC Talk button
+          if (_nearbyNpc != null && !_showQuestPanel && !_showInventory && !_showShop && !_showNpcQuestDialog && _nearbyQuestSign == null)
+            _buildNpcTalkButton(),
+          // NPC Quest dialog
+          if (_showNpcQuestDialog && _nearbyNpc != null)
+            QuestPanel(
+              quests: Quests.getByNpc(_nearbyNpc!.id),
+              playerQuests: _questProgress,
+              onClose: () => setState(() => _showNpcQuestDialog = false),
+              onAcceptQuest: _onAcceptQuest,
+              onCompleteQuest: _onCompleteQuest,
+              npcId: _nearbyNpc!.id,
+              npcName: _nearbyNpc!.name,
+            ),
         ],
       ),
     );
@@ -1072,6 +1105,58 @@ class _GameScreenState extends State<GameScreen> {
                 const SizedBox(width: 12),
                 Text(
                   'VIEW QUESTS',
+                  style: TextStyle(
+                    color: GameColors.textPrimary,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNpcTalkButton() {
+    final npc = _nearbyNpc!;
+    return Positioned(
+      bottom: 160,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: GestureDetector(
+          onTap: () => setState(() => _showNpcQuestDialog = true),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+            decoration: BoxDecoration(
+              color: GameColors.menuBackground.withAlpha(230),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFFFFD700),
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFFD700).withAlpha(100),
+                  blurRadius: 12,
+                  spreadRadius: 0,
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.chat_bubble,
+                  color: Color(0xFFFFD700),
+                  size: 24,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'TALK TO ${npc.name.toUpperCase()}',
                   style: TextStyle(
                     color: GameColors.textPrimary,
                     fontSize: 16,

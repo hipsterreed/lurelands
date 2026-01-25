@@ -9,15 +9,14 @@ import '../lurelands_game.dart';
 
 /// Quest indicator state for NPCs - WoW style
 enum NpcQuestIndicator {
-  none,        // No quests for this NPC
-  available,   // New quest available - yellow !
+  none, // No quests for this NPC
+  available, // New quest available - yellow !
   completable, // Quest ready to turn in - yellow ?
-  inProgress,  // Quest active but not complete - gray ?
+  inProgress, // Quest active but not complete - gray ?
 }
 
 /// Base class for all NPC characters in the game
-abstract class BaseNpc extends PositionComponent
-    with HasGameReference<LurelandsGame>, CollisionCallbacks {
+abstract class BaseNpc extends PositionComponent with HasGameReference<LurelandsGame>, CollisionCallbacks {
   /// Unique identifier for this NPC
   final String id;
 
@@ -48,15 +47,8 @@ abstract class BaseNpc extends PositionComponent
   /// Get current quest indicator state
   NpcQuestIndicator get questIndicator => _questIndicator;
 
-  BaseNpc({
-    required Vector2 position,
-    required this.id,
-    required this.name,
-    this.title,
-  }) : super(
-          position: position,
-          anchor: Anchor.bottomCenter,
-        );
+  BaseNpc({required Vector2 position, required this.id, required this.name, this.title})
+    : super(position: position, anchor: Anchor.bottomCenter);
 
   @override
   Future<void> onLoad() async {
@@ -94,8 +86,9 @@ abstract class BaseNpc extends PositionComponent
   /// Draw the quest indicator (! or ?) above the NPC's head
   void _drawQuestIndicator(Canvas canvas) {
     // Floating indicator above the NPC - WoW style !/?
-    final bobAmount = sin(game.currentTime() * 3) * 3;
-    final indicatorY = -size.y - 10.0 + bobAmount;
+    // Position just above the NPC's head (not the full sprite height)
+    final bobAmount = sin(game.currentTime() * 3) * 2;
+    final indicatorY = 33.0 + bobAmount;
 
     // Colors and symbol based on state
     final Color indicatorColor;
@@ -124,51 +117,29 @@ abstract class BaseNpc extends PositionComponent
     final glowPaint = Paint()
       ..color = indicatorColor.withAlpha(60)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
-    canvas.drawCircle(
-      Offset(centerX, indicatorY),
-      16,
-      glowPaint,
-    );
+    canvas.drawCircle(Offset(centerX, indicatorY), 16, glowPaint);
 
     // Background circle
     final bgPaint = Paint()..color = const Color(0xDD000000);
-    canvas.drawCircle(
-      Offset(centerX, indicatorY),
-      14,
-      bgPaint,
-    );
+    canvas.drawCircle(Offset(centerX, indicatorY), 14, bgPaint);
 
     // Border
     final borderPaint = Paint()
       ..color = indicatorColor
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
-    canvas.drawCircle(
-      Offset(centerX, indicatorY),
-      14,
-      borderPaint,
-    );
+    canvas.drawCircle(Offset(centerX, indicatorY), 14, borderPaint);
 
     // Draw the symbol (! or ?)
     final textPainter = TextPainter(
       text: TextSpan(
         text: symbol,
-        style: TextStyle(
-          color: indicatorColor,
-          fontSize: 18,
-          fontWeight: FontWeight.bold,
-        ),
+        style: TextStyle(color: indicatorColor, fontSize: 18, fontWeight: FontWeight.bold),
       ),
       textDirection: TextDirection.ltr,
     );
     textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        centerX - textPainter.width / 2,
-        indicatorY - textPainter.height / 2,
-      ),
-    );
+    textPainter.paint(canvas, Offset(centerX - textPainter.width / 2, indicatorY - textPainter.height / 2));
   }
 
   void _drawNameplate(Canvas canvas) {
@@ -181,13 +152,7 @@ abstract class BaseNpc extends PositionComponent
           color: Color(0xFFFFFFFF),
           fontSize: 11,
           fontWeight: FontWeight.bold,
-          shadows: [
-            Shadow(
-              offset: Offset(1, 1),
-              blurRadius: 2,
-              color: Color(0xFF000000),
-            ),
-          ],
+          shadows: [Shadow(offset: Offset(1, 1), blurRadius: 2, color: Color(0xFF000000))],
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -196,45 +161,25 @@ abstract class BaseNpc extends PositionComponent
 
     // Background for name
     final bgRect = RRect.fromRectAndRadius(
-      Rect.fromCenter(
-        center: Offset(size.x / 2, nameY),
-        width: textPainter.width + 10,
-        height: textPainter.height + 4,
-      ),
+      Rect.fromCenter(center: Offset(size.x / 2, nameY), width: textPainter.width + 10, height: textPainter.height + 4),
       const Radius.circular(4),
     );
     final bgPaint = Paint()..color = const Color(0x99000000);
     canvas.drawRRect(bgRect, bgPaint);
 
-    textPainter.paint(
-      canvas,
-      Offset(
-        (size.x - textPainter.width) / 2,
-        nameY - textPainter.height / 2,
-      ),
-    );
+    textPainter.paint(canvas, Offset((size.x - textPainter.width) / 2, nameY - textPainter.height / 2));
 
     // Draw title if present
     if (title != null) {
       final titlePainter = TextPainter(
         text: TextSpan(
           text: title,
-          style: TextStyle(
-            color: const Color(0xFFFFD700).withAlpha(200),
-            fontSize: 9,
-            fontStyle: FontStyle.italic,
-          ),
+          style: TextStyle(color: const Color(0xFFFFD700).withAlpha(200), fontSize: 9, fontStyle: FontStyle.italic),
         ),
         textDirection: TextDirection.ltr,
       );
       titlePainter.layout();
-      titlePainter.paint(
-        canvas,
-        Offset(
-          (size.x - titlePainter.width) / 2,
-          nameY + textPainter.height / 2 + 2,
-        ),
-      );
+      titlePainter.paint(canvas, Offset((size.x - titlePainter.width) / 2, nameY + textPainter.height / 2 + 2));
     }
   }
 
