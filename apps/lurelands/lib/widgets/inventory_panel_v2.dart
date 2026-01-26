@@ -267,11 +267,11 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
         children: [
           _buildVerticalTabButton(BackpackTabV2.inventory, 10, 2), // backpack icon
           const SizedBox(height: 8),
-          _buildVerticalTabButton(BackpackTabV2.quests, 7, 1), // scroll/quest icon
+          _buildVerticalTabButton(BackpackTabV2.quests, 12, 1), // red book icon
           const SizedBox(height: 8),
           _buildVerticalTabButton(BackpackTabV2.character, 5, 0), // star icon
           const SizedBox(height: 8),
-          _buildVerticalTabButton(BackpackTabV2.settings, 3, 2), // gear icon
+          _buildVerticalTabButton(BackpackTabV2.settings, 2, 1), // gear icon
           if (widget.debugEnabled) ...[
             const SizedBox(height: 8),
             _buildVerticalTabButton(BackpackTabV2.debug, 11, 2), // bug icon (using exclamation)
