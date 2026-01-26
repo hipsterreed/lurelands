@@ -271,7 +271,7 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
           const SizedBox(height: 8),
           _buildVerticalTabButton(BackpackTabV2.character, 5, 0), // star icon
           const SizedBox(height: 8),
-          _buildVerticalTabButton(BackpackTabV2.settings, 8, 1), // gear icon
+          _buildVerticalTabButton(BackpackTabV2.settings, 3, 2), // gear icon
           if (widget.debugEnabled) ...[
             const SizedBox(height: 8),
             _buildVerticalTabButton(BackpackTabV2.debug, 11, 2), // bug icon (using exclamation)
@@ -331,7 +331,7 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
 
   Widget _buildInventoryTab() {
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // Left side: Inventory grid (2/3 of width)
         Expanded(
@@ -363,7 +363,7 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           // Top bar with item name
           Container(
@@ -385,60 +385,62 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
               textAlign: TextAlign.center,
             ),
           ),
-          // Content
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Item image
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    color: _FrostColors.slotBg,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isEquipped ? _FrostColors.textGold : _FrostColors.slotBorder,
-                      width: isEquipped ? 2 : 1,
+          // Content - expands to fill space
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Item image
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      color: _FrostColors.slotBg,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isEquipped ? _FrostColors.textGold : _FrostColors.slotBorder,
+                        width: isEquipped ? 2 : 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: _buildItemSprite(item, size: 56),
                     ),
                   ),
-                  child: Center(
-                    child: _buildItemSprite(item, size: 56),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Item type/category
-                Text(
-                  itemDef?.type.name.toUpperCase() ?? 'ITEM',
-                  style: const TextStyle(
-                    color: _FrostColors.textMuted,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Quantity
-                if (item.quantity > 1)
+                  const SizedBox(height: 8),
+                  // Item type/category
                   Text(
-                    'Quantity: ${item.quantity}',
+                    itemDef?.type.name.toUpperCase() ?? 'ITEM',
                     style: const TextStyle(
-                      color: _FrostColors.textSecondary,
-                      fontSize: 14,
+                      color: _FrostColors.textMuted,
+                      fontSize: 12,
                     ),
                   ),
-                // Description
-                if (itemDef != null) ...[
                   const SizedBox(height: 12),
-                  Text(
-                    itemDef.description,
-                    style: const TextStyle(
-                      color: _FrostColors.textSecondary,
-                      fontSize: 13,
+                  // Quantity
+                  if (item.quantity > 1)
+                    Text(
+                      'Quantity: ${item.quantity}',
+                      style: const TextStyle(
+                        color: _FrostColors.textSecondary,
+                        fontSize: 14,
+                      ),
                     ),
-                    textAlign: TextAlign.center,
-                  ),
+                  // Description
+                  if (itemDef != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      itemDef.description,
+                      style: const TextStyle(
+                        color: _FrostColors.textSecondary,
+                        fontSize: 13,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
           // Bottom bar - Equipped status or Equip button

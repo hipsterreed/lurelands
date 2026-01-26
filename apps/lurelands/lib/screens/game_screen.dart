@@ -427,10 +427,10 @@ class _GameScreenState extends State<GameScreen> {
               storylines: _nearbyQuestSign?.storylines,
             ),
           // Quest sign button
-          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showShop && !_showNpcQuestDialog)
+          if (_nearbyQuestSign != null && !_showQuestPanel && !_showInventory && !_showInventoryV2 && !_showShop && !_showNpcQuestDialog)
             _buildQuestSignButton(),
           // NPC Talk button
-          if (_nearbyNpc != null && !_showQuestPanel && !_showInventory && !_showShop && !_showNpcQuestDialog && _nearbyQuestSign == null)
+          if (_nearbyNpc != null && !_showQuestPanel && !_showInventory && !_showInventoryV2 && !_showShop && !_showNpcQuestDialog && _nearbyQuestSign == null)
             _buildNpcTalkButton(),
           // NPC Quest dialog
           if (_showNpcQuestDialog && _nearbyNpc != null)
