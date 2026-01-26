@@ -29,7 +29,7 @@ class _FrostColors {
 }
 
 /// Main tabs for the backpack v2
-enum BackpackTabV2 { inventory, quests, skills, settings, debug }
+enum BackpackTabV2 { inventory, quests, character, settings, debug }
 
 /// Equipment slot types
 enum EquipmentSlotV2 { pole, ring, shoes, hat, chest, pants }
@@ -90,6 +90,7 @@ class InventoryPanelV2 extends StatefulWidget {
 class _InventoryPanelV2State extends State<InventoryPanelV2>
     with SingleTickerProviderStateMixin {
   BackpackTabV2 _currentTab = BackpackTabV2.inventory;
+  InventoryEntry? _selectedItem;
   final TextEditingController _nameController = TextEditingController();
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
@@ -152,31 +153,47 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
                       left: false, // Don't add left padding, nav bar handles it
                       child: GestureDetector(
                         onTap: () {}, // Prevent tap from closing
-                        child: Stack(
+                        child: Column(
                           children: [
-                            // Content area
+                            // Top bar with title and close button
                             Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: _buildTabContent(),
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  // Menu title
+                                  Text(
+                                    _getTabTitle(),
+                                    style: const TextStyle(
+                                      color: _FrostColors.textPrimary,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  // Close button
+                                  GestureDetector(
+                                    onTap: _handleClose,
+                                    child: Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: _FrostColors.closeButton,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(
+                                        Icons.close,
+                                        color: _FrostColors.textPrimary,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                            // Close button top right
-                            Positioned(
-                              top: 16,
-                              right: 16,
-                              child: GestureDetector(
-                                onTap: _handleClose,
-                                child: Container(
-                                  padding: const EdgeInsets.all(8),
-                                  decoration: BoxDecoration(
-                                    color: _FrostColors.closeButton,
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: const Icon(
-                                    Icons.close,
-                                    color: _FrostColors.textPrimary,
-                                    size: 24,
-                                  ),
-                                ),
+                            // Content area
+                            Expanded(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: _buildTabContent(),
                               ),
                             ),
                           ],
@@ -213,7 +230,7 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
           const SizedBox(height: 8),
           _buildVerticalTabButton(BackpackTabV2.quests, 7, 1), // scroll/quest icon
           const SizedBox(height: 8),
-          _buildVerticalTabButton(BackpackTabV2.skills, 5, 0), // star icon
+          _buildVerticalTabButton(BackpackTabV2.character, 5, 0), // star icon
           const SizedBox(height: 8),
           _buildVerticalTabButton(BackpackTabV2.settings, 8, 1), // gear icon
           if (widget.debugEnabled) ...[
@@ -253,57 +270,182 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
     );
   }
 
+  String _getTabTitle() {
+    return switch (_currentTab) {
+      BackpackTabV2.inventory => 'Inventory',
+      BackpackTabV2.quests => 'Quests',
+      BackpackTabV2.character => 'Character',
+      BackpackTabV2.settings => 'Settings',
+      BackpackTabV2.debug => 'Debug',
+    };
+  }
+
   Widget _buildTabContent() {
-    return Container(
-      decoration: BoxDecoration(
-        color: _FrostColors.glassBg,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _FrostColors.glassBorder, width: 1),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: switch (_currentTab) {
-          BackpackTabV2.inventory => _buildInventoryTab(),
-          BackpackTabV2.quests => _buildQuestsTab(),
-          BackpackTabV2.skills => _buildSkillsTab(),
-          BackpackTabV2.settings => _buildSettingsTab(),
-          BackpackTabV2.debug => _buildDebugTab(),
-        },
-      ),
-    );
+    return switch (_currentTab) {
+      BackpackTabV2.inventory => _buildInventoryTab(),
+      BackpackTabV2.quests => _buildQuestsTab(),
+      BackpackTabV2.character => _buildCharacterTab(),
+      BackpackTabV2.settings => _buildSettingsTab(),
+      BackpackTabV2.debug => _buildDebugTab(),
+    };
   }
 
   Widget _buildInventoryTab() {
-    return Padding(
-      padding: const EdgeInsets.all(16),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Left side: Inventory grid (2/3 of width)
+        Expanded(
+          flex: 2,
+          child: _buildInventoryGrid(),
+        ),
+        const SizedBox(width: 16),
+        // Right side: Item detail card (1/3 of width) - empty if nothing selected
+        Expanded(
+          flex: 1,
+          child: _selectedItem != null
+              ? _buildItemDetailCard(_selectedItem!)
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildItemDetailCard(InventoryEntry item) {
+    final itemDef = GameItems.get(item.itemId);
+    final isEquipped = item.itemId == widget.equippedPoleId;
+    final canEquip = item.itemId.startsWith('pole_') && !isEquipped;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: _FrostColors.glassBg,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _FrostColors.glassBorder, width: 1),
+      ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Equipment section
-          const Text(
-            'Equipment',
-            style: TextStyle(
-              color: _FrostColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          // Top bar with item name
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: const BoxDecoration(
+              color: Color(0x40000000),
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(11),
+                topRight: Radius.circular(11),
+              ),
+            ),
+            child: Text(
+              itemDef?.name ?? item.itemId,
+              style: const TextStyle(
+                color: _FrostColors.textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(height: 12),
-          _buildEquipmentRow(),
-          const SizedBox(height: 24),
-          Container(height: 1, color: _FrostColors.divider),
-          const SizedBox(height: 24),
-          // Inventory section
-          const Text(
-            'Inventory',
-            style: TextStyle(
-              color: _FrostColors.textPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
+          // Content
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Item image
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: _FrostColors.slotBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isEquipped ? _FrostColors.textGold : _FrostColors.slotBorder,
+                      width: isEquipped ? 2 : 1,
+                    ),
+                  ),
+                  child: Center(
+                    child: _buildItemSprite(item, size: 56),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // Item type/category
+                Text(
+                  itemDef?.type.name.toUpperCase() ?? 'ITEM',
+                  style: const TextStyle(
+                    color: _FrostColors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Quantity
+                if (item.quantity > 1)
+                  Text(
+                    'Quantity: ${item.quantity}',
+                    style: const TextStyle(
+                      color: _FrostColors.textSecondary,
+                      fontSize: 14,
+                    ),
+                  ),
+                // Description
+                if (itemDef != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    itemDef.description,
+                    style: const TextStyle(
+                      color: _FrostColors.textSecondary,
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          Expanded(child: _buildInventoryGrid()),
+          // Bottom bar - Equipped status or Equip button
+          if (isEquipped)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: _FrostColors.textGold.withAlpha(40),
+                borderRadius: const BorderRadius.only(
+                  bottomLeft: Radius.circular(11),
+                  bottomRight: Radius.circular(11),
+                ),
+              ),
+              child: const Text(
+                'Equipped',
+                style: TextStyle(
+                  color: _FrostColors.textGold,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            )
+          else if (canEquip)
+            GestureDetector(
+              onTap: () => widget.onEquipPole?.call(item.itemId),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF4A90D9), // Blue color for equip button
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(11),
+                    bottomRight: Radius.circular(11),
+                  ),
+                ),
+                child: const Text(
+                  'Equip',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -356,65 +498,142 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
 
   Widget _buildInventoryGrid() {
     const columns = 5;
-    const totalSlots = 25;
+    const totalSlots = 20;
 
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
+        childAspectRatio: 0.7, // Taller cards (width / height)
       ),
       itemCount: totalSlots,
       itemBuilder: (context, index) {
         final item = index < widget.items.length ? widget.items[index] : null;
         final isEquipped = item?.itemId == widget.equippedPoleId;
+        final isSelected = item != null && _selectedItem?.itemId == item.itemId;
 
         return GestureDetector(
-          onTap: item != null && item.itemId.startsWith('pole_') && !isEquipped
-              ? () => widget.onEquipPole?.call(item.itemId)
+          onTap: item != null
+              ? () => setState(() => _selectedItem = item)
               : null,
           child: Container(
             decoration: BoxDecoration(
               color: isEquipped ? _FrostColors.slotHighlight : _FrostColors.slotBg,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: isEquipped ? _FrostColors.textGold : _FrostColors.slotBorder,
-                width: isEquipped ? 2 : 1,
+                color: isEquipped
+                    ? _FrostColors.textGold
+                    : isSelected
+                        ? _FrostColors.textPrimary
+                        : _FrostColors.slotBorder,
+                width: (isEquipped || isSelected) ? 2 : 1,
               ),
             ),
             child: item != null
-                ? Stack(
-                    children: [
-                      Center(child: _buildItemSprite(item)),
-                      if (item.quantity > 1)
-                        Positioned(
-                          right: 4,
-                          bottom: 4,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 4,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.black.withAlpha(150),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              '${item.quantity}',
-                              style: const TextStyle(
-                                color: _FrostColors.textPrimary,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  )
+                ? _buildItemCard(item, isEquipped)
                 : null,
           ),
         );
       },
+    );
+  }
+
+  Widget _buildItemCard(InventoryEntry item, bool isEquipped) {
+    final itemDef = GameItems.get(item.itemId);
+    final price = itemDef?.getSellPrice(item.rarity) ?? 0;
+    final hasStars = item.rarity > 0;
+
+    return Stack(
+      children: [
+        // Quantity badge (top left)
+        if (item.quantity > 1)
+          Positioned(
+            left: 4,
+            top: 4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.black.withAlpha(150),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '${item.quantity}',
+                style: const TextStyle(
+                  color: _FrostColors.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        // Item sprite (centered, upper area)
+        Positioned(
+          left: 0,
+          right: 0,
+          top: 8,
+          bottom: 36, // Leave room for stars and price at bottom
+          child: Center(
+            child: _buildItemSprite(item, size: 40),
+          ),
+        ),
+        // Bottom overlay with stars and price
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.black.withAlpha(150),
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(7),
+                bottomRight: Radius.circular(7),
+              ),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Stars row (if applicable)
+                if (hasStars)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: List.generate(
+                      item.rarity,
+                      (i) => const Icon(
+                        Icons.star,
+                        color: _FrostColors.textGold,
+                        size: 10,
+                      ),
+                    ),
+                  ),
+                // Price row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.monetization_on,
+                      color: _FrostColors.textGold,
+                      size: 10,
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      '$price',
+                      style: const TextStyle(
+                        color: _FrostColors.textGold,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -595,37 +814,179 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
     );
   }
 
-  Widget _buildSkillsTab() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.auto_awesome_outlined,
-              color: _FrostColors.textMuted,
-              size: 64,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Skills Coming Soon',
-              style: TextStyle(
-                color: _FrostColors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
+  Widget _buildCharacterTab() {
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Player info section
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Player avatar placeholder
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: _FrostColors.slotBg,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: _FrostColors.slotBorder),
+                ),
+                child: const Icon(
+                  Icons.person,
+                  color: _FrostColors.textMuted,
+                  size: 48,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Level up to unlock new abilities!',
-              style: TextStyle(
-                color: _FrostColors.textMuted,
-                fontSize: 14,
+              const SizedBox(width: 16),
+              // Player name and level
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.playerName,
+                      style: const TextStyle(
+                        color: _FrostColors.textPrimary,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Level ${widget.playerLevel}',
+                      style: const TextStyle(
+                        color: _FrostColors.textGold,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    // XP progress bar
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'XP',
+                              style: TextStyle(
+                                color: _FrostColors.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              '${widget.playerXp} / ${widget.playerXpToNextLevel}',
+                              style: const TextStyle(
+                                color: _FrostColors.textMuted,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _FrostColors.slotBg,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: FractionallySizedBox(
+                            alignment: Alignment.centerLeft,
+                            widthFactor: (widget.playerXp / widget.playerXpToNextLevel).clamp(0.0, 1.0),
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: _FrostColors.textGold,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Gold display
+          Row(
+            children: [
+              const Icon(
+                Icons.monetization_on,
+                color: _FrostColors.textGold,
+                size: 20,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${widget.playerGold} Gold',
+                style: const TextStyle(
+                  color: _FrostColors.textGold,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          Container(height: 1, color: _FrostColors.divider),
+          const SizedBox(height: 24),
+          // Equipment section
+          const Text(
+            'Equipment',
+            style: TextStyle(
+              color: _FrostColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 16),
+          _buildEquipmentRow(),
+          const SizedBox(height: 24),
+          Container(height: 1, color: _FrostColors.divider),
+          const SizedBox(height: 24),
+          // Stats section (placeholder for future)
+          const Text(
+            'Stats',
+            style: TextStyle(
+              color: _FrostColors.textPrimary,
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 16),
+          _buildStatRow('Fishing Power', '10'),
+          _buildStatRow('Luck', '5'),
+          _buildStatRow('Speed', '100%'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              color: _FrostColors.textSecondary,
+              fontSize: 14,
+            ),
+          ),
+          Text(
+            value,
+            style: const TextStyle(
+              color: _FrostColors.textPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
       ),
     );
   }
