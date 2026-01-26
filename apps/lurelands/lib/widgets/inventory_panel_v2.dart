@@ -1153,6 +1153,85 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
+        // Debug Mode toggle
+        GestureDetector(
+          onTap: widget.onToggleDebug,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: _FrostColors.slotBg,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: widget.debugEnabled
+                    ? Colors.yellow.withAlpha(150)
+                    : _FrostColors.slotBorder,
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.bug_report,
+                  color: widget.debugEnabled ? Colors.yellow : _FrostColors.textPrimary,
+                  size: 28,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Debug Mode',
+                        style: TextStyle(
+                          color: _FrostColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Show debug overlays and hitboxes',
+                        style: TextStyle(
+                          color: _FrostColors.textMuted,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(
+                  width: 48,
+                  height: 28,
+                  decoration: BoxDecoration(
+                    color: widget.debugEnabled
+                        ? Colors.yellow.withAlpha(50)
+                        : _FrostColors.slotBg,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: widget.debugEnabled ? Colors.yellow : _FrostColors.slotBorder,
+                      width: 2,
+                    ),
+                  ),
+                  child: AnimatedAlign(
+                    duration: const Duration(milliseconds: 150),
+                    alignment: widget.debugEnabled
+                        ? Alignment.centerRight
+                        : Alignment.centerLeft,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      decoration: BoxDecoration(
+                        color: widget.debugEnabled ? Colors.yellow : _FrostColors.textMuted,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         _buildDebugButton(
           icon: Icons.monetization_on_outlined,
           title: 'Reset Gold',
