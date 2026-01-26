@@ -4,6 +4,11 @@
     ],
     "file.lastUsedOpenFilter": "All Files (*)",
     "fileStates": {
+        "D:/purchased_content/kenmi_sprites/Cute_Fantasy_UI/UI/UI_Icons.tsx": {
+            "dynamicWrapping": false,
+            "scaleInDock": 1,
+            "scaleInEditor": 1
+        },
         "_catalog/asset_catalogtmx.tmx": {
             "scale": 1.5,
             "selectedLayer": 0,
@@ -66,12 +71,13 @@
             "dynamicWrapping": false
         }
     },
-    "last.imagePath": "D:/Development/personal/project-game/apps/lurelands/assets/images/structures",
+    "last.imagePath": "D:/purchased_content/kenmi_sprites/Cute_Fantasy_UI/UI",
     "openFiles": [
     ],
     "project": "lureland.tiled-project",
     "property.type": "bool",
     "recentFiles": [
+        "D:/purchased_content/kenmi_sprites/Cute_Fantasy_UI/UI/UI_Icons.tsx",
         "tilesets/v2/Fountain_Anim.tsx",
         "tilesets/v2/Church_Black.tsx",
         "tilesets/v2/big_oak_tree.tsx",
@@ -80,7 +86,7 @@
     ],
     "tileset.lastUsedFormat": "tsx",
     "tileset.tileSize": {
-        "height": 48,
-        "width": 32
+        "height": 16,
+        "width": 16
     }
 }

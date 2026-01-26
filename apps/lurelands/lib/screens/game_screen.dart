@@ -13,6 +13,7 @@ import '../services/game_save_service.dart';
 import '../services/game_settings.dart';
 import '../utils/constants.dart';
 import '../widgets/inventory_panel.dart';
+import '../widgets/inventory_panel_v2.dart';
 import '../widgets/quest_panel.dart';
 import '../widgets/shop_panel.dart';
 import '../widgets/spritesheet_sprite.dart' as sprites;
@@ -49,6 +50,7 @@ class _GameScreenState extends State<GameScreen> {
 
   // Inventory state
   bool _showInventory = false;
+  bool _showInventoryV2 = false;
   List<InventoryItem> _inventoryItems = [];
   int _playerGold = 0;
   String? _equippedPoleId;
@@ -346,6 +348,58 @@ class _GameScreenState extends State<GameScreen> {
               playerXp: _playerXp,
               playerXpToNextLevel: _playerXpToNextLevel,
             ),
+          // Inventory panel v2 overlay (frosted glass full screen)
+          if (_showInventoryV2)
+            InventoryPanelV2(
+              items: _inventoryItems,
+              playerGold: _playerGold,
+              playerName: widget.playerName,
+              debugEnabled: _game?.debugModeNotifier.value ?? false,
+              onClose: () => setState(() => _showInventoryV2 = false),
+              onToggleDebug: () {
+                _game?.toggleDebugMode();
+                setState(() {});
+              },
+              onUpdatePlayerName: (newName) async {
+                await GameSettings.instance.setPlayerName(newName);
+                _saveService.updatePlayerName(newName);
+              },
+              equippedPoleId: _equippedPoleId,
+              onEquipPole: (poleItemId) {
+                _saveService.equipPole(poleItemId);
+                if (_game?.player != null) {
+                  _game!.player!.equippedPoleId = poleItemId;
+                }
+              },
+              onUnequipPole: () {
+                _saveService.unequipPole();
+                if (_game?.player != null) {
+                  _game!.player!.equippedPoleId = 'pole_1';
+                }
+              },
+              onResetGold: () {
+                _saveService.setGold(0);
+              },
+              onResetPosition: () {
+                _game?.resetPlayerPosition();
+                setState(() => _showInventoryV2 = false);
+              },
+              onResetQuests: () {
+                _saveService.resetAllQuests();
+              },
+              onExitToMenu: () {
+                _saveService.save();
+                setState(() => _showInventoryV2 = false);
+                Navigator.of(context).pushReplacementNamed('/');
+              },
+              quests: Quests.all.values.toList(),
+              playerQuests: _questProgress,
+              onAcceptQuest: _onAcceptQuest,
+              onCompleteQuest: _onCompleteQuest,
+              playerLevel: _playerLevel,
+              playerXp: _playerXp,
+              playerXpToNextLevel: _playerXpToNextLevel,
+            ),
           // Shop panel overlay
           if (_showShop && _nearbyShop != null)
             ShopPanel(
@@ -575,48 +629,99 @@ class _GameScreenState extends State<GameScreen> {
               right: 0,
               child: _buildLevelUpNotification(),
             ),
-          // Inventory/Backpack button
+          // Inventory/Backpack buttons (v1 and v2)
           Positioned(
             top: 16,
             right: 16,
-            child: GestureDetector(
-              onTap: () => setState(() => _showInventory = true),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: GameColors.menuBackground.withAlpha(179),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                padding: const EdgeInsets.all(12),
-                child: Stack(
-                  children: [
-                    Icon(
-                      Icons.backpack,
-                      color: GameColors.textPrimary.withAlpha(204),
-                      size: 28,
+            child: Row(
+              children: [
+                // V2 Backpack button (using UI_Icons sprite)
+                GestureDetector(
+                  onTap: () => setState(() => _showInventoryV2 = true),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(40),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Colors.white.withAlpha(60),
+                        width: 1,
+                      ),
                     ),
-                    if (_inventoryItems.isNotEmpty)
-                      Positioned(
-                        right: -2,
-                        top: -2,
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: GameColors.pondBlue,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Text(
-                            '${_inventoryItems.fold<int>(0, (sum, e) => sum + e.quantity)}',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
+                    padding: const EdgeInsets.all(10),
+                    child: Stack(
+                      children: [
+                        sprites.SpritesheetSprite(
+                          column: 10, // 11th column (0-indexed)
+                          row: 2, // 3rd row (0-indexed)
+                          size: 32,
+                          assetPath: 'assets/images/ui/UI_Icons.png',
+                        ),
+                        if (_inventoryItems.isNotEmpty)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: const BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${_inventoryItems.fold<int>(0, (sum, e) => sum + e.quantity)}',
+                                style: TextStyle(
+                                  color: GameColors.menuBackground,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
-              ),
+                const SizedBox(width: 8),
+                // V1 Backpack button (original)
+                GestureDetector(
+                  onTap: () => setState(() => _showInventory = true),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: GameColors.menuBackground.withAlpha(179),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    child: Stack(
+                      children: [
+                        Icon(
+                          Icons.backpack,
+                          color: GameColors.textPrimary.withAlpha(204),
+                          size: 28,
+                        ),
+                        if (_inventoryItems.isNotEmpty)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: GameColors.pondBlue,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Text(
+                                '${_inventoryItems.fold<int>(0, (sum, e) => sum + e.quantity)}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
