@@ -68,6 +68,9 @@ class WanderingNpc extends BaseNpc {
   double _stateDuration = 0;
   Vector2 _moveDirection = Vector2.zero();
 
+  // Timer for occasional direction changes while idle near player
+  double _idleLookTimer = 0;
+
   /// Whether the NPC is currently in a conversation (pauses movement)
   bool _isInConversation = false;
 
@@ -168,8 +171,18 @@ class WanderingNpc extends BaseNpc {
   }
 
   void _updateIdle(double dt) {
-    // Don't start walking if in conversation
-    if (_isInConversation) return;
+    // Don't start walking if in conversation or player is nearby
+    if (_isInConversation || isPlayerNearby) {
+      // Occasionally change facing direction while idle near player
+      if (isPlayerNearby && !_isInConversation) {
+        _idleLookTimer += dt;
+        if (_idleLookTimer >= 2.0 + _random.nextDouble() * 2.0) {
+          _idleLookTimer = 0;
+          _changeFacingDirection();
+        }
+      }
+      return;
+    }
 
     // Check if idle time is up
     if (_stateTimer >= _stateDuration) {
@@ -177,7 +190,23 @@ class WanderingNpc extends BaseNpc {
     }
   }
 
+  /// Change facing direction randomly while idle (for visual interest)
+  void _changeFacingDirection() {
+    final directions = NpcDirection.values;
+    final newDirection = directions[_random.nextInt(directions.length)];
+    if (newDirection != _currentDirection) {
+      _currentDirection = newDirection;
+      _updateAnimation();
+    }
+  }
+
   void _updateWalking(double dt) {
+    // Stop walking if player is nearby (so they can interact)
+    if (isPlayerNearby) {
+      _startIdle();
+      return;
+    }
+
     // Check if walk time is up
     if (_stateTimer >= _stateDuration) {
       _startIdle();
