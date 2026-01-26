@@ -269,7 +269,7 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
           const SizedBox(height: 8),
           _buildVerticalTabButton(BackpackTabV2.quests, 12, 1), // red book icon
           const SizedBox(height: 8),
-          _buildVerticalTabButton(BackpackTabV2.character, 5, 0), // star icon
+          _buildVerticalTabButton(BackpackTabV2.character, 3, 0), // star icon
           const SizedBox(height: 8),
           _buildVerticalTabButton(BackpackTabV2.settings, 2, 1), // gear icon
           if (widget.debugEnabled) ...[
