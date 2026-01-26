@@ -151,15 +151,15 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
                   Expanded(
                     child: SafeArea(
                       left: false, // Don't add left padding, nav bar handles it
+                      right: false, // Don't add right padding, we want close button at edge
                       child: GestureDetector(
                         onTap: () {}, // Prevent tap from closing
                         child: Column(
                           children: [
-                            // Top bar with title and close button
+                            // Top bar with title, player info, and close button
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              padding: const EdgeInsets.only(left: 16, right: 20, top: 12, bottom: 12),
                               child: Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   // Menu title
                                   Text(
@@ -170,6 +170,45 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
                                       fontWeight: FontWeight.bold,
                                     ),
                                   ),
+                                  const Spacer(),
+                                  // Player level
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: _FrostColors.slotBg,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Lv. ${widget.playerLevel}',
+                                      style: const TextStyle(
+                                        color: _FrostColors.textPrimary,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  // Player gold
+                                  Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.monetization_on,
+                                        color: _FrostColors.textGold,
+                                        size: 16,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        '${widget.playerGold}',
+                                        style: const TextStyle(
+                                          color: _FrostColors.textGold,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 24),
                                   // Close button
                                   GestureDetector(
                                     onTap: _handleClose,
@@ -497,8 +536,8 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
   }
 
   Widget _buildInventoryGrid() {
-    const columns = 5;
-    const totalSlots = 20;
+    const columns = 6;
+    const totalSlots = 24;
 
     return GridView.builder(
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -577,7 +616,7 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
             child: _buildItemSprite(item, size: 40),
           ),
         ),
-        // Bottom overlay with stars and price
+        // Bottom overlay with price
         Positioned(
           left: 0,
           right: 0,
@@ -591,48 +630,47 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
                 bottomRight: Radius.circular(7),
               ),
             ),
-            child: Column(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Stars row (if applicable)
-                if (hasStars)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(
-                      item.rarity,
-                      (i) => const Icon(
-                        Icons.star,
-                        color: _FrostColors.textGold,
-                        size: 10,
-                      ),
-                    ),
+                const Icon(
+                  Icons.monetization_on,
+                  color: _FrostColors.textGold,
+                  size: 10,
+                ),
+                const SizedBox(width: 2),
+                Text(
+                  '$price',
+                  style: const TextStyle(
+                    color: _FrostColors.textGold,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
                   ),
-                // Price row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(
-                      Icons.monetization_on,
-                      color: _FrostColors.textGold,
-                      size: 10,
-                    ),
-                    const SizedBox(width: 2),
-                    Text(
-                      '$price',
-                      style: const TextStyle(
-                        color: _FrostColors.textGold,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
         ),
+        // Stars row overlayed on top of the bottom banner
+        if (hasStars)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 18, // Position on top of the price banner
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(
+                item.rarity,
+                (i) => const Icon(
+                  Icons.star,
+                  color: _FrostColors.textGold,
+                  size: 12,
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
