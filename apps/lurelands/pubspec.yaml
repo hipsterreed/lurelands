@@ -88,6 +88,7 @@ flutter:
     - assets/images/structures/
     - assets/images/terrain/
     - assets/images/logic/
+    - assets/images/ui/
     - assets/maps/
     - assets/tilesets/
     - assets/tilesets/v2/

@@ -142,13 +142,14 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
                 ),
               ),
               // Main content - vertical tabs on left, content on right
-              SafeArea(
-                child: Row(
-                  children: [
-                    // Left side: vertical tab column
-                    _buildVerticalTabColumn(),
-                    // Right side: main content area
-                    Expanded(
+              Row(
+                children: [
+                  // Left side: vertical tab column (full height, no safe area)
+                  _buildVerticalTabColumn(),
+                  // Right side: main content area (with safe area)
+                  Expanded(
+                    child: SafeArea(
+                      left: false, // Don't add left padding, nav bar handles it
                       child: GestureDetector(
                         onTap: () {}, // Prevent tap from closing
                         child: Stack(
@@ -182,8 +183,8 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -193,13 +194,20 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
   }
 
   Widget _buildVerticalTabColumn() {
-    const double tabColumnWidth = 56.0;
+    const double tabColumnWidth = 64.0;
     const double tabPadding = 8.0;
 
     return Container(
       width: tabColumnWidth,
-      padding: const EdgeInsets.only(left: tabPadding, top: 16, bottom: 16),
+      decoration: BoxDecoration(
+        color: const Color(0x50000000), // Darker transparent background
+        border: Border(
+          right: BorderSide(color: _FrostColors.glassBorder, width: 1),
+        ),
+      ),
+      padding: EdgeInsets.only(left: tabPadding, top: 48, bottom: 48, right: tabPadding),
       child: Column(
+        mainAxisSize: MainAxisSize.max,
         children: [
           _buildVerticalTabButton(BackpackTabV2.inventory, 10, 2), // backpack icon
           const SizedBox(height: 8),
@@ -219,48 +227,28 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
 
   Widget _buildVerticalTabButton(BackpackTabV2 tab, int spriteCol, int spriteRow) {
     final isSelected = _currentTab == tab;
-    const double tabHeight = 48.0;
+    const double tabSize = 44.0;
 
     return GestureDetector(
       onTap: () => setState(() => _currentTab = tab),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // Selected tab background - extends to left edge with rounded right side
-          if (isSelected)
-            Positioned(
-              left: -8, // Extend to left edge (accounting for parent padding)
-              top: 0,
-              bottom: 0,
-              right: 0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: _FrostColors.glassBg,
-                  borderRadius: const BorderRadius.only(
-                    topRight: Radius.circular(24),
-                    bottomRight: Radius.circular(24),
-                  ),
-                  border: Border.all(
-                    color: _FrostColors.glassBorder,
-                    width: 1,
-                  ),
-                ),
-              ),
-            ),
-          // Icon container
-          Container(
-            width: 48,
-            height: tabHeight,
-            alignment: Alignment.center,
-            child: SpritesheetSprite(
-              column: spriteCol,
-              row: spriteRow,
-              size: 28,
-              opacity: isSelected ? 1.0 : 0.5,
-              assetPath: 'assets/images/ui/UI_Icons.png',
-            ),
-          ),
-        ],
+      child: Container(
+        width: tabSize,
+        height: tabSize,
+        decoration: BoxDecoration(
+          color: isSelected ? _FrostColors.glassBg : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          border: isSelected
+              ? Border.all(color: _FrostColors.glassBorder, width: 1)
+              : null,
+        ),
+        alignment: Alignment.center,
+        child: SpritesheetSprite(
+          column: spriteCol,
+          row: spriteRow,
+          size: 28,
+          opacity: isSelected ? 1.0 : 0.5,
+          assetPath: 'assets/images/ui/UI_Icons.png',
+        ),
       ),
     );
   }
