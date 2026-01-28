@@ -339,12 +339,18 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
           child: _buildInventoryGrid(),
         ),
         const SizedBox(width: 16),
-        // Right side: Item detail card (1/3 of width) - empty if nothing selected
+        // Right side: Item detail card (1/3 of width)
         Expanded(
           flex: 1,
           child: _selectedItem != null
               ? _buildItemDetailCard(_selectedItem!)
-              : const SizedBox.shrink(),
+              : Container(
+                  decoration: BoxDecoration(
+                    color: _FrostColors.glassBg,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: _FrostColors.glassBorder, width: 1),
+                  ),
+                ),
         ),
       ],
     );
@@ -538,45 +544,54 @@ class _InventoryPanelV2State extends State<InventoryPanelV2>
   }
 
   Widget _buildInventoryGrid() {
-    const columns = 6;
-    const totalSlots = 24;
+    const columns = 10;
+    const rows = 4;
+    const spacing = 4.0;
 
-    return GridView.builder(
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: columns,
-        crossAxisSpacing: 8,
-        mainAxisSpacing: 8,
-        childAspectRatio: 0.7, // Taller cards (width / height)
-      ),
-      itemCount: totalSlots,
-      itemBuilder: (context, index) {
-        final item = index < widget.items.length ? widget.items[index] : null;
-        final isEquipped = item?.itemId == widget.equippedPoleId;
-        final isSelected = item != null && _selectedItem?.itemId == item.itemId;
+    return Column(
+      children: List.generate(rows, (rowIndex) {
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(bottom: rowIndex < rows - 1 ? spacing : 0),
+            child: Row(
+              children: List.generate(columns, (colIndex) {
+                final index = rowIndex * columns + colIndex;
+                final item = index < widget.items.length ? widget.items[index] : null;
+                final isEquipped = item?.itemId == widget.equippedPoleId;
+                final isSelected = item != null && _selectedItem?.itemId == item.itemId;
 
-        return GestureDetector(
-          onTap: item != null
-              ? () => setState(() => _selectedItem = item)
-              : null,
-          child: Container(
-            decoration: BoxDecoration(
-              color: isEquipped ? _FrostColors.slotHighlight : _FrostColors.slotBg,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: isEquipped
-                    ? _FrostColors.textGold
-                    : isSelected
-                        ? _FrostColors.textPrimary
-                        : _FrostColors.slotBorder,
-                width: (isEquipped || isSelected) ? 2 : 1,
-              ),
+                return Expanded(
+                  child: Padding(
+                    padding: EdgeInsets.only(right: colIndex < columns - 1 ? spacing : 0),
+                    child: GestureDetector(
+                      onTap: item != null
+                          ? () => setState(() => _selectedItem = item)
+                          : null,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isEquipped ? _FrostColors.slotHighlight : _FrostColors.slotBg,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: isEquipped
+                                ? _FrostColors.textGold
+                                : isSelected
+                                    ? _FrostColors.textPrimary
+                                    : _FrostColors.slotBorder,
+                            width: (isEquipped || isSelected) ? 2 : 1,
+                          ),
+                        ),
+                        child: item != null
+                            ? _buildItemCard(item, isEquipped)
+                            : null,
+                      ),
+                    ),
+                  ),
+                );
+              }),
             ),
-            child: item != null
-                ? _buildItemCard(item, isEquipped)
-                : null,
           ),
         );
-      },
+      }),
     );
   }
 
